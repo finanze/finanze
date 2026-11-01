@@ -15,3 +15,6 @@ class LastFetchesPort(metaclass=abc.ABCMeta):
 
     async def save(self, fetch_records: list[FetchRecord]):
         raise NotImplementedError
+
+    async def delete_by_entity_id(self, entity_id: UUID):
+        raise NotImplementedError

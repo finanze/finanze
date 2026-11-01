@@ -123,7 +123,7 @@ function getPersistedBackupData(): FullBackupsInfo | null {
   try {
     const stored = localStorage.getItem(BACKUP_DATA_KEY)
     if (!stored) return null
-    return JSON.parse(stored) as FullBackupsInfo
+    return normalizeBackupsInfo(JSON.parse(stored) as FullBackupsInfo)
   } catch {
     return null
   }

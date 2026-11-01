@@ -72,6 +72,7 @@ class TestSavePeriodicFlow:
         assert flows[0]["flow_type"] == "EARNING"
         assert flows[0]["frequency"] == "MONTHLY"
         assert flows[0]["category"] == "salary"
+        assert flows[0]["label_id"] is None
         assert flows[0]["enabled"] is True
         assert flows[0]["since"] == "2025-01-01"
         assert flows[0]["until"] is None

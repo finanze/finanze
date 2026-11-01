@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 from pydantic.dataclasses import dataclass
 
@@ -8,6 +9,7 @@ class ExternalIntegrationType(str, Enum):
     DATA_SOURCE = "DATA_SOURCE"
     ENTITY_PROVIDER = "ENTITY_PROVIDER"
     CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER"
+    AI_PROVIDER = "AI_PROVIDER"
 
 
 class ExternalIntegrationStatus(str, Enum):
@@ -25,6 +27,10 @@ class ExternalIntegrationId(str, Enum):
     COINGECKO = "COINGECKO"
     COINMARKETCAP = "COINMARKETCAP"
     CRYPTOCOMPARE = "CRYPTOCOMPARE"
+    OPENROUTER = "OPENROUTER"
+    OPENAI = "OPENAI"
+    OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE"
+    LOCAL_MODELS = "LOCAL_MODELS"
 
 
 @dataclass
@@ -35,6 +41,7 @@ class ExternalIntegration:
     status: ExternalIntegrationStatus
     available: bool = True
     payload_schema: dict[str, str] | None = None
+    optional_fields: list[str] | None = None
 
 
 @dataclass
@@ -49,6 +56,20 @@ ExternalIntegrationPayload = dict[str, str]
 class ConnectedExternalIntegrationRequest:
     integration_id: ExternalIntegrationId
     payload: ExternalIntegrationPayload
+    completion_url: Optional[str] = None
+
+
+@dataclass
+class ExternalIntegrationConnectionResult:
+    link: Optional[str] = None
+
+
+@dataclass
+class CompleteExternalIntegrationConnectionRequest:
+    integration_id: ExternalIntegrationId
+    state: str
+    code: Optional[str] = None
+    error: Optional[str] = None
 
 
 @dataclass
@@ -81,4 +102,23 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
         "application_id": "Application ID",
         "private_key": "Private Key (PEM)",
     },
+    ExternalIntegrationId.OPENROUTER: {
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.OPENAI: {
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.OPENAI_COMPATIBLE: {
+        "base_url": "Base URL",
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.LOCAL_MODELS: {
+        "server_url": "Server URL",
+        "api_key": "API Key",
+    },
+}
+
+EXTERNAL_INTEGRATION_OPTIONAL_FIELDS: dict[ExternalIntegrationId, set[str]] = {
+    ExternalIntegrationId.OPENAI_COMPATIBLE: {"api_key"},
+    ExternalIntegrationId.LOCAL_MODELS: {"server_url", "api_key"},
 }

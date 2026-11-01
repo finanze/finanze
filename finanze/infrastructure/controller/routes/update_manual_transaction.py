@@ -5,7 +5,7 @@ from quart import jsonify, request
 from domain.exception.exceptions import TransactionNotFound
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
 from infrastructure.controller.mappers.transaction_mapper import (
-    map_manual_transaction,
+    map_update_manual_transaction,
 )
 
 
@@ -22,12 +22,12 @@ async def update_manual_transaction(
     body = await request.get_json()
 
     try:
-        tx = map_manual_transaction(body, tx_id=tx_uuid)
+        update_request = map_update_manual_transaction(body, tx_uuid)
     except Exception as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
     try:
-        await update_manual_transaction_uc.execute(tx)
+        await update_manual_transaction_uc.execute(update_request)
     except TransactionNotFound:
         return jsonify({"code": "NOT_FOUND", "message": "Transaction not found"}), 404
     except Exception as e:

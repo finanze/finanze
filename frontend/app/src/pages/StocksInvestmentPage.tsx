@@ -5,6 +5,7 @@ import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -28,10 +29,9 @@ import {
 import { ProductType, type StockDetail, EquityType } from "@/types/position"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
-  Pencil,
-  Trash2,
+  ArrowUpNarrowWide,
   Layers,
   ChevronDown,
   ChartCandlestick,
@@ -41,6 +41,7 @@ import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { isMostlyWhiteLogo, isMostlyBlackLogo } from "@/utils/iconAnalysis"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import { CopyableValue } from "@/components/ui/CopyableValue"
 import { useNavigate } from "react-router-dom"
 import {
   ManualPositionsManager,
@@ -48,6 +49,7 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { Entity } from "@/types"
 import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -323,7 +325,6 @@ function StocksViewContent({
 }: StocksViewContentProps) {
   const {
     drafts,
-    isEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -630,6 +631,14 @@ function StocksViewContent({
     [displayItems, sortBy, sortOrder],
   )
 
+  const emptyPositionsTitle =
+    selectedEntities.length > 0
+      ? t.investments.noPositionsFound.replace(
+          "{type}",
+          t.common.stocksEtfs.toLowerCase(),
+        )
+      : t.investments.noInvestmentsRegistered
+
   const handleSliceClick = useCallback((slice: { name: string }) => {
     const ref = itemRefs.current[slice.name]
     if (ref) {
@@ -677,6 +686,7 @@ function StocksViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          showClearFilters={false}
           hideLabelOnMobile
           extraFilters={
             <div
@@ -715,24 +725,20 @@ function StocksViewContent({
 
       <motion.div variants={fadeListItem}>
         {sortedDisplayItems.length === 0 ? (
-          <Card className="p-14 text-center flex flex-col items-center gap-4">
-            {getIconForAssetType(
-              ProductType.STOCK_ETF,
-              "h-16 w-16",
-              "text-gray-400 dark:text-gray-600",
-            )}
-            <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {selectedEntities.length > 0
-                ? t.investments.noPositionsFound.replace(
-                    "{type}",
-                    t.common.stocksEtfs.toLowerCase(),
-                  )
-                : t.investments.noPositionsAvailable.replace(
-                    "{type}",
-                    t.common.stocksEtfs.toLowerCase(),
-                  )}
-            </div>
-          </Card>
+          <>
+            <Card className="hidden md:block overflow-hidden">
+              <EmptyState
+                iconNode={getIconForAssetType(ProductType.STOCK_ETF, "h-5 w-5")}
+                title={emptyPositionsTitle}
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              iconNode={getIconForAssetType(ProductType.STOCK_ETF, "h-5 w-5")}
+              title={emptyPositionsTitle}
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
@@ -857,9 +863,9 @@ function StocksViewContent({
                 }
               >
                 {sortOrder === "asc" ? (
-                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                  <ArrowUpNarrowWide size={16} />
                 ) : (
-                  <ArrowRight size={16} className="rotate-90" />
+                  <ArrowDownWideNarrow size={16} />
                 )}
               </button>
             </div>
@@ -890,7 +896,7 @@ function StocksViewContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
 
                 const isExpanded = expandedCards[item.key] ?? false
 
@@ -1135,13 +1141,13 @@ function StocksViewContent({
                         >
                           <div className="px-4 pb-4">
                             <div className="border-t border-border/50 pt-3 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                              <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 sm:gap-x-6 gap-y-2.5 text-sm">
                                 {(formattedShares || formattedMarketPrice) && (
-                                  <div>
+                                  <div className="col-span-2 sm:col-span-1">
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                       {t.investments.shares}
                                     </div>
-                                    <div className="flex items-center gap-1 text-foreground">
+                                    <div className="flex flex-wrap items-center gap-1 text-foreground">
                                       {formattedShares && (
                                         <>
                                           <span>
@@ -1156,21 +1162,20 @@ function StocksViewContent({
                                           )}
                                         </>
                                       )}
-                                      {formattedShares &&
-                                        formattedMarketPrice && (
-                                          <span className="text-muted-foreground">
-                                            ×
-                                          </span>
-                                        )}
                                       {formattedMarketPrice && (
-                                        <>
+                                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                                          {formattedShares && (
+                                            <span className="text-muted-foreground">
+                                              ×
+                                            </span>
+                                          )}
                                           <span>{formattedMarketPrice}</span>
                                           {formattedShares && eachLabel && (
                                             <span className="text-muted-foreground">
                                               {eachLabel}
                                             </span>
                                           )}
-                                        </>
+                                        </span>
                                       )}
                                     </div>
                                     {formattedAvgBuyPrice && (
@@ -1185,24 +1190,24 @@ function StocksViewContent({
                                     )}
                                   </div>
                                 )}
+                                {position.isin?.trim() && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.isin}
+                                    </div>
+                                    <CopyableValue
+                                      value={position.isin.trim()}
+                                    />
+                                  </div>
+                                )}
                                 {position.symbol?.trim() && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
-                                      Ticker
+                                      {t.investments.ticker}
                                     </div>
-                                    <div className="text-foreground font-mono text-xs">
-                                      {position.symbol}
-                                    </div>
-                                  </div>
-                                )}
-                                {position.isin && (
-                                  <div>
-                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
-                                      ISIN
-                                    </div>
-                                    <div className="text-foreground font-mono text-xs">
-                                      {position.isin}
-                                    </div>
+                                    <CopyableValue
+                                      value={position.symbol.trim()}
+                                    />
                                   </div>
                                 )}
                                 {position.equityType === EquityType.ETF &&
@@ -1263,14 +1268,11 @@ function StocksViewContent({
                               )}
                               {showActions && (
                                 <div
-                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
                                   data-no-expand
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-2"
-                                    onClick={() => {
+                                  <ManualPositionActions
+                                    onEdit={() => {
                                       if (manualDraft?.originalId) {
                                         editByOriginalId(manualDraft.originalId)
                                       } else if (manualDraft) {
@@ -1279,15 +1281,7 @@ function StocksViewContent({
                                         editByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    {t.common.edit}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-600"
-                                    onClick={() => {
+                                    onDelete={() => {
                                       if (manualDraft?.originalId) {
                                         deleteByOriginalId(
                                           manualDraft.originalId,
@@ -1298,9 +1292,7 @@ function StocksViewContent({
                                         deleteByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  />
                                 </div>
                               )}
                             </div>

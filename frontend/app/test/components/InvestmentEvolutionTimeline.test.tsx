@@ -106,6 +106,7 @@ vi.mock("framer-motion", () => ({
       return <div {...props}>{children}</div>
     },
   },
+  useReducedMotion: () => false,
 }))
 
 vi.mock("recharts", () => ({

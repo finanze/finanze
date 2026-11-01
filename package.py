@@ -6,12 +6,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from package_llama import LlamaPackagingError, fetch_llama_server
+
 logger = logging.getLogger("packager")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 cwd = Path.cwd()
 dist_directory = cwd / "dist"
 backend_dir = cwd / "backend" / "dist"
+llama_lock_file = cwd / "resources" / "llama-server.lock.json"
+llama_cache_dir = cwd / "build" / "llama"
 
 
 def move_to_dist(file: Path):
@@ -25,9 +29,9 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--target",
-    choices=["backend", "frontend", "full"],
+    choices=["backend", "frontend", "full", "llama"],
     default="full",
-    help='Specify what to package: "backend", "frontend", or "full" (default: "full")',
+    help='Specify what to package: "backend", "frontend", "full" (default) or "llama" (only the bundled llama.cpp server)',
 )
 parser.add_argument(
     "--os",
@@ -39,7 +43,7 @@ parser.add_argument(
     "--arch",
     choices=["x64", "arm64"],
     default=None,
-    help='Specify target architecture: "x64" or "arm64" (default: None, only applies to macOS)',
+    help='Specify target architecture: "x64" or "arm64" (default: None, applies to macOS app and llama.cpp server)',
 )
 parser.add_argument(
     "--no-sign",
@@ -60,6 +64,21 @@ if args.target in ["backend", "full"]:
         sys.exit(1)
 
     logger.info("Backend packaging successful.")
+
+# --- llama.cpp Server ---
+if args.target in ["backend", "full", "llama"]:
+    logger.info("Fetching llama.cpp server...")
+    try:
+        fetch_llama_server(
+            lock_path=llama_lock_file,
+            output=backend_dir / "llama",
+            cache_dir=llama_cache_dir,
+            os_name=args.os,
+            arch=args.arch,
+        )
+    except LlamaPackagingError as e:
+        logger.error(f"llama.cpp server packaging failed: {e}")
+        sys.exit(1)
 
 # --- Frontend Packaging ---
 if args.target in ["frontend", "full"]:

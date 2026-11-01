@@ -318,6 +318,7 @@ export {
   ensureInitialized,
   ensureCoreInitialized,
   triggerDeferredInit,
+  ensureDeferredInitialized as waitForDeferredInit,
   triggerLazyInit,
   waitForLazyInit,
   warmStartBackgroundWorker,

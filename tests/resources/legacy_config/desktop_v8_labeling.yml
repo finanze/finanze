@@ -1,0 +1,58 @@
+lastUpdate: 2026-03-01T10:00:00+01:00
+version: 8
+general:
+  defaultCurrency: EUR
+  defaultCommodityWeightUnit: GRAM
+  editMode: DRAFT
+data:
+  autoRefresh:
+    mode: NO_2FA
+    max_outdated: TWELVE_HOURS
+assets:
+  crypto:
+    stablecoins:
+    - USDT
+    - USDC
+    - USDe
+    - DAI
+    - USD1
+    - BUSD
+    - PYUSD
+    - PUSD
+    - FDUSD
+    - TUSD
+    - USDD
+    - GUSD
+    - USDP
+    - LUSD
+    - cUSD
+    - OUSD
+    - FRAX
+    - sUSD
+    - USDX
+    - USDY
+    - USYC
+    - EURC
+    - EURS
+    - EURT
+    - PAXG
+    - XAUT
+    - JPYC
+    hideUnknownTokens: no
+labeling:
+  external:
+    enabled: yes
+    provider: OPENROUTER
+    model: openai/gpt-5-mini
+    upstreamProvider: openai
+    autoRun: no
+    minConfidence: 85
+    maxPerRun: 150
+    examples:
+      enabled: yes
+      count: 35
+      origins:
+      - MANUAL
+    instructions: |-
+      Groceries are always needs.
+      Rent goes to housing.

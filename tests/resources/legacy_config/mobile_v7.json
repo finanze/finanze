@@ -1,0 +1,12 @@
+{
+    "lastUpdate": "2025-12-05T21:10:00+01:00",
+    "version": 7,
+    "general": {
+        "defaultCurrency": "EUR",
+        "defaultCommodityWeightUnit": "GRAM"
+    },
+    "data": { "autoRefresh": { "mode": "OFF", "max_outdated": "SIX_HOURS" } },
+    "assets": {
+        "crypto": { "stablecoins": ["USDT", "PUSD"], "hideUnknownTokens": true }
+    }
+}

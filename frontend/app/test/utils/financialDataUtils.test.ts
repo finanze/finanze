@@ -4,16 +4,22 @@ import {
   calculateCryptoAssetValue,
   calculateWalletAssetsValue,
   classifyCryptoPositionKind,
+  computeAdjustedKpis,
+  computeForecastKpis,
   getCryptoPositions,
   getCurrencyDisplayValue,
   getCryptoRateKey,
+  getTotalCreditCardUsed,
   getWalletAssets,
   tryConvertCurrency,
 } from "@/utils/financialDataUtils"
 import {
+  AccountType,
+  CardType,
   CryptoCurrencyType,
   CryptoPositionType,
   ProductType,
+  type Card,
   type CryptoCurrencyPosition,
   type EntitiesPosition,
   type ProductPositions,
@@ -33,6 +39,172 @@ const makeAsset = (
   crypto_asset: { id: "ca", name: "Asset", symbol: "BTC" },
   source: DataSource.MANUAL,
   ...overrides,
+})
+
+const makeCard = (overrides: Partial<Card> = {}): Card => ({
+  id: "card-id",
+  type: CardType.CREDIT,
+  used: 100,
+  currency: "EUR",
+  active: true,
+  source: DataSource.MANUAL,
+  ...overrides,
+})
+
+const makeCardPositions = (cards: Card[], balance = 0): EntitiesPosition => ({
+  positions: {
+    bank: [
+      {
+        id: "bank-position",
+        entity: { id: "bank", name: "Bank", origin: EntityOrigin.MANUAL },
+        date: "2026-01-01",
+        source: DataSource.MANUAL,
+        products: {
+          [ProductType.ACCOUNT]: {
+            entries: [
+              {
+                id: "account-id",
+                total: balance,
+                currency: "EUR",
+                type: AccountType.CHECKING,
+                source: DataSource.MANUAL,
+              },
+            ],
+          },
+          [ProductType.CARD]: { entries: cards },
+        } as ProductPositions,
+      },
+    ],
+  },
+})
+
+describe("getTotalCreditCardUsed", () => {
+  it("sums only credit-card usage after converting each currency", () => {
+    const positions = makeCardPositions([
+      makeCard(),
+      makeCard({ id: "usd-credit", used: 125, currency: "USD" }),
+      makeCard({ id: "debit", type: CardType.DEBIT, used: 200 }),
+    ])
+
+    expect(
+      getTotalCreditCardUsed(positions, "EUR", { EUR: { USD: 1.25 } }),
+    ).toBe(200)
+  })
+
+  it("sums credit cards across entities and position snapshots", () => {
+    const positions = makeCardPositions([makeCard()])
+    positions.positions.other = makeCardPositions([
+      makeCard({ used: 50 }),
+      makeCard({ type: CardType.DEBIT, used: 200 }),
+    ]).positions.bank
+
+    expect(getTotalCreditCardUsed(positions, "EUR", {})).toBe(150)
+  })
+
+  it("returns zero for debit-only or missing positions", () => {
+    expect(
+      getTotalCreditCardUsed(
+        makeCardPositions([makeCard({ type: CardType.DEBIT })]),
+        "EUR",
+        {},
+      ),
+    ).toBe(0)
+    expect(getTotalCreditCardUsed(makeCardPositions([]), "EUR", {})).toBe(0)
+    expect(getTotalCreditCardUsed({ positions: {} }, "EUR", {})).toBe(0)
+    expect(getTotalCreditCardUsed(null, "EUR", {})).toBe(0)
+  })
+
+  it("preserves inactive credit cards and signed usage", () => {
+    const positions = makeCardPositions([
+      makeCard({ active: false }),
+      makeCard({ used: -25 }),
+    ])
+
+    expect(getTotalCreditCardUsed(positions, "EUR", {})).toBe(75)
+  })
+
+  it.each([null, undefined])("treats %s usage as zero", used => {
+    const positions = makeCardPositions([
+      makeCard({ used: used as unknown as number }),
+    ])
+
+    expect(getTotalCreditCardUsed(positions, "EUR", {})).toBe(0)
+  })
+
+  it("does not assume that an untyped card is credit", () => {
+    const positions = makeCardPositions([
+      makeCard({ type: undefined as unknown as CardType, limit: 1000 }),
+    ])
+
+    expect(getTotalCreditCardUsed(positions, "EUR", {})).toBe(0)
+  })
+})
+
+describe("credit-card wealth deductions", () => {
+  const options = {
+    includePending: false,
+    includeLoans: false,
+    includeCardExpenses: false,
+    includeRealEstate: false,
+    includeResidences: false,
+  }
+  const rates: ExchangeRates = { EUR: { USD: 1.25 } }
+  const positions = makeCardPositions(
+    [
+      makeCard(),
+      makeCard({ used: 125, currency: "USD" }),
+      makeCard({ type: CardType.DEBIT, used: 200 }),
+    ],
+    1000,
+  )
+
+  it.each([false, true])(
+    "deducts only credit usage from current wealth when enabled: %s",
+    includeCardExpenses => {
+      const result = computeAdjustedKpis(positions, "EUR", rates, [], [], {
+        ...options,
+        includeCardExpenses,
+      })
+
+      expect(result).toEqual({
+        adjustedTotalAssets: includeCardExpenses ? 800 : 1000,
+        adjustedInvestedAmount: includeCardExpenses ? 800 : 1000,
+        investmentTotalAssets: 1000,
+        investmentInvestedAmount: 1000,
+      })
+    },
+  )
+
+  it.each([false, true])(
+    "deducts forecast credit usage rather than current or debit usage when enabled: %s",
+    includeCardExpenses => {
+      const forecast = makeCardPositions(
+        [
+          makeCard({ used: 250, currency: "USD" }),
+          makeCard({ type: CardType.DEBIT, used: 900 }),
+        ],
+        1500,
+      )
+      const result = computeForecastKpis(
+        positions,
+        forecast,
+        "EUR",
+        rates,
+        [],
+        [],
+        [],
+        { ...options, includeCardExpenses },
+      )
+
+      expect(result).toEqual({
+        projectedTotalAssets: includeCardExpenses ? 1300 : 1500,
+        projectedInvestedAmount: includeCardExpenses ? 1300 : 1500,
+        projectedInvestmentTotalAssets: 1500,
+        projectedInvestmentInvestedAmount: 1500,
+        currentInvestedBase: includeCardExpenses ? 800 : 1000,
+      })
+    },
+  )
 })
 
 describe("getCryptoRateKey", () => {

@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -76,6 +77,7 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   Popover,
@@ -1678,6 +1680,12 @@ function CryptoInvestmentContent({
     selectedEntities.length > 0 || selectedWalletFilters.length > 0
   const cryptoWalletsLabel =
     t.entities?.cryptoWallets ?? t.walletManagement.wallets
+  const noResultsTitle = hasActiveFilters
+    ? t.investments.noPositionsFound.replace(
+        "{type}",
+        cryptoWalletsLabel.toLowerCase(),
+      )
+    : t.investments.noInvestmentsRegistered
 
   const walletView = (
     <motion.div
@@ -2620,34 +2628,23 @@ function CryptoInvestmentContent({
                           </div>
                         </div>
                         {isEditMode && assetView.isManual && (
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
+                          <div className="flex items-center justify-end gap-0.5 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <ManualPositionActions
+                              onEdit={() => {
                                 if (assetView.originalId) {
                                   editByOriginalId(assetView.originalId)
                                 } else if (assetView.localId) {
                                   editByLocalId(assetView.localId)
                                 }
                               }}
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
+                              onDelete={() => {
                                 if (assetView.originalId) {
                                   deleteByOriginalId(assetView.originalId)
                                 } else if (assetView.localId) {
                                   deleteByLocalId(assetView.localId)
                                 }
                               }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            />
                           </div>
                         )}
                       </CardContent>
@@ -3161,24 +3158,20 @@ function CryptoInvestmentContent({
       />
 
       {noResults ? (
-        <Card className="p-14 text-center flex flex-col items-center gap-4">
-          {getIconForAssetType(
-            ProductType.CRYPTO,
-            "h-16 w-16",
-            "text-gray-400 dark:text-gray-600",
-          )}
-          <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-            {hasActiveFilters
-              ? t.investments.noPositionsFound.replace(
-                  "{type}",
-                  cryptoWalletsLabel.toLowerCase(),
-                )
-              : t.investments.noPositionsAvailable.replace(
-                  "{type}",
-                  cryptoWalletsLabel.toLowerCase(),
-                )}
-          </div>
-        </Card>
+        <>
+          <Card className="hidden md:block overflow-hidden">
+            <EmptyState
+              iconNode={getIconForAssetType(ProductType.CRYPTO, "h-5 w-5")}
+              title={noResultsTitle}
+              className="py-16"
+            />
+          </Card>
+          <EmptyState
+            iconNode={getIconForAssetType(ProductType.CRYPTO, "h-5 w-5")}
+            title={noResultsTitle}
+            className="py-16 md:hidden"
+          />
+        </>
       ) : (
         <div className="space-y-6">
           <Card className="-mx-6 rounded-none border-x-0">

@@ -2,7 +2,7 @@ from uuid import UUID
 
 from domain.entity import Feature
 from domain.entity_login import LoginOptions, TwoFactor
-from domain.fetch_result import FetchOptions, FetchRequest
+from domain.fetch_result import FetchOptions, FetchRequest, FetchStage
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 from quart import jsonify, request
 
@@ -31,13 +31,21 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
     token = body.get("token", None)
     avoid_new_login = body.get("avoidNewLogin", False)
     deep = body.get("deep", False)
+    two_factor_old_txs = bool(body.get("twoFactorOldTxs", False))
     credentials = body.get("credentials", None)
+
+    try:
+        stage = FetchStage(body.get("stage") or FetchStage.MAIN)
+    except ValueError:
+        return jsonify({"message": "Invalid stage"}), 400
 
     fetch_request = FetchRequest(
         entity_account_id=entity_account_id,
         features=features,
         two_factor=TwoFactor(code=code, process_id=process_id, token=token),
-        fetch_options=FetchOptions(deep=deep),
+        fetch_options=FetchOptions(
+            deep=deep, two_factor_old_txs=two_factor_old_txs, stage=stage
+        ),
         login_options=LoginOptions(avoid_new_login=avoid_new_login),
         credentials=credentials,
     )

@@ -7,6 +7,9 @@ from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
 )
+from domain.use_cases.complete_external_integration_connection import (
+    CompleteExternalIntegrationConnection,
+)
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
 from domain.use_cases.connect_external_integration import ConnectExternalIntegration
@@ -45,6 +48,9 @@ from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
 from domain.use_cases.get_gains_timeline import GetGainsTimeline
 from domain.use_cases.get_networth_timeline import GetNetworthTimeline
+from domain.use_cases.get_mcp_config import GetMcpConfig
+from domain.use_cases.update_mcp_config import UpdateMcpConfig
+from domain.use_cases.regenerate_mcp_token import RegenerateMcpToken
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_money_events import GetMoneyEvents
@@ -97,7 +103,73 @@ from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
 from domain.use_cases.upload_backup import UploadBackup
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
+from domain.use_cases.create_label import CreateLabel
+from domain.use_cases.create_labeling_rule import CreateLabelingRule
+from domain.use_cases.delete_label import DeleteLabel
+from domain.use_cases.delete_labeling_rule import DeleteLabelingRule
+from domain.use_cases.get_external_labeling_providers import (
+    GetExternalLabelingProviders,
+)
+from domain.use_cases.get_external_labeling_models import GetExternalLabelingModels
+from domain.use_cases.get_local_models import GetLocalModels
+from domain.use_cases.download_local_model import DownloadLocalModel
+from domain.use_cases.delete_local_model import DeleteLocalModel
+from domain.use_cases.list_hugging_face_quants import ListHuggingFaceQuants
+from domain.use_cases.import_local_model import ImportLocalModel
+from domain.use_cases.get_labeling_rules import GetLabelingRules
+from domain.use_cases.get_labels import GetLabels
+from domain.use_cases.preview_labeling_rule import PreviewLabelingRule
+from domain.use_cases.relabel_transactions import RelabelTransactions
+from domain.use_cases.update_label import UpdateLabel
+from domain.use_cases.update_labeling_rule import UpdateLabelingRule
+from domain.use_cases.update_transaction_labels import UpdateTransactionLabels
+from domain.use_cases.validate_ai_model import ValidateAIModel
+from domain.use_cases.get_ai_server_info import GetAIServerInfo
+from domain.use_cases.get_cashflow_summary import GetCashflowSummary
+from domain.use_cases.get_recurring_movements import GetRecurringMovements
+from domain.use_cases.ignore_recurring_movement import IgnoreRecurringMovement
+from domain.use_cases.restore_recurring_movement import RestoreRecurringMovement
 from infrastructure.controller.config import QuartApp
+from infrastructure.controller.routes.cashflow_summary import cashflow_summary
+from infrastructure.controller.routes.recurring_movements import recurring_movements
+from infrastructure.controller.routes.ignore_recurring_movement import (
+    ignore_recurring_movement,
+)
+from infrastructure.controller.routes.restore_recurring_movement import (
+    restore_recurring_movement,
+)
+from infrastructure.controller.routes.create_label import create_label
+from infrastructure.controller.routes.create_labeling_rule import create_labeling_rule
+from infrastructure.controller.routes.delete_label import delete_label
+from infrastructure.controller.routes.delete_labeling_rule import delete_labeling_rule
+from infrastructure.controller.routes.get_external_labeling_providers import (
+    get_external_labeling_providers,
+)
+from infrastructure.controller.routes.get_external_labeling_models import (
+    get_external_labeling_models,
+)
+from infrastructure.controller.routes.get_local_models import get_local_models
+from infrastructure.controller.routes.download_local_model import (
+    download_local_model,
+)
+from infrastructure.controller.routes.delete_local_model import delete_local_model
+from infrastructure.controller.routes.list_hugging_face_quants import (
+    list_hugging_face_quants,
+)
+from infrastructure.controller.routes.import_local_model import import_local_model
+from infrastructure.controller.routes.get_labeling_rules import get_labeling_rules
+from infrastructure.controller.routes.get_labels import get_labels
+from infrastructure.controller.routes.preview_labeling_rule import (
+    preview_labeling_rule,
+)
+from infrastructure.controller.routes.relabel_transactions import relabel_transactions
+from infrastructure.controller.routes.update_label import update_label
+from infrastructure.controller.routes.update_labeling_rule import update_labeling_rule
+from infrastructure.controller.routes.update_transaction_labels import (
+    update_transaction_labels,
+)
+from infrastructure.controller.routes.validate_ai_model import validate_ai_model
+from infrastructure.controller.routes.get_ai_server_info import get_ai_server_info
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
@@ -108,6 +180,9 @@ from infrastructure.controller.routes.calculate_savings import calculate_savings
 from infrastructure.controller.routes.change_user_password import change_user_password
 from infrastructure.controller.routes.complete_external_entity_connection import (
     complete_external_entity_connection,
+)
+from infrastructure.controller.routes.complete_external_integration_connection import (
+    complete_external_integration_connection,
 )
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
 from infrastructure.controller.routes.connect_external_entity import (
@@ -190,6 +265,12 @@ from infrastructure.controller.routes.handle_cloud_auth import handle_cloud_auth
 from infrastructure.controller.routes.historic import get_historic
 from infrastructure.controller.routes.gains_timeline import gains_timeline
 from infrastructure.controller.routes.networth_timeline import networth_timeline
+from infrastructure.controller.routes.get_mcp_config import get_mcp_config
+from infrastructure.mcp.tool_catalog import McpToolCatalog
+from infrastructure.controller.routes.update_mcp_config import update_mcp_config
+from infrastructure.controller.routes.regenerate_mcp_token import (
+    regenerate_mcp_token,
+)
 from infrastructure.controller.routes.import_backup import import_backup
 from infrastructure.controller.routes.import_file import import_file_route
 from infrastructure.controller.routes.import_sheets import import_sheets
@@ -273,6 +354,7 @@ async def register_routes(
     get_external_integrations_uc: GetExternalIntegrations,
     connect_external_integrations_uc: ConnectExternalIntegration,
     disconnect_external_integrations_uc: DisconnectExternalIntegration,
+    complete_external_integration_connection_uc: CompleteExternalIntegrationConnection,
     save_periodic_flow_uc: SavePeriodicFlow,
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
@@ -321,6 +403,34 @@ async def register_routes(
     get_euribor_rates_uc: GetEuriborRates,
     get_telemetry_consent_uc: GetTelemetryConsent,
     update_telemetry_consent_uc: UpdateTelemetryConsent,
+    get_labels_uc: GetLabels,
+    create_label_uc: CreateLabel,
+    update_label_uc: UpdateLabel,
+    delete_label_uc: DeleteLabel,
+    get_labeling_rules_uc: GetLabelingRules,
+    create_labeling_rule_uc: CreateLabelingRule,
+    update_labeling_rule_uc: UpdateLabelingRule,
+    delete_labeling_rule_uc: DeleteLabelingRule,
+    preview_labeling_rule_uc: PreviewLabelingRule,
+    relabel_transactions_uc: RelabelTransactions,
+    update_transaction_labels_uc: UpdateTransactionLabels,
+    get_external_labeling_providers_uc: GetExternalLabelingProviders,
+    get_external_labeling_models_uc: GetExternalLabelingModels,
+    validate_ai_model_uc: ValidateAIModel,
+    get_ai_server_info_uc: GetAIServerInfo,
+    get_cashflow_summary_uc: GetCashflowSummary,
+    get_recurring_movements_uc: GetRecurringMovements,
+    ignore_recurring_movement_uc: IgnoreRecurringMovement,
+    restore_recurring_movement_uc: RestoreRecurringMovement,
+    get_mcp_config_uc: GetMcpConfig,
+    update_mcp_config_uc: UpdateMcpConfig,
+    regenerate_mcp_token_uc: RegenerateMcpToken,
+    mcp_tool_catalog: McpToolCatalog,
+    get_local_models_uc: GetLocalModels,
+    download_local_model_uc: DownloadLocalModel,
+    delete_local_model_uc: DeleteLocalModel,
+    list_hugging_face_quants_uc: ListHuggingFaceQuants,
+    import_local_model_uc: ImportLocalModel,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -428,6 +538,108 @@ async def register_routes(
     async def transactions_route():
         return await transactions(get_transactions_uc)
 
+    @app.route("/api/v1/transactions/<tx_id>/labels", methods=["PUT"])
+    async def update_transaction_labels_route(tx_id: str):
+        return await update_transaction_labels(update_transaction_labels_uc, tx_id)
+
+    @app.route("/api/v1/labels", methods=["GET"])
+    async def get_labels_route():
+        return await get_labels(get_labels_uc)
+
+    @app.route("/api/v1/labels", methods=["POST"])
+    async def create_label_route():
+        return await create_label(create_label_uc)
+
+    @app.route("/api/v1/labels/<label_id>", methods=["PUT"])
+    async def update_label_route(label_id: str):
+        return await update_label(update_label_uc, label_id)
+
+    @app.route("/api/v1/labels/<label_id>", methods=["DELETE"])
+    async def delete_label_route(label_id: str):
+        return await delete_label(delete_label_uc, label_id)
+
+    @app.route("/api/v1/labeling/rules", methods=["GET"])
+    async def get_labeling_rules_route():
+        return await get_labeling_rules(get_labeling_rules_uc)
+
+    @app.route("/api/v1/labeling/rules", methods=["POST"])
+    async def create_labeling_rule_route():
+        return await create_labeling_rule(create_labeling_rule_uc)
+
+    @app.route("/api/v1/labeling/rules/preview", methods=["POST"])
+    async def preview_labeling_rule_route():
+        return await preview_labeling_rule(preview_labeling_rule_uc)
+
+    @app.route("/api/v1/labeling/rules/<rule_id>", methods=["PUT"])
+    async def update_labeling_rule_route(rule_id: str):
+        return await update_labeling_rule(update_labeling_rule_uc, rule_id)
+
+    @app.route("/api/v1/labeling/rules/<rule_id>", methods=["DELETE"])
+    async def delete_labeling_rule_route(rule_id: str):
+        return await delete_labeling_rule(delete_labeling_rule_uc, rule_id)
+
+    @app.route("/api/v1/labeling/relabel", methods=["POST"])
+    async def relabel_transactions_route():
+        return await relabel_transactions(relabel_transactions_uc)
+
+    @app.route("/api/v1/labeling/external/providers", methods=["GET"])
+    async def get_external_labeling_providers_route():
+        return await get_external_labeling_providers(get_external_labeling_providers_uc)
+
+    @app.route(
+        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
+    )
+    async def get_external_labeling_models_route(provider_id: str):
+        return await get_external_labeling_models(
+            get_external_labeling_models_uc, provider_id
+        )
+
+    @app.route("/api/v1/ai/models/validate", methods=["POST"])
+    async def validate_ai_model_route():
+        return await validate_ai_model(validate_ai_model_uc)
+
+    @app.route("/api/v1/ai/providers/<provider_id>/server", methods=["GET"])
+    async def get_ai_server_info_route(provider_id: str):
+        return await get_ai_server_info(get_ai_server_info_uc, provider_id)
+
+    @app.route("/api/v1/ai/local/models", methods=["GET"])
+    async def get_local_models_route():
+        return await get_local_models(get_local_models_uc)
+
+    @app.route("/api/v1/ai/local/models", methods=["DELETE"])
+    async def delete_local_model_route():
+        return await delete_local_model(delete_local_model_uc)
+
+    @app.route("/api/v1/ai/local/models/download", methods=["POST"])
+    async def download_local_model_route():
+        return await download_local_model(download_local_model_uc)
+
+    @app.route("/api/v1/ai/local/models/import", methods=["POST"])
+    async def import_local_model_route():
+        return await import_local_model(import_local_model_uc)
+
+    @app.route("/api/v1/ai/local/huggingface/quants", methods=["GET"])
+    async def list_hugging_face_quants_route():
+        return await list_hugging_face_quants(list_hugging_face_quants_uc)
+
+    @app.route("/api/v1/cashflow", methods=["GET"])
+    async def cashflow_summary_route():
+        return await cashflow_summary(get_cashflow_summary_uc)
+
+    @app.route("/api/v1/cashflow/recurring", methods=["GET"])
+    async def recurring_movements_route():
+        return await recurring_movements(get_recurring_movements_uc)
+
+    @app.route("/api/v1/cashflow/recurring/ignored", methods=["POST"])
+    async def ignore_recurring_movement_route():
+        return await ignore_recurring_movement(ignore_recurring_movement_uc)
+
+    @app.route("/api/v1/cashflow/recurring/ignored/<ignored_id>", methods=["DELETE"])
+    async def restore_recurring_movement_route(ignored_id: str):
+        return await restore_recurring_movement(
+            restore_recurring_movement_uc, ignored_id
+        )
+
     @app.route("/api/v1/market-forecast/pnl", methods=["GET"])
     async def market_forecast_pnl_route():
         return await market_forecast_pnl(get_market_forecast_pnl_uc)
@@ -484,6 +696,12 @@ async def register_routes(
     async def disconnect_external_integration_route(integration_id: str):
         return await disconnect_external_integration(
             disconnect_external_integrations_uc, integration_id
+        )
+
+    @app.route("/api/v1/integrations/<integration_id>/oauth/complete", methods=["POST"])
+    async def complete_external_integration_connection_route(integration_id: str):
+        return await complete_external_integration_connection(
+            complete_external_integration_connection_uc, integration_id
         )
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])
@@ -593,6 +811,18 @@ async def register_routes(
     @app.route("/api/v1/networth-timeline", methods=["GET"])
     async def networth_timeline_route():
         return await networth_timeline(get_networth_timeline_uc)
+
+    @app.route("/api/v1/mcp/config", methods=["GET"])
+    async def get_mcp_config_route():
+        return await get_mcp_config(get_mcp_config_uc, mcp_tool_catalog)
+
+    @app.route("/api/v1/mcp/config", methods=["PUT"])
+    async def update_mcp_config_route():
+        return await update_mcp_config(update_mcp_config_uc)
+
+    @app.route("/api/v1/mcp/config/token", methods=["POST"])
+    async def regenerate_mcp_token_route():
+        return await regenerate_mcp_token(regenerate_mcp_token_uc)
 
     @app.route("/api/v1/gains-timeline", methods=["GET"])
     async def gains_timeline_route():

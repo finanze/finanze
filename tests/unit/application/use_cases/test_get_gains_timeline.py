@@ -27,7 +27,8 @@ from domain.gains_timeline import (
     GainsWarning,
 )
 from domain.global_position import EquityType, ProductType
-from domain.instrument import InstrumentType
+from domain.instrument import InstrumentDataRequest, InstrumentType
+from domain.instrument_history import InstrumentPricePoint, InstrumentSplit
 from domain.transactions import TxType
 
 
@@ -64,7 +65,15 @@ def _flow(day, transaction_type, amount, quantity=None, fees="0"):
     )
 
 
-def _build(snapshots, flows=None, rates=None, settlements=None, metal=None):
+def _build(
+    snapshots,
+    flows=None,
+    rates=None,
+    settlements=None,
+    metal=None,
+    history_provider=None,
+    history_storage=None,
+):
     port = AsyncMock(spec=GainsTimelinePort)
     port.get_data_version.return_value = "1"
     port.get_asset_snapshots.return_value = snapshots
@@ -82,7 +91,12 @@ def _build(snapshots, flows=None, rates=None, settlements=None, metal=None):
         metal = AsyncMock()
         metal.get_partial_historic_rates.return_value = None
 
-    return GetGainsTimelineImpl(port, exchange, entity, metal), port
+    return (
+        GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        ),
+        port,
+    )
 
 
 def _query():
@@ -910,6 +924,54 @@ class TestGetGainsTimeline:
             by_day[day].period_return == Dezimal(0)
             for day in (date(2025, 1, 2), date(2025, 1, 4))
         )
+
+    @pytest.mark.asyncio
+    async def test_keeps_late_released_buy_out_of_quantity_residual(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        unchanged_day = date(2025, 1, 3)
+        released_day = date(2025, 1, 4)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "100", cost_basis="100"),
+                _snapshot(unchanged_day, "10", "100", cost_basis="100"),
+                _snapshot(released_day, "11", "110", cost_basis="110"),
+            ],
+            [_flow(buy_day, TxType.BUY, "10", quantity="1")],
+        )
+
+        result = await use_case.execute(_query())
+
+        metrics = {point.date: point.metrics for point in result.points}[released_day]
+        assert metrics.value == Dezimal(110)
+        assert metrics.net_contributions == Dezimal(110)
+        assert metrics.gain == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_keeps_late_released_sell_out_of_quantity_residual(self):
+        first_day = date(2025, 1, 1)
+        sell_day = date(2025, 1, 2)
+        unchanged_day = date(2025, 1, 3)
+        released_day = date(2025, 1, 4)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "100", cost_basis="100"),
+                _snapshot(unchanged_day, "10", "100", cost_basis="100"),
+                _snapshot(released_day, "9", "90", cost_basis="90"),
+            ],
+            [_flow(sell_day, TxType.SELL, "10", quantity="1")],
+        )
+
+        result = await use_case.execute(_query())
+
+        metrics = {point.date: point.metrics for point in result.points}[released_day]
+        assert metrics.value == Dezimal(90)
+        assert metrics.net_contributions == Dezimal(90)
+        assert metrics.gain == Dezimal(0)
+        assert metrics.period_return == Dezimal(0)
+        assert metrics.index == Dezimal(100)
+        assert result.quality == GainsQuality.COMPLETE
+        assert result.warnings == []
 
     @pytest.mark.asyncio
     async def test_waits_for_quantity_change_after_stale_asset_snapshot(self):
@@ -2735,7 +2797,7 @@ class TestGetGainsTimelineReplay:
         _, kwargs = history_storage.upsert.call_args
         assert kwargs["source"] == "yfinance"
         history_storage.save_resolved_symbol.assert_awaited_once_with(
-            "IE00TEST", "IE00TEST.F", source="yfinance"
+            "FUND:IE00TEST", "IE00TEST.F", source="yfinance"
         )
 
     @pytest.mark.asyncio
@@ -4747,6 +4809,75 @@ class TestGetGainsTimelineBoundedRange:
         assert result.annualized_xirr is None
 
 
+class TestGetGainsTimelineIndexRebasing:
+    @staticmethod
+    def _query(from_date=None):
+        return GainsTimelineQuery(
+            assets=[GainsAssetFilter(product_type=ProductType.CRYPTO)],
+            entities=[uuid4()],
+            from_date=from_date,
+            to_date=date(2025, 1, 7),
+        )
+
+    @pytest.mark.asyncio
+    async def test_range_starting_on_a_wiped_out_position_keeps_a_flat_index(self):
+        wiped_day = date(2025, 1, 5)
+        last_day = date(2025, 1, 6)
+        use_case, _ = _build(
+            [
+                _snapshot(date(2025, 1, 1), "10", "1000", cost_basis="1000"),
+                _snapshot(wiped_day, "10", "0", cost_basis="1000"),
+                _snapshot(last_day, "10", "0", cost_basis="1000"),
+            ]
+        )
+
+        result = await use_case.execute(self._query(wiped_day))
+
+        assert [point.date for point in result.points] == [wiped_day, last_day]
+        for point in result.points:
+            assert point.metrics.value == Dezimal(0)
+            assert point.metrics.gain == Dezimal(-1000)
+            assert point.metrics.index == Dezimal(100)
+            assert point.breakdown[ProductType.CRYPTO.value].index == Dezimal(100)
+        assert result.opening_value == Dezimal(1000)
+
+    @pytest.mark.asyncio
+    async def test_position_opened_without_value_keeps_a_flat_index(self):
+        first_day = date(2025, 1, 1)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "0", cost_basis="1000"),
+                _snapshot(date(2025, 1, 3), "10", "500", cost_basis="1000"),
+            ]
+        )
+
+        result = await use_case.execute(self._query())
+
+        assert result.points[0].date == first_day
+        assert all(point.metrics.index == Dezimal(100) for point in result.points)
+        assert result.points[-1].metrics.value == Dezimal(500)
+        assert result.points[-1].metrics.gain == Dezimal(-500)
+
+    @pytest.mark.asyncio
+    async def test_later_wipe_out_is_still_rebased_on_the_first_day(self):
+        first_day = date(2025, 1, 1)
+        wiped_day = date(2025, 1, 3)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "1000", cost_basis="1000"),
+                _snapshot(date(2025, 1, 2), "10", "1100", cost_basis="1000"),
+                _snapshot(wiped_day, "10", "0", cost_basis="1000"),
+            ]
+        )
+
+        result = await use_case.execute(self._query(date(2025, 1, 2)))
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert by_day[date(2025, 1, 2)].index == Dezimal(100)
+        assert by_day[wiped_day].index == Dezimal(0)
+        assert by_day[wiped_day].gain == Dezimal(-1000)
+
+
 class TestGetGainsTimelineSnapshotsMode:
     def _snapshots_query(self):
         return GainsTimelineQuery(
@@ -4965,3 +5096,1371 @@ class TestGetGainsTimelineXirr:
         result = await use_case.execute(_query())
 
         assert result.xirr is None
+
+
+class TestGetGainsTimelineSplitSafety:
+    @staticmethod
+    def _asset(asset_key, quantity, value, cost, product_type=ProductType.STOCK_ETF):
+        return AssetValuation(
+            product_type=product_type,
+            asset_key=asset_key,
+            currency="EUR",
+            quantity=Dezimal(quantity),
+            market_value=Dezimal(value),
+            cost_basis=Dezimal(cost) if cost is not None else None,
+        )
+
+    @staticmethod
+    def _snapshot(day, valuations, holder="wallet"):
+        return AssetSnapshot(
+            holder=holder,
+            moment=datetime(day.year, day.month, day.day, 12),
+            valuations=valuations,
+        )
+
+    @staticmethod
+    def _flow(
+        day,
+        transaction_type,
+        amount,
+        quantity=None,
+        *,
+        asset_key="TEST",
+        product_type=ProductType.STOCK_ETF,
+        ratio=None,
+        price=None,
+        fees="0",
+        holder="wallet",
+    ):
+        return GainsFlow(
+            holder=holder,
+            product_type=product_type,
+            asset_key=asset_key,
+            moment=datetime(day.year, day.month, day.day, 12),
+            amount=Dezimal(amount),
+            currency="EUR",
+            quantity=Dezimal(quantity) if quantity is not None else None,
+            split_ratio=Dezimal(ratio) if ratio is not None else None,
+            price=Dezimal(price) if price is not None else None,
+            fees=Dezimal(fees),
+            transaction_type=transaction_type,
+        )
+
+    @staticmethod
+    def _query(first_day, last_day, product_type=ProductType.STOCK_ETF):
+        return GainsTimelineQuery(
+            assets=[GainsAssetFilter(product_type=product_type)],
+            entities=[uuid4()],
+            from_date=first_day,
+            to_date=last_day,
+        )
+
+    @staticmethod
+    def _history(first_day, last_day, prices):
+        storage = AsyncMock()
+        storage.is_no_result.return_value = False
+        storage.get_history.side_effect = lambda key, start, end: [
+            point for point in prices if start <= point.date <= end
+        ]
+        storage.get_covered_range.return_value = (first_day, last_day)
+        storage.get_resolved_symbol.return_value = ("TEST", "test")
+        storage.get_empty_gap_days.return_value = set()
+        storage.is_splits_checked.return_value = False
+        storage.get_splits.return_value = []
+        provider = AsyncMock()
+        provider.get_history.return_value = ([], None, None)
+        provider.get_splits.return_value = []
+        return provider, storage
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("ratio", "before", "after"),
+        [
+            ("2", "10", "20"),
+            ("10", "2", "20"),
+            ("0.5", "10", "5"),
+            ("0.1", "100", "10"),
+            ("3", "2.5", "7.5"),
+        ],
+    )
+    async def test_split_without_cash_preserves_gain_and_returns(
+        self, ratio, before, after
+    ):
+        first_day = date(2025, 1, 1)
+        split_day = date(2025, 6, 1)
+        last_day = date(2026, 1, 1)
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("TEST", before, "1000", "1000")]
+                ),
+                self._snapshot(split_day, [self._asset("TEST", after, "1000", "1000")]),
+                self._snapshot(last_day, [self._asset("TEST", after, "1000", "1000")]),
+            ],
+            [self._flow(split_day, TxType.SPLIT, "0", ratio=ratio)],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert by_day[split_day].net_contributions == Dezimal(1000)
+        assert by_day[split_day].gain == Dezimal(0)
+        assert by_day[last_day].value == Dezimal(1000)
+        assert by_day[last_day].index == Dezimal(100)
+        assert result.xirr is not None
+        assert abs(result.xirr) < Dezimal("0.00000001")
+        assert result.quality == GainsQuality.COMPLETE
+        assert result.warnings == []
+
+    @pytest.mark.asyncio
+    async def test_multiple_splits_with_intervening_buy_do_not_create_gain(self):
+        first_day = date(2025, 1, 1)
+        first_split_day = date(2025, 1, 2)
+        buy_day = date(2025, 1, 3)
+        second_split_day = date(2025, 1, 4)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "900", "900")]),
+                self._snapshot(
+                    first_split_day, [self._asset("TEST", "20", "900", "900")]
+                ),
+                self._snapshot(
+                    second_split_day, [self._asset("TEST", "78", "1170", "1170")]
+                ),
+            ],
+            [
+                self._flow(first_split_day, TxType.SPLIT, "0", ratio="2"),
+                self._flow(buy_day, TxType.BUY, "270", "6"),
+                self._flow(second_split_day, TxType.SPLIT, "0", ratio="3"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, second_split_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(1170)
+        assert metrics.net_contributions == Dezimal(1170)
+        assert metrics.gain == Dezimal(0)
+        assert metrics.index == Dezimal(100)
+        assert result.quality == GainsQuality.COMPLETE
+
+    @pytest.mark.asyncio
+    async def test_realised_sale_after_split_preserves_gain_and_return(self):
+        first_day = date(2025, 1, 1)
+        split_day = date(2025, 6, 1)
+        sell_day = date(2025, 7, 1)
+        last_day = date(2026, 1, 1)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "20", "1000", "1000")]),
+                self._snapshot(sell_day, [self._asset("TEST", "15", "900", "750")]),
+                self._snapshot(last_day, [self._asset("TEST", "15", "900", "750")]),
+            ],
+            [
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+                self._flow(sell_day, TxType.SELL, "300", "5"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(900)
+        assert metrics.cost_basis == Dezimal(750)
+        assert metrics.net_contributions == Dezimal(700)
+        assert metrics.gain == Dezimal(200)
+        assert metrics.index == Dezimal(120)
+        assert result.xirr is not None
+        assert Dezimal("0.20") < result.xirr < Dezimal("0.30")
+        assert result.quality == GainsQuality.COMPLETE
+
+    @pytest.mark.asyncio
+    async def test_split_ratio_applies_to_each_holder_of_the_instrument(self):
+        first_day = date(2025, 1, 1)
+        split_day = date(2025, 1, 2)
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("TEST", "10", "1000", "1000")], "first"
+                ),
+                self._snapshot(
+                    first_day, [self._asset("TEST", "5", "500", "500")], "second"
+                ),
+                self._snapshot(
+                    split_day, [self._asset("TEST", "20", "1000", "1000")], "first"
+                ),
+                self._snapshot(
+                    split_day, [self._asset("TEST", "10", "500", "500")], "second"
+                ),
+            ],
+            [self._flow(split_day, TxType.SPLIT, "0", ratio="2", holder="first")],
+        )
+        port.get_split_ratios.return_value = [
+            GainsSplit(
+                product_type=ProductType.STOCK_ETF,
+                asset_key="TEST",
+                day=split_day,
+                ratio=Dezimal(2),
+            )
+        ]
+
+        result = await use_case.execute(self._query(first_day, split_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(1500)
+        assert metrics.net_contributions == Dezimal(1500)
+        assert metrics.gain == Dezimal(0)
+        assert result.quality == GainsQuality.COMPLETE
+
+    @pytest.mark.asyncio
+    async def test_unpaired_transfer_into_selected_asset_is_a_contribution(self):
+        first_day = date(2025, 1, 1)
+        transfer_day = date(2025, 1, 2)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("TARGET", "10", "100", "90", product_type)]
+                ),
+                self._snapshot(
+                    transfer_day,
+                    [self._asset("TARGET", "20", "200", "190", product_type)],
+                ),
+            ],
+            [
+                self._flow(
+                    transfer_day,
+                    TxType.TRANSFER_IN,
+                    "100",
+                    "10",
+                    asset_key="TARGET",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, transfer_day, product_type)
+        )
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(200)
+        assert metrics.net_contributions == Dezimal(190)
+        assert metrics.gain == Dezimal(10)
+
+    @pytest.mark.asyncio
+    async def test_internal_transfer_with_buy_only_counts_the_buy(self):
+        first_day = date(2025, 1, 1)
+        trade_day = date(2025, 1, 2)
+        observed_day = date(2025, 1, 3)
+        product_type = ProductType.FUND
+        source = self._asset("SOURCE", "100", "1000", "900", product_type)
+        target = self._asset("TARGET", "10", "100", "90", product_type)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [source, target]),
+                self._snapshot(trade_day, [source, target]),
+                self._snapshot(
+                    observed_day,
+                    [
+                        self._asset("SOURCE", "40", "400", "360", product_type),
+                        self._asset("TARGET", "71", "710", "640", product_type),
+                    ],
+                ),
+            ],
+            [
+                self._flow(
+                    trade_day,
+                    TxType.TRANSFER_OUT,
+                    "600",
+                    "60",
+                    asset_key="SOURCE",
+                    product_type=product_type,
+                ),
+                self._flow(
+                    trade_day,
+                    TxType.TRANSFER_IN,
+                    "600",
+                    "60",
+                    asset_key="TARGET",
+                    product_type=product_type,
+                ),
+                self._flow(
+                    trade_day,
+                    TxType.BUY,
+                    "10",
+                    "1",
+                    asset_key="TARGET",
+                    product_type=product_type,
+                ),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, observed_day, product_type)
+        )
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(1110)
+        assert metrics.net_contributions == Dezimal(1000)
+        assert metrics.gain == Dezimal(110)
+        assert metrics.index == Dezimal(100)
+
+    @pytest.mark.asyncio
+    async def test_pending_buy_crossing_split_is_counted_once(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        split_day = date(2025, 1, 3)
+        observed_day = date(2025, 1, 4)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "20", "1000", "1000")]),
+                self._snapshot(
+                    observed_day, [self._asset("TEST", "44", "2200", "2200")]
+                ),
+            ],
+            [
+                self._flow(buy_day, TxType.BUY, "1200", "12"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, observed_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(2200)
+        assert metrics.net_contributions == Dezimal(2200)
+        assert metrics.gain == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_split_without_settlement_does_not_release_pending_buy(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        split_day = date(2025, 1, 3)
+        observed_day = date(2025, 1, 4)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "20", "1000", "1000")]),
+                self._snapshot(
+                    observed_day, [self._asset("TEST", "22", "1320", "1100")]
+                ),
+            ],
+            [
+                self._flow(buy_day, TxType.BUY, "100", "1"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, observed_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(1320)
+        assert metrics.net_contributions == Dezimal(1100)
+        assert metrics.gain == Dezimal(220)
+
+    @pytest.mark.asyncio
+    async def test_pending_buy_crossing_reverse_split_is_counted_once(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        split_day = date(2025, 1, 3)
+        observed_day = date(2025, 1, 4)
+        last_day = date(2025, 1, 11)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "100", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(
+                    observed_day, [self._asset("TEST", "10.1", "1010", "1010")]
+                ),
+                self._snapshot(last_day, [self._asset("TEST", "10.2", "1020", "1020")]),
+            ],
+            [
+                self._flow(buy_day, TxType.BUY, "10", "1"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="0.1"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(1020)
+        assert metrics.net_contributions == Dezimal(1020)
+        assert metrics.gain == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_bounded_range_retains_partly_sold_split_position(self):
+        buy_day = date(2024, 1, 1)
+        split_day = date(2024, 2, 1)
+        sell_day = date(2024, 3, 1)
+        first_day = date(2025, 1, 1)
+        last_day = date(2025, 1, 2)
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "1000", "10"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+                self._flow(sell_day, TxType.SELL, "600", "12"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        assert result.points
+        assert result.opening_value == Dezimal(400)
+        assert result.points[-1].metrics.value == Dezimal(400)
+        assert result.points[-1].metrics.cost_basis == Dezimal(400)
+
+    @pytest.mark.asyncio
+    async def test_bounded_range_applies_pre_range_split_cash_in_lieu(self):
+        buy_day = date(2024, 1, 1)
+        split_day = date(2024, 2, 1)
+        first_day = date(2024, 3, 1)
+        last_day = date(2024, 3, 2)
+        flows = [
+            self._flow(buy_day, TxType.BUY, "500", "5"),
+            self._flow(split_day, TxType.SPLIT, "100", ratio="0.5", price="200"),
+        ]
+        full_case, full_port = _build([], flows)
+        bounded_case, bounded_port = _build([], flows)
+        full_port.get_split_ratios.return_value = []
+        bounded_port.get_split_ratios.return_value = []
+
+        full = await full_case.execute(self._query(buy_day, last_day))
+        bounded = await bounded_case.execute(self._query(first_day, last_day))
+
+        assert full.points[-1].metrics.value == Dezimal(400)
+        assert bounded.points
+        assert bounded.opening_value == Dezimal(400)
+        assert bounded.points[-1].metrics.value == Dezimal(400)
+        assert bounded.points[-1].metrics.cost_basis == Dezimal(400)
+
+    @pytest.mark.asyncio
+    async def test_cash_in_lieu_and_sale_close_position_before_range(self):
+        buy_day = date(2024, 1, 1)
+        split_day = date(2024, 2, 1)
+        sell_day = date(2024, 3, 1)
+        first_day = date(2025, 1, 1)
+        last_day = date(2025, 1, 2)
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "500", "5"),
+                self._flow(split_day, TxType.SPLIT, "100", ratio="0.5", price="200"),
+                self._flow(sell_day, TxType.SELL, "400", "2"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        assert result.points == []
+
+    @pytest.mark.asyncio
+    async def test_bounded_range_keeps_pending_buy_cash(self):
+        snapshot_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        unchanged_day = date(2025, 1, 3)
+        first_day = date(2025, 1, 4)
+        observed_day = date(2025, 1, 5)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    snapshot_day,
+                    [self._asset("FUND", "10", "1000", "1000", product_type)],
+                ),
+                self._snapshot(
+                    unchanged_day,
+                    [self._asset("FUND", "10", "1000", "1000", product_type)],
+                ),
+                self._snapshot(
+                    observed_day,
+                    [self._asset("FUND", "11", "1100", "1102", product_type)],
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "102",
+                    "1",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, observed_day, product_type)
+        )
+
+        assert result.opening_value == Dezimal(1000)
+        assert result.points[-1].metrics.net_contributions == Dezimal(102)
+        assert result.points[-1].metrics.gain == Dezimal(-2)
+
+    @pytest.mark.asyncio
+    async def test_pending_fund_buy_uses_actual_cash_and_observation_date_xirr(self):
+        first_day = date(2024, 1, 1)
+        buy_day = date(2024, 1, 2)
+        drift_day = date(2024, 1, 3)
+        observed_day = date(2024, 1, 4)
+        last_day = date(2025, 1, 5)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+                self._snapshot(
+                    drift_day, [self._asset("FUND", "9.9", "990", "990", product_type)]
+                ),
+                self._snapshot(
+                    observed_day,
+                    [self._asset("FUND", "10.9", "1090", "1092", product_type)],
+                ),
+                self._snapshot(
+                    last_day, [self._asset("FUND", "11", "1210", "1103", product_type)]
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "102",
+                    "1",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day, product_type))
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1103)
+        assert result.points[-1].metrics.gain == Dezimal(107)
+        assert result.xirr is not None
+        assert abs(result.xirr - Dezimal("0.0967401693")) < Dezimal("0.00000001")
+
+    @pytest.mark.asyncio
+    async def test_late_fund_buy_is_not_double_counted_after_force_release(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        drift_day = date(2025, 1, 10)
+        observed_day = date(2025, 1, 11)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+                self._snapshot(
+                    drift_day,
+                    [self._asset("FUND", "10.1", "1010", "1010", product_type)],
+                ),
+                self._snapshot(
+                    observed_day,
+                    [self._asset("FUND", "11.1", "1221", "1112", product_type)],
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "102",
+                    "1",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, observed_day, product_type)
+        )
+
+        metrics = result.points[-1].metrics
+        assert metrics.net_contributions == Dezimal(1112)
+        assert metrics.gain == Dezimal(109)
+
+    @pytest.mark.asyncio
+    async def test_old_unobserved_fund_buy_is_not_reported_complete(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        last_day = date(2025, 1, 12)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+                self._snapshot(
+                    last_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "102",
+                    "1",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day, product_type))
+
+        assert result.quality != GainsQuality.COMPLETE
+        assert result.warnings
+
+    @pytest.mark.asyncio
+    async def test_old_fund_buy_after_last_snapshot_is_not_reported_complete(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        last_day = date(2025, 1, 12)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                )
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "102",
+                    "1",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day, product_type))
+
+        assert result.quality != GainsQuality.COMPLETE
+        assert result.warnings
+
+    @pytest.mark.asyncio
+    async def test_old_pending_fund_buy_matches_later_snapshot_change(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        drift_day = date(2025, 1, 10)
+        observed_day = date(2025, 1, 11)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+                self._snapshot(
+                    drift_day, [self._asset("FUND", "9.9", "990", "990", product_type)]
+                ),
+                self._snapshot(
+                    observed_day,
+                    [self._asset("FUND", "10.9", "1090", "1092", product_type)],
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "102",
+                    "1",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, observed_day, product_type)
+        )
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1092)
+        assert result.points[-1].metrics.gain == Dezimal(-2)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("fees", "expected_cost", "expected_gain"),
+        [("0", "2000", "400"), ("10", "2010", "390")],
+    )
+    async def test_partially_observed_buy_is_not_repriced_as_a_residual(
+        self, fees, expected_cost, expected_gain
+    ):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        partial_day = date(2025, 1, 3)
+        observed_day = date(2025, 1, 4)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+                self._snapshot(
+                    partial_day,
+                    [
+                        self._asset(
+                            "FUND",
+                            "15",
+                            "1500",
+                            str(Dezimal(1500) + Dezimal(fees) / 2),
+                            product_type,
+                        )
+                    ],
+                ),
+                self._snapshot(
+                    observed_day,
+                    [self._asset("FUND", "20", "2400", expected_cost, product_type)],
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "1000",
+                    "10",
+                    asset_key="FUND",
+                    product_type=product_type,
+                    fees=fees,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, observed_day, product_type)
+        )
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(expected_cost)
+        assert result.points[-1].metrics.gain == Dezimal(expected_gain)
+
+    @pytest.mark.asyncio
+    async def test_partially_observed_sell_is_not_repriced_as_a_residual(self):
+        first_day = date(2025, 1, 1)
+        sell_day = date(2025, 1, 2)
+        partial_day = date(2025, 1, 3)
+        observed_day = date(2025, 1, 4)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "20", "2000", "2000", product_type)]
+                ),
+                self._snapshot(
+                    partial_day,
+                    [self._asset("FUND", "15", "1500", "1500", product_type)],
+                ),
+                self._snapshot(
+                    observed_day,
+                    [self._asset("FUND", "10", "1200", "1000", product_type)],
+                ),
+            ],
+            [
+                self._flow(
+                    sell_day,
+                    TxType.SELL,
+                    "1000",
+                    "10",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, observed_day, product_type)
+        )
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1000)
+        assert result.points[-1].metrics.gain == Dezimal(200)
+
+    @pytest.mark.asyncio
+    async def test_partial_buy_without_cost_evidence_remains_estimated(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        partial_day = date(2025, 1, 3)
+        product_type = ProductType.FUND
+        use_case, port = _build(
+            [
+                self._snapshot(
+                    first_day, [self._asset("FUND", "10", "1000", "1000", product_type)]
+                ),
+                self._snapshot(
+                    partial_day, [self._asset("FUND", "15", "1500", None, product_type)]
+                ),
+            ],
+            [
+                self._flow(
+                    buy_day,
+                    TxType.BUY,
+                    "1200",
+                    "10",
+                    asset_key="FUND",
+                    product_type=product_type,
+                )
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(
+            self._query(first_day, partial_day, product_type)
+        )
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1500)
+        assert result.quality == GainsQuality.ESTIMATED
+        assert GainsWarning.INFERRED_FLOWS in result.warnings
+
+    @pytest.mark.asyncio
+    async def test_partly_sold_split_position_keeps_later_price_history(self):
+        buy_day = date(2024, 1, 1)
+        split_day = date(2024, 2, 1)
+        sell_day = date(2024, 3, 1)
+        last_day = date(2025, 1, 2)
+        provider, storage = self._history(
+            buy_day,
+            last_day,
+            [
+                InstrumentPricePoint(date=buy_day, price=Dezimal(50), currency="EUR"),
+                InstrumentPricePoint(date=sell_day, price=Dezimal(50), currency="EUR"),
+                InstrumentPricePoint(date=last_day, price=Dezimal(60), currency="EUR"),
+            ],
+        )
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "1000", "10"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+                self._flow(sell_day, TxType.SELL, "600", "12"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(buy_day, last_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(480)
+        assert metrics.cost_basis == Dezimal(400)
+        assert metrics.gain == Dezimal(80)
+
+    @pytest.mark.asyncio
+    async def test_provider_split_keeps_partly_sold_bounded_position(self):
+        buy_day = date(2024, 1, 1)
+        split_day = date(2024, 2, 1)
+        sell_day = date(2024, 3, 1)
+        first_day = date(2025, 1, 1)
+        last_day = date(2025, 1, 2)
+        provider, storage = self._history(
+            buy_day,
+            last_day,
+            [
+                InstrumentPricePoint(date=buy_day, price=Dezimal(50), currency="EUR"),
+                InstrumentPricePoint(date=last_day, price=Dezimal(60), currency="EUR"),
+            ],
+        )
+        provider.get_splits.return_value = [
+            InstrumentSplit(date=split_day, ratio=Dezimal(2))
+        ]
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "1000", "10"),
+                self._flow(sell_day, TxType.SELL, "600", "12"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        assert result.points
+        assert result.points[-1].metrics.value == Dezimal(480)
+        assert result.points[-1].metrics.cost_basis == Dezimal(400)
+
+    @pytest.mark.asyncio
+    async def test_stale_snapshot_overlay_uses_split_adjusted_quantity(self):
+        snapshot_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        split_day = date(2025, 1, 3)
+        first_day = date(2025, 1, 4)
+        last_day = date(2025, 1, 5)
+        provider, storage = self._history(
+            buy_day,
+            last_day,
+            [
+                InstrumentPricePoint(date=buy_day, price=Dezimal(50), currency="EUR"),
+                InstrumentPricePoint(date=last_day, price=Dezimal(50), currency="EUR"),
+            ],
+        )
+        use_case, port = _build(
+            [self._snapshot(snapshot_day, [self._asset("TEST", "10", "1000", "1000")])],
+            [
+                self._flow(buy_day, TxType.BUY, "100", "1"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        assert result.points[-1].metrics.value == Dezimal(1100)
+        assert result.points[-1].metrics.cost_basis == Dezimal(1100)
+
+    @pytest.mark.asyncio
+    async def test_snapshot_only_position_loads_provider_split(self):
+        first_day = date(2025, 1, 1)
+        split_day = date(2025, 1, 2)
+        provider, storage = self._history(first_day, split_day, [])
+        provider.get_splits.return_value = [
+            InstrumentSplit(date=split_day, ratio=Dezimal(2))
+        ]
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "20", "1000", "1000")]),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, split_day))
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1000)
+        assert result.points[-1].metrics.gain == Dezimal(0)
+        provider.get_splits.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_snapshot_only_position_uses_cached_split_offline(self):
+        first_day = date(2025, 1, 1)
+        split_day = date(2025, 1, 2)
+        _, storage = self._history(first_day, split_day, [])
+        storage.get_splits.return_value = [
+            InstrumentSplit(date=split_day, ratio=Dezimal(2))
+        ]
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "20", "1000", "1000")]),
+            ],
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, split_day))
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1000)
+        assert result.points[-1].metrics.gain == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_snapshot_split_is_loaded_with_negative_price_cache(self):
+        first_day = date(2025, 1, 1)
+        split_day = date(2025, 1, 2)
+        provider, storage = self._history(first_day, split_day, [])
+        storage.is_no_result.return_value = True
+        provider.get_splits.return_value = [
+            InstrumentSplit(date=split_day, ratio=Dezimal(2))
+        ]
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(split_day, [self._asset("TEST", "20", "1000", "1000")]),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, split_day))
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1000)
+        assert result.points[-1].metrics.gain == Dezimal(0)
+        provider.get_splits.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_snapshot_split_is_discovered_after_an_ordinary_buy(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        split_day = date(2025, 1, 3)
+        provider, storage = self._history(first_day, split_day, [])
+        provider.get_splits.return_value = [
+            InstrumentSplit(date=split_day, ratio=Dezimal(2))
+        ]
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(buy_day, [self._asset("TEST", "11", "1100", "1100")]),
+                self._snapshot(split_day, [self._asset("TEST", "22", "1100", "1100")]),
+            ],
+            [self._flow(buy_day, TxType.BUY, "100", "1")],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, split_day))
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1100)
+        assert result.points[-1].metrics.gain == Dezimal(0)
+        provider.get_splits.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_wider_split_range_fetches_uncached_history(self):
+        split_day = date(2024, 6, 1)
+        recent_start = date(2025, 1, 1)
+        earlier_start = date(2024, 1, 1)
+        seed_day = date(2024, 12, 31)
+        later_buy = date(2025, 2, 1)
+        last_day = date(2025, 3, 1)
+        provider, storage = self._history(
+            earlier_start,
+            last_day,
+            [
+                InstrumentPricePoint(
+                    date=earlier_start, price=Dezimal(50), currency="EUR"
+                ),
+                InstrumentPricePoint(date=later_buy, price=Dezimal(50), currency="EUR"),
+            ],
+        )
+        stored_splits = []
+        checked_range = None
+
+        async def is_checked(asset_key, start, end):
+            return (
+                checked_range is not None
+                and checked_range[0] <= start
+                and checked_range[1] >= end
+            )
+
+        async def mark_checked(asset_key, start, end):
+            nonlocal checked_range
+            checked_range = (start, end)
+
+        async def save_splits(asset_key, splits):
+            stored_splits[:] = splits
+
+        async def get_splits(asset_key):
+            return list(stored_splits)
+
+        storage.is_splits_checked.side_effect = is_checked
+        storage.mark_splits_checked.side_effect = mark_checked
+        storage.save_splits.side_effect = save_splits
+        storage.get_splits.side_effect = get_splits
+        provider.get_splits.side_effect = lambda request, start, end, symbol, source: (
+            [InstrumentSplit(date=split_day, ratio=Dezimal(2))]
+            if start <= split_day
+            else []
+        )
+        use_case, port = _build(
+            [self._snapshot(seed_day, [self._asset("TEST", "20", "1000", "1000")])],
+            [
+                self._flow(earlier_start, TxType.BUY, "1000", "10"),
+                self._flow(later_buy, TxType.BUY, "50", "1"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+        entity_id = uuid4()
+        recent_query = self._query(recent_start, last_day)
+        widened_query = self._query(earlier_start, last_day)
+        recent_query.entities = [entity_id]
+        widened_query.entities = [entity_id]
+
+        await use_case.execute(recent_query)
+        widened = await use_case.execute(widened_query)
+
+        by_day = {point.date: point.metrics for point in widened.points}
+        assert by_day[earlier_start].value == Dezimal(1000)
+        provider.get_splits.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_unchanged_snapshot_does_not_require_split_lookup(self):
+        first_day = date(2025, 1, 1)
+        last_day = date(2025, 1, 2)
+        provider, storage = self._history(first_day, last_day, [])
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(last_day, [self._asset("TEST", "10", "1000", "1000")]),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        assert result.points[-1].metrics.gain == Dezimal(0)
+        provider.get_splits.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("response", "expected_cache_writes"), [(None, 0), ([], 1)]
+    )
+    async def test_split_provider_failure_is_not_cached_as_empty(
+        self, response, expected_cache_writes
+    ):
+        first_day = date(2025, 1, 1)
+        last_day = date(2025, 12, 31)
+        provider, storage = self._history(first_day, last_day, [])
+        provider.get_splits.return_value = response
+        use_case, _ = _build([], history_provider=provider, history_storage=storage)
+        request = InstrumentDataRequest(type=InstrumentType.STOCK, ticker="TEST")
+
+        splits = await use_case._load_splits(
+            {"TEST": request}, {"TEST": (first_day, last_day)}
+        )
+
+        assert splits == {}
+        assert storage.mark_splits_checked.await_count == expected_cache_writes
+
+    @pytest.mark.asyncio
+    async def test_stock_history_does_not_revalue_crypto_with_same_key(self):
+        buy_day = date(2025, 1, 1)
+        split_day = date(2025, 2, 1)
+        last_day = date(2025, 3, 1)
+        provider, storage = self._history(
+            buy_day,
+            last_day,
+            [
+                InstrumentPricePoint(date=buy_day, price=Dezimal(50), currency="EUR"),
+                InstrumentPricePoint(date=last_day, price=Dezimal(60), currency="EUR"),
+            ],
+        )
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "500", "5"),
+                self._flow(
+                    buy_day, TxType.BUY, "500", "5", product_type=ProductType.CRYPTO
+                ),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+        query = GainsTimelineQuery(
+            assets=[
+                GainsAssetFilter(product_type=ProductType.STOCK_ETF),
+                GainsAssetFilter(product_type=ProductType.CRYPTO),
+            ],
+            entities=[uuid4()],
+            from_date=buy_day,
+            to_date=last_day,
+        )
+
+        result = await use_case.execute(query)
+
+        point = result.points[-1]
+        assert point.breakdown["STOCK_ETF"].value == Dezimal(600)
+        assert point.breakdown["CRYPTO"].value == Dezimal(500)
+        assert point.metrics.value == Dezimal(1100)
+
+    @pytest.mark.asyncio
+    async def test_stock_and_fund_history_are_isolated_for_same_key(self):
+        buy_day = date(2025, 1, 1)
+        split_day = date(2025, 2, 1)
+        last_day = date(2025, 3, 1)
+        provider, storage = self._history(buy_day, last_day, [])
+        storage.get_covered_range.return_value = None
+
+        def history(request, start, end, symbol, source):
+            prices = (
+                ("100", "120")
+                if request.type == InstrumentType.MUTUAL_FUND
+                else ("50", "60")
+            )
+            return (
+                [
+                    InstrumentPricePoint(
+                        date=buy_day, price=Dezimal(prices[0]), currency="EUR"
+                    ),
+                    InstrumentPricePoint(
+                        date=last_day, price=Dezimal(prices[1]), currency="EUR"
+                    ),
+                ],
+                "TEST",
+                "test",
+            )
+
+        provider.get_history.side_effect = history
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "500", "5"),
+                self._flow(
+                    buy_day, TxType.BUY, "200", "2", product_type=ProductType.FUND
+                ),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+        query = GainsTimelineQuery(
+            assets=[
+                GainsAssetFilter(product_type=ProductType.STOCK_ETF),
+                GainsAssetFilter(product_type=ProductType.FUND),
+            ],
+            entities=[uuid4()],
+            from_date=buy_day,
+            to_date=last_day,
+        )
+
+        result = await use_case.execute(query)
+
+        point = result.points[-1]
+        assert point.breakdown["STOCK_ETF"].value == Dezimal(600)
+        assert point.breakdown["FUND"].value == Dezimal(240)
+        assert point.metrics.value == Dezimal(840)
+
+    @pytest.mark.asyncio
+    async def test_separate_stock_and_fund_queries_do_not_share_price_cache(self):
+        buy_day = date(2025, 1, 1)
+        split_day = date(2025, 2, 1)
+        last_day = date(2025, 3, 1)
+        provider, storage = self._history(buy_day, last_day, [])
+        cached = {}
+
+        async def get_history(key, start, end):
+            return [
+                point for point in cached.get(key, []) if start <= point.date <= end
+            ]
+
+        async def get_covered_range(key):
+            points = cached.get(key, [])
+            if not points:
+                return None
+            return min(point.date for point in points), max(
+                point.date for point in points
+            )
+
+        async def upsert(key, points, source):
+            cached[key] = list(points)
+
+        def history(request, start, end, symbol, source):
+            prices = (
+                ("100", "120")
+                if request.type == InstrumentType.MUTUAL_FUND
+                else ("50", "60")
+            )
+            return (
+                [
+                    InstrumentPricePoint(
+                        date=buy_day, price=Dezimal(prices[0]), currency="EUR"
+                    ),
+                    InstrumentPricePoint(
+                        date=last_day, price=Dezimal(prices[1]), currency="EUR"
+                    ),
+                ],
+                "TEST",
+                "test",
+            )
+
+        storage.get_history.side_effect = get_history
+        storage.get_covered_range.side_effect = get_covered_range
+        storage.upsert.side_effect = upsert
+        provider.get_history.side_effect = history
+        use_case, port = _build(
+            [],
+            [
+                self._flow(buy_day, TxType.BUY, "500", "5"),
+                self._flow(
+                    buy_day, TxType.BUY, "200", "2", product_type=ProductType.FUND
+                ),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+            history_provider=provider,
+            history_storage=storage,
+        )
+        port.get_split_ratios.return_value = []
+        fund_query = self._query(buy_day, last_day, ProductType.FUND)
+        stock_query = self._query(buy_day, last_day, ProductType.STOCK_ETF)
+        stock_query.entities = fund_query.entities
+
+        fund = await use_case.execute(fund_query)
+        stock = await use_case.execute(stock_query)
+
+        assert fund.points[-1].metrics.value == Dezimal(240)
+        assert stock.points[-1].metrics.value == Dezimal(600)
+
+    @pytest.mark.asyncio
+    async def test_pending_sell_crossing_split_is_counted_once(self):
+        first_day = date(2025, 1, 1)
+        sell_day = date(2025, 1, 2)
+        split_day = date(2025, 1, 3)
+        observed_day = date(2025, 1, 4)
+        last_day = date(2025, 1, 12)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "30", "3000", "3000")]),
+                self._snapshot(split_day, [self._asset("TEST", "60", "3000", "3000")]),
+                self._snapshot(
+                    observed_day, [self._asset("TEST", "36", "1800", "1800")]
+                ),
+                self._snapshot(last_day, [self._asset("TEST", "35", "2100", "1750")]),
+            ],
+            [
+                self._flow(sell_day, TxType.SELL, "1200", "12"),
+                self._flow(split_day, TxType.SPLIT, "0", ratio="2"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, last_day))
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(2100)
+        assert metrics.net_contributions == Dezimal(1740)
+        assert metrics.gain == Dezimal(360)
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_pending_buys_are_not_reported_complete(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        observed_day = date(2025, 1, 3)
+        use_case, port = _build(
+            [
+                self._snapshot(first_day, [self._asset("TEST", "10", "1000", "1000")]),
+                self._snapshot(observed_day, [self._asset("TEST", "11", "1100", None)]),
+            ],
+            [
+                self._flow(buy_day, TxType.BUY, "90", "1"),
+                self._flow(buy_day, TxType.BUY, "110", "1"),
+            ],
+        )
+        port.get_split_ratios.return_value = []
+
+        result = await use_case.execute(self._query(first_day, observed_day))
+
+        assert result.quality in {GainsQuality.ESTIMATED, GainsQuality.DEGRADED}
+        assert result.warnings

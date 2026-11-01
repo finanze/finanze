@@ -297,6 +297,7 @@ async function yfChart(
   if (!res.ok) throw new Error(`Chart failed: ${res.status}`)
 
   const data = await res.json()
+  if (data.chart?.error) throw new Error("Chart provider returned an error")
   const result = data.chart?.result?.[0]
   if (!result) return { points: [], currency: null, splits: [] }
 
@@ -355,7 +356,7 @@ async function getSplits(
     return JSON.stringify(splits)
   } catch (error) {
     appConsole.warn("[YahooFinanceBridge] getSplits failed", symbol, error)
-    return JSON.stringify([])
+    return JSON.stringify(null)
   }
 }
 

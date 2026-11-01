@@ -23,9 +23,17 @@ from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import DataSource
 from domain.global_position import (
+    Account,
+    Accounts,
+    AccountType,
+    Card,
+    Cards,
+    CardType,
     CryptoCurrencies,
     CryptoCurrencyPosition,
     CryptoCurrencyWallet,
+    FundPortfolio,
+    FundPortfolios,
     GlobalPosition,
     ProductType,
     UpdatePositionRequest,
@@ -415,6 +423,266 @@ class TestManualDataDeletion:
         await uc.execute(request)
 
         manual_data_port.delete_by_position_id.assert_not_called()
+
+
+class TestReturnedEntityId:
+    @pytest.mark.asyncio
+    async def test_returns_existing_entity_id(self):
+        uc, *_, entity, _ = _build_use_case()
+
+        result = await uc.execute(_make_request(entity.id, products={}))
+
+        assert result == entity.id
+
+    @pytest.mark.asyncio
+    async def test_returns_created_entity_id(self):
+        uc, entity_port, *_ = _build_use_case()
+        entity_port.get_by_name.return_value = None
+
+        result = await uc.execute(
+            UpdatePositionRequest(products={}, new_entity_name="New Bank")
+        )
+
+        inserted = entity_port.insert.await_args.args[0]
+        assert inserted.name == "New Bank"
+        assert result == inserted.id
+
+
+# ---------------------------------------------------------------------------
+# TestCarriedAccountLinks
+# ---------------------------------------------------------------------------
+
+
+def _manual_account(account_id, total="1000"):
+    return Account(
+        id=account_id,
+        total=Dezimal(total),
+        currency="EUR",
+        type=AccountType.FUND_PORTFOLIO,
+        name="Broker cash",
+        source=DataSource.MANUAL,
+    )
+
+
+def _manual_portfolio(account_id):
+    return FundPortfolio(
+        id=uuid4(),
+        name="Main portfolio",
+        currency="EUR",
+        account_id=account_id,
+        account=_manual_account(account_id) if account_id else None,
+        source=DataSource.MANUAL,
+    )
+
+
+def _manual_card(related_account):
+    return Card(
+        id=uuid4(),
+        currency="EUR",
+        type=CardType.DEBIT,
+        used=Dezimal(0),
+        related_account=related_account,
+        source=DataSource.MANUAL,
+    )
+
+
+def _with_prior(products, days_ago=0):
+    (
+        uc,
+        entity_port,
+        position_port,
+        manual_data_port,
+        virtual_registry,
+        entity,
+        _,
+    ) = _build_use_case()
+    date = datetime.now(tzlocal()) - timedelta(days=days_ago)
+    prior_id = uuid4()
+    virtual_registry.get_last_import_records.return_value = [
+        _make_import_record(uuid4(), prior_id, entity.id, date)
+    ]
+    virtual_registry.is_position_shared.return_value = False
+    position_port.get_by_id.return_value = GlobalPosition(
+        id=prior_id,
+        entity=entity,
+        date=date,
+        products=products,
+        source=DataSource.MANUAL,
+    )
+    return uc, position_port, entity
+
+
+def _saved(position_port, product_type):
+    return position_port.save.await_args.args[0].products[product_type].entries
+
+
+class TestCarriedAccountLinks:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("days_ago", [0, 1])
+    async def test_account_only_save_keeps_carried_portfolio_link(self, days_ago):
+        account_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                ProductType.FUND_PORTFOLIO: FundPortfolios(
+                    [_manual_portfolio(account_id)]
+                ),
+            },
+            days_ago=days_ago,
+        )
+
+        await uc.execute(
+            _make_request(
+                entity.id,
+                {ProductType.ACCOUNT: Accounts([_manual_account(account_id, "2000")])},
+            )
+        )
+
+        [saved_account] = _saved(position_port, ProductType.ACCOUNT)
+        [saved_portfolio] = _saved(position_port, ProductType.FUND_PORTFOLIO)
+        assert saved_account.total == Dezimal("2000")
+        assert saved_account.id != account_id
+        assert saved_portfolio.account_id == saved_account.id
+
+    @pytest.mark.asyncio
+    async def test_card_only_save_keeps_carried_portfolio_link(self):
+        account_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                ProductType.FUND_PORTFOLIO: FundPortfolios(
+                    [_manual_portfolio(account_id)]
+                ),
+            }
+        )
+
+        await uc.execute(
+            _make_request(
+                entity.id, {ProductType.CARD: Cards([_manual_card(account_id)])}
+            )
+        )
+
+        [saved_account] = _saved(position_port, ProductType.ACCOUNT)
+        [saved_portfolio] = _saved(position_port, ProductType.FUND_PORTFOLIO)
+        [saved_card] = _saved(position_port, ProductType.CARD)
+        assert saved_portfolio.account_id == saved_account.id
+        assert saved_card.related_account == saved_account.id
+
+    @pytest.mark.asyncio
+    async def test_removed_account_unlinks_carried_portfolio(self):
+        removed_id = uuid4()
+        kept_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts(
+                    [_manual_account(removed_id), _manual_account(kept_id)]
+                ),
+                ProductType.FUND_PORTFOLIO: FundPortfolios(
+                    [_manual_portfolio(removed_id), _manual_portfolio(kept_id)]
+                ),
+            }
+        )
+
+        await uc.execute(
+            _make_request(
+                entity.id, {ProductType.ACCOUNT: Accounts([_manual_account(kept_id)])}
+            )
+        )
+
+        [saved_account] = _saved(position_port, ProductType.ACCOUNT)
+        unlinked, linked = _saved(position_port, ProductType.FUND_PORTFOLIO)
+        assert unlinked.account_id is None
+        assert unlinked.account is None
+        assert linked.account_id == saved_account.id
+
+    @pytest.mark.asyncio
+    async def test_removed_account_unlinks_carried_card(self):
+        account_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                ProductType.CARD: Cards([_manual_card(account_id)]),
+            }
+        )
+
+        await uc.execute(_make_request(entity.id, {ProductType.ACCOUNT: Accounts([])}))
+
+        [saved_card] = _saved(position_port, ProductType.CARD)
+        assert saved_card.related_account is None
+
+    @pytest.mark.asyncio
+    async def test_carried_link_to_real_account_is_preserved(self):
+        manual_id = uuid4()
+        real_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts([_manual_account(manual_id)]),
+                ProductType.FUND_PORTFOLIO: FundPortfolios(
+                    [_manual_portfolio(real_id)]
+                ),
+            }
+        )
+
+        await uc.execute(_make_request(entity.id, {ProductType.ACCOUNT: Accounts([])}))
+
+        [saved_portfolio] = _saved(position_port, ProductType.FUND_PORTFOLIO)
+        assert saved_portfolio.account_id == real_id
+
+    @pytest.mark.asyncio
+    async def test_card_remapped_account_propagates_to_carried_portfolio(self):
+        account_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                ProductType.FUND_PORTFOLIO: FundPortfolios(
+                    [_manual_portfolio(account_id)]
+                ),
+            }
+        )
+
+        await uc.execute(
+            _make_request(
+                entity.id,
+                {
+                    ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                    ProductType.CARD: Cards([_manual_card(account_id)]),
+                },
+            )
+        )
+
+        [saved_account] = _saved(position_port, ProductType.ACCOUNT)
+        [saved_portfolio] = _saved(position_port, ProductType.FUND_PORTFOLIO)
+        [saved_card] = _saved(position_port, ProductType.CARD)
+        assert saved_card.related_account == saved_account.id
+        assert saved_portfolio.account_id == saved_account.id
+
+    @pytest.mark.asyncio
+    async def test_portfolio_remapped_account_propagates_to_carried_card(self):
+        account_id = uuid4()
+        uc, position_port, entity = _with_prior(
+            {
+                ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                ProductType.CARD: Cards([_manual_card(account_id)]),
+            }
+        )
+
+        await uc.execute(
+            _make_request(
+                entity.id,
+                {
+                    ProductType.ACCOUNT: Accounts([_manual_account(account_id)]),
+                    ProductType.FUND_PORTFOLIO: FundPortfolios(
+                        [_manual_portfolio(account_id)]
+                    ),
+                },
+            )
+        )
+
+        [saved_account] = _saved(position_port, ProductType.ACCOUNT)
+        [saved_portfolio] = _saved(position_port, ProductType.FUND_PORTFOLIO)
+        [saved_card] = _saved(position_port, ProductType.CARD)
+        assert saved_portfolio.account_id == saved_account.id
+        assert saved_card.related_account == saved_account.id
 
 
 # ---------------------------------------------------------------------------

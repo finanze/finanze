@@ -1,6 +1,6 @@
 import { loadPyodide, type PyodideInterface } from "pyodide"
 
-const CACHE_NAME = "pyodide-cache-v314.0.6"
+const CACHE_NAME = "pyodide-cache-v314.0.7"
 
 function shouldInterceptUrl(url: string): boolean {
   const lowerUrl = url.toLowerCase()

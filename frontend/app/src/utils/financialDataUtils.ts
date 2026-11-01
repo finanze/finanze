@@ -15,6 +15,8 @@ import {
   MarketForecastPositions,
   Credits,
   Loan,
+  Card,
+  CardType,
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
@@ -570,6 +572,7 @@ export const getTransactionDisplayType = (
       TxType.SWITCH_TO,
       TxType.TRANSFER_IN,
       TxType.FEE,
+      TxType.OUTFLOW,
     ].includes(txType)
   ) {
     return "out"
@@ -609,7 +612,7 @@ export const getTransactionDisplaySign = (
   if (getTransactionDisplayType(txType, amount) === "in") {
     return "+"
   }
-  if (txType === TxType.FEE) {
+  if (txType === TxType.FEE || txType === TxType.OUTFLOW) {
     return "-"
   }
   return ""
@@ -3452,7 +3455,7 @@ export const getUnlinkedLoansOutstanding = (
   return total
 }
 
-export const getTotalCardUsed = (
+export const getTotalCreditCardUsed = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
@@ -3464,7 +3467,8 @@ export const getTotalCardUsed = (
     .forEach((entityPosition: any) => {
       const cardsProduct = entityPosition.products?.[ProductType.CARD]
       if (cardsProduct?.entries) {
-        cardsProduct.entries.forEach((card: any) => {
+        cardsProduct.entries.forEach((card: Card) => {
+          if (card.type !== CardType.CREDIT) return
           total += convertCurrency(
             card.used || 0,
             card.currency,
@@ -3641,7 +3645,7 @@ export const computeAdjustedKpis = (
       )
     : 0
   const cardUsed = options.includeCardExpenses
-    ? getTotalCardUsed(positionsData, targetCurrency, exchangeRates)
+    ? getTotalCreditCardUsed(positionsData, targetCurrency, exchangeRates)
     : 0
   const loansOutstanding = options.includeLoans
     ? getUnlinkedLoansOutstanding(
@@ -3736,7 +3740,7 @@ export const computeForecastKpis = (
     : 0
 
   const cardUsed = options.includeCardExpenses
-    ? getTotalCardUsed(forecastPositions, targetCurrency, exchangeRates)
+    ? getTotalCreditCardUsed(forecastPositions, targetCurrency, exchangeRates)
     : 0
   const loansOutstanding = options.includeLoans
     ? getUnlinkedLoansOutstanding(

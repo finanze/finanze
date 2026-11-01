@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n"
 import { Card } from "@/components/ui/Card"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
+import { Slider } from "@/components/ui/Slider"
 import {
   Popover,
   PopoverContent,
@@ -649,6 +650,19 @@ export function RealEstateStats({
                       </div>
                     )}
                   </div>
+                  {onChangeMarginalTaxRate && (
+                    <Slider
+                      value={
+                        marginalTaxRate != null ? marginalTaxRate * 100 : null
+                      }
+                      onValueChange={v => onChangeMarginalTaxRate(v / 100)}
+                      min={0}
+                      max={60}
+                      step={0.5}
+                      showValue={false}
+                      aria-label={t.realEstate.labels.marginalTaxRate}
+                    />
+                  )}
                   {marginalTaxRate ? (
                     <div className="text-sm space-y-2">
                       <div className="flex justify-between py-2 px-3 bg-orange-50 dark:bg-orange-900/20 rounded">

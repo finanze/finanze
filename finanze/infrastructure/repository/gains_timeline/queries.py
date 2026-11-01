@@ -218,7 +218,7 @@ class GainsTimelineQueries(str, Enum):
                        FROM deposit_positions d
                            JOIN global_positions dgp ON dgp.id = d.global_position_id
                        WHERE dgp.entity_id = it.entity_id
-                         AND COALESCE(dgp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
+                                                 AND {_account_key("dgp")} = {_account_key("it")}
                          AND d.currency = it.currency
                          AND (
                              (
@@ -248,7 +248,7 @@ class GainsTimelineQueries(str, Enum):
                                JOIN global_positions gp ON gp.id = f.global_position_id
                                LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
                            WHERE gp.entity_id = it.entity_id
-                             AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
+                                                         AND {_account_key("gp")} = {_account_key("it")}
                              AND gp.source = it.source
                              AND f.currency = it.currency
                              AND COALESCE(NULLIF(f.isin, ''), f.name) = COALESCE(NULLIF(it.isin, ''), it.name)
@@ -264,7 +264,7 @@ class GainsTimelineQueries(str, Enum):
                                JOIN global_positions gp ON gp.id = f.global_position_id
                                LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
                            WHERE gp.entity_id = it.entity_id
-                             AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
+                                                         AND {_account_key("gp")} = {_account_key("it")}
                              AND gp.source = it.source
                              AND f.currency = it.currency
                              AND COALESCE(NULLIF(f.isin, ''), f.name) = COALESCE(NULLIF(it.isin, ''), it.name)
@@ -288,7 +288,7 @@ class GainsTimelineQueries(str, Enum):
                            FROM stock_positions s
                                JOIN global_positions gp ON gp.id = s.global_position_id
                            WHERE gp.entity_id = it.entity_id
-                             AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
+                                                         AND {_account_key("gp")} = {_account_key("it")}
                              AND gp.source = it.source
                              AND COALESCE(NULLIF(s.isin, ''), NULLIF(s.ticker, ''), s.name) = COALESCE(NULLIF(it.isin, ''), NULLIF(it.ticker, ''), it.name)
                                                          AND gp.date >= it.date
@@ -302,7 +302,7 @@ class GainsTimelineQueries(str, Enum):
                                                      FROM stock_positions s
                                                              JOIN global_positions gp ON gp.id = s.global_position_id
                                                      WHERE gp.entity_id = it.entity_id
-                                                         AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
+                                                         AND {_account_key("gp")} = {_account_key("it")}
                                                          AND gp.source = it.source
                                                          AND COALESCE(NULLIF(s.isin, ''), NULLIF(s.ticker, ''), s.name) = COALESCE(NULLIF(it.isin, ''), NULLIF(it.ticker, ''), it.name)
                                                      ORDER BY gp.date DESC

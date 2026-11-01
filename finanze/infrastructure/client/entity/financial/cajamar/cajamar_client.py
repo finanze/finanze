@@ -1,8 +1,10 @@
+import json
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 import time
+
 from dateutil.tz import tzlocal
 
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
@@ -17,6 +19,12 @@ DEVICE_ID_LENGTH = 25
 
 ACCESS_TOKEN_LIFETIME = 15 * 60  # 20 minutes (but set to 15)
 REFRESH_TOKEN_LIFETIME = 4 * 30 - 1  # Days
+
+SIGNATURE_REQUIRED_CODE = "SGN000"
+
+
+class CajamarSignatureRequired(Exception):
+    pass
 
 
 def _calculate_c_digit(base: str) -> str:
@@ -227,6 +235,14 @@ class CajamarClient:
             return await response.json()
 
         body_text = await response.text()
+        try:
+            error_code = json.loads(body_text).get("code")
+        except (ValueError, AttributeError):
+            error_code = None
+        if error_code == SIGNATURE_REQUIRED_CODE:
+            self._log.warning(f"Cajamar signature required: {body_text}")
+            raise CajamarSignatureRequired(body_text)
+
         self._log.error("Error Response Body: " + body_text)
         response.raise_for_status()
         return {}
@@ -293,9 +309,20 @@ class CajamarClient:
         return await self._post_request(self.API_VERSION + "/account/" + account_id)
 
     async def get_account_txs(
-        self, account_id: str, page_num: int = 1, page_size: int = 16
+        self,
+        account_id: str,
+        page_num: int = 1,
+        page_size: int = 16,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
     ):
-        params = {"pageNumber": page_num, "pageSize": page_size}
+        if date_from and date_to:
+            params = {"dateFrom": date_from.isoformat(), "dateTo": date_to.isoformat()}
+            if page_num > 1:
+                params["pageSize"] = page_size
+                params["pageNumber"] = page_num
+        else:
+            params = {"pageNumber": page_num, "pageSize": page_size}
         return await self._post_request(
             self.API_VERSION + f"/account/{account_id}/transactions",
             params=params,

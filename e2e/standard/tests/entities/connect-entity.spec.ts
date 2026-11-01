@@ -33,14 +33,19 @@ test.describe('Connect Entity - Simple Credentials (Urbanitae)', () => {
             page.getByText('Successfully logged in to Urbanitae'),
         ).toBeVisible({ timeout: 15_000 })
 
-        // Navigate back to entities and verify connected badge
+        // Navigate back to entities and verify connected state
         await page.getByRole('button', { name: 'Integrations' }).click()
         await page
             .getByRole('heading', { name: 'Integrations' })
             .waitFor({ timeout: 15_000 })
 
-        // Entity should show "Connected" heading section and badge
-        await expect(page.getByText('Connected').first()).toBeVisible({
+        const urbanitaeCard = page
+            .locator('h3', { hasText: 'Urbanitae' })
+            .first()
+            .locator('../..')
+        await expect(
+            urbanitaeCard.getByRole('button', { name: 'Fetch' }),
+        ).toBeVisible({
             timeout: 5_000,
         })
     })
@@ -76,7 +81,13 @@ test.describe('Connect Entity - API Credentials (Trading 212)', () => {
             .getByRole('heading', { name: 'Integrations' })
             .waitFor({ timeout: 15_000 })
 
-        await expect(page.getByText('Connected').first()).toBeVisible({
+        const trading212Card = page
+            .locator('h3', { hasText: 'Trading 212' })
+            .first()
+            .locator('../..')
+        await expect(
+            trading212Card.getByRole('button', { name: 'Fetch' }),
+        ).toBeVisible({
             timeout: 5_000,
         })
     })

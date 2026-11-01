@@ -99,13 +99,25 @@ public class LoginWebViewPlugin: CAPPlugin, CAPBridgedPlugin {
 
             cookieStore.getAllCookies { allCookies in
                 let host = url.host?.lowercased() ?? ""
+                let requestPath = url.path.isEmpty ? "/" : url.path
+                let isSecure = url.scheme?.lowercased() == "https"
+                let now = Date()
                 let matching = allCookies.filter { cookie in
                     let domain = cookie.domain.lowercased()
+                    let domainMatches: Bool
                     if domain.hasPrefix(".") {
-                        return host == String(domain.dropFirst()) || host.hasSuffix(domain)
+                        domainMatches = host == String(domain.dropFirst()) || host.hasSuffix(domain)
+                    } else {
+                        domainMatches = host == domain
                     }
-                    return host == domain
-                }
+                    guard domainMatches else { return false }
+                    if cookie.isSecure && !isSecure { return false }
+                    if let expires = cookie.expiresDate, expires < now { return false }
+                    let cookiePath = cookie.path.isEmpty ? "/" : cookie.path
+                    if requestPath == cookiePath { return true }
+                    guard requestPath.hasPrefix(cookiePath) else { return false }
+                    return cookiePath.hasSuffix("/") || requestPath.dropFirst(cookiePath.count).hasPrefix("/")
+                }.sorted { $0.path.count > $1.path.count }
 
                 var cookiesObj: [String: String] = [:]
                 for cookie in matching {

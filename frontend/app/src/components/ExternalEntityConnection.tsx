@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
+import type { PluginListenerHandle } from "@capacitor/core"
 import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
@@ -8,10 +9,21 @@ import { Input } from "@/components/ui/Input"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
+import { Badge } from "@/components/ui/Badge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
-import { Search, Landmark, Check, X } from "lucide-react"
+import { CountryFlag } from "@/components/CountryFlag"
+import {
+  Search,
+  Landmark,
+  Check,
+  X,
+  ChevronDown,
+  User,
+  Briefcase,
+} from "lucide-react"
 import {
   ExternalEntityConnectionResult,
+  ExternalEntityPsuType,
   ExternalEntitySetupResponseCode,
   ExternalIntegrationType,
   ExternalIntegrationStatus,
@@ -23,10 +35,15 @@ import {
   getImageUrl,
   disconnectExternalEntity,
 } from "@/services/api"
-import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
+import { AVAILABLE_COUNTRIES } from "@/constants/countries"
 import { isNativeMobile, isWeb } from "@/lib/platform"
-import { openInAppBrowser, closeInAppBrowser } from "@/lib/mobile"
+import {
+  INTEGRATION_OAUTH_PARAM,
+  closeExternalAuthBrowser,
+  openExternalAuthLink,
+} from "@/lib/externalAuth"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
+import { cn } from "@/lib/utils"
 
 export const ENABLE_BANKING_PROVIDER = "ENABLE_BANKING"
 
@@ -35,41 +52,20 @@ function buildWebCompletionUrl(): string | undefined {
   return `${window.location.origin}${window.location.pathname}#/entities`
 }
 
-async function openExternalAuthLink(link: string) {
-  if (isNativeMobile()) {
-    try {
-      await openInAppBrowser(link)
-    } catch {
-      // ignore in-app browser open errors
-    }
-    return
-  }
-  if (isWeb()) {
-    // Web/Docker: navigate the same tab; the provider page redirects back
-    // to this app with the code/state once the authorization completes.
-    window.location.assign(link)
-    return
-  }
-  try {
-    window.open(link, "_blank")
-  } catch {
-    // ignore window open errors
-  }
-}
-
-async function closeExternalAuthBrowser() {
-  try {
-    await closeInAppBrowser()
-  } catch {
-    // ignore in-app browser close errors
-  }
-}
-
 interface ExternalCandidate {
   id: string
   name: string
   bic: string
   icon?: string | null
+  psu_types?: string[] | null
+}
+
+function listSupportedPsuTypes(
+  psuTypes?: string[] | null,
+): ExternalEntityPsuType[] {
+  return Object.values(ExternalEntityPsuType).filter(type =>
+    psuTypes?.includes(type),
+  )
 }
 
 export function useExternalEntityConnection() {
@@ -111,6 +107,11 @@ export function useExternalEntityConnection() {
   )
   const [institutionSearch, setInstitutionSearch] = useState("")
   const [ebConfirmInstitutionId, setEbConfirmInstitutionId] = useState<
+    string | null
+  >(null)
+  const [ebConfirmPsuType, setEbConfirmPsuType] =
+    useState<ExternalEntityPsuType | null>(null)
+  const [expandedPsuInstitutionId, setExpandedPsuInstitutionId] = useState<
     string | null
   >(null)
   // Linking existing externally provided entity
@@ -160,6 +161,7 @@ export function useExternalEntityConnection() {
   const closeAddExternalEntity = () => {
     setShowAddExternalEntity(false)
     setEbConfirmInstitutionId(null)
+    setExpandedPsuInstitutionId(null)
   }
 
   const handleSelectProvider = (providerId: string) => {
@@ -179,6 +181,7 @@ export function useExternalEntityConnection() {
     setCandidatesNoLinkedAccounts(false)
     setExternalCandidates([])
     setInstitutionSearch("")
+    setExpandedPsuInstitutionId(null)
     try {
       const res = await getExternalEntityCandidates(country, selectedProvider)
       const sorted = [...(res.entities || [])].sort((a, b) =>
@@ -204,7 +207,10 @@ export function useExternalEntityConnection() {
     setInstitutionSearch("")
   }
 
-  const handleConnectExternalEntity = async (institutionId: string) => {
+  const handleConnectExternalEntity = async (
+    institutionId: string,
+    psuType?: ExternalEntityPsuType | null,
+  ) => {
     setConnectingInstitutionId(institutionId)
     setAlreadyLinked(false)
     try {
@@ -213,6 +219,7 @@ export function useExternalEntityConnection() {
           institution_id: institutionId,
           provider: selectedProvider,
           completion_url: buildWebCompletionUrl(),
+          ...(psuType ? { psu_type: psuType } : {}),
         })
       if (result.code === ExternalEntitySetupResponseCode.ALREADY_LINKED) {
         setAlreadyLinked(true)
@@ -234,6 +241,41 @@ export function useExternalEntityConnection() {
     } finally {
       setConnectingInstitutionId(null)
     }
+  }
+
+  const continueInstitutionSelection = (
+    institutionId: string,
+    psuType: ExternalEntityPsuType | null,
+  ) => {
+    if (selectedProvider === ENABLE_BANKING_PROVIDER) {
+      setEbConfirmPsuType(psuType)
+      setEbConfirmInstitutionId(institutionId)
+      return
+    }
+    handleConnectExternalEntity(institutionId, psuType)
+  }
+
+  const handleSelectInstitution = (candidate: ExternalCandidate) => {
+    const psuTypes = listSupportedPsuTypes(candidate.psu_types)
+    if (psuTypes.length > 1) {
+      setExpandedPsuInstitutionId(prev =>
+        prev === candidate.id ? null : candidate.id,
+      )
+      return
+    }
+    setExpandedPsuInstitutionId(null)
+    continueInstitutionSelection(
+      candidate.id,
+      psuTypes.length === 1 ? psuTypes[0] : null,
+    )
+  }
+
+  const handlePsuTypeSelected = (
+    institutionId: string,
+    psuType: ExternalEntityPsuType,
+  ) => {
+    setExpandedPsuInstitutionId(null)
+    continueInstitutionSelection(institutionId, psuType)
   }
 
   // Continue link for externally provided entities that require login
@@ -345,6 +387,7 @@ export function useExternalEntityConnection() {
       }
 
       await closeExternalAuthBrowser()
+      setShowCompleteExternalModal(true)
       setCompletingConnection(true)
       try {
         await completeExternalEntityConnection(entityId, code)
@@ -379,11 +422,14 @@ export function useExternalEntityConnection() {
 
     import("@capacitor/app").then(({ App }) => {
       if (!mounted) return
-      const listener = App.addListener("appUrlOpen", ({ url }) => {
-        void handleExternalCompleteUrl(url)
-      })
+      const listener = App.addListener(
+        "appUrlOpen",
+        ({ url }: { url: string }) => {
+          void handleExternalCompleteUrl(url)
+        },
+      )
       cleanup = () => {
-        listener.then(l => l.remove())
+        listener.then((l: PluginListenerHandle) => l.remove())
       }
     })
 
@@ -399,6 +445,7 @@ export function useExternalEntityConnection() {
   useEffect(() => {
     if (!isWeb()) return
     const params = new URLSearchParams(window.location.search)
+    if (params.get(INTEGRATION_OAUTH_PARAM)) return
     const code = params.get("code")
     const state = params.get("state")
     const error = params.get("error")
@@ -477,6 +524,8 @@ export function useExternalEntityConnection() {
     alreadyLinked,
     ebConfirmInstitutionId,
     setEbConfirmInstitutionId,
+    ebConfirmPsuType,
+    expandedPsuInstitutionId,
     // Complete modal state
     showCompleteExternalModal,
     externalLink,
@@ -491,6 +540,8 @@ export function useExternalEntityConnection() {
     fetchCandidates,
     handleChangeCountry,
     handleConnectExternalEntity,
+    handleSelectInstitution,
+    handlePsuTypeSelected,
     handleContinueExternalEntityLink,
     handleDisconnectExternalProvided,
     handleRelinkExternalProvided,
@@ -509,6 +560,19 @@ export function ExternalEntityConnectionModals({
   conn: ExternalEntityConnection
 }) {
   const { t } = useI18n()
+  const reducedMotion = useReducedMotion()
+  const psuTypeMeta = (psuType: ExternalEntityPsuType) =>
+    psuType === ExternalEntityPsuType.BUSINESS
+      ? {
+          label: t.entities.psuTypeBusiness,
+          Icon: Briefcase,
+          tone: "bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+        }
+      : {
+          label: t.entities.psuTypePersonal,
+          Icon: User,
+          tone: "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+        }
   const {
     enabledEntityProviders,
     showAddExternalEntity,
@@ -525,6 +589,8 @@ export function ExternalEntityConnectionModals({
     alreadyLinked,
     ebConfirmInstitutionId,
     setEbConfirmInstitutionId,
+    ebConfirmPsuType,
+    expandedPsuInstitutionId,
     showCompleteExternalModal,
     externalLink,
     externalCompleteProvider,
@@ -534,9 +600,16 @@ export function ExternalEntityConnectionModals({
     fetchCandidates,
     handleChangeCountry,
     handleConnectExternalEntity,
+    handleSelectInstitution,
+    handlePsuTypeSelected,
     handleCompleteExternalConnection,
     dismissCompleteModal,
   } = conn
+
+  const ebCandidate = externalCandidates.find(
+    c => c.id === ebConfirmInstitutionId,
+  )
+  const ebPsu = ebConfirmPsuType ? psuTypeMeta(ebConfirmPsuType) : null
 
   return (
     <>
@@ -619,9 +692,10 @@ export function ExternalEntityConnectionModals({
                       {selectedCountry ? (
                         <div className="flex items-center justify-between gap-2 border rounded-md px-3 py-2 border-gray-200 dark:border-gray-700">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-xl leading-none">
-                              {getCountryFlag(selectedCountry)}
-                            </span>
+                            <CountryFlag
+                              code={selectedCountry}
+                              className="h-5 w-[30px] shrink-0"
+                            />
                             <span className="text-sm font-medium">
                               {selectedCountry}
                             </span>
@@ -644,9 +718,10 @@ export function ExternalEntityConnectionModals({
                               onClick={() => fetchCandidates(code)}
                               className="border rounded-md py-2 text-sm flex flex-col items-center justify-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
                             >
-                              <span className="text-xl leading-none">
-                                {getCountryFlag(code)}
-                              </span>
+                              <CountryFlag
+                                code={code}
+                                className="h-5 w-[30px]"
+                              />
                               <span className="text-[10px] font-medium">
                                 {code}
                               </span>
@@ -714,7 +789,7 @@ export function ExternalEntityConnectionModals({
                               )
                             : externalCandidates
                           return (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-start gap-4">
                               {filteredCandidates.length === 0 && (
                                 <div className="text-sm text-gray-500 dark:text-gray-400 col-span-full">
                                   {t.entities.noInstitutionsFound}
@@ -726,25 +801,23 @@ export function ExternalEntityConnectionModals({
                                 const isOtherConnecting =
                                   !!connectingInstitutionId &&
                                   connectingInstitutionId !== c.id
+                                const isExpanded =
+                                  expandedPsuInstitutionId === c.id
+                                const psuTypes = listSupportedPsuTypes(
+                                  c.psu_types,
+                                )
                                 const iconSrc = candidateIcons[c.id]
                                 return (
                                   <Card
                                     key={c.id}
-                                    className={`p-4 flex items-center gap-4 h-20 border transition-colors group ${
+                                    className={`p-4 flex flex-col justify-center min-h-[5rem] border transition-colors group ${
                                       isOtherConnecting
                                         ? "opacity-40 cursor-not-allowed border-gray-200 dark:border-gray-700"
                                         : "cursor-pointer border-gray-200 dark:border-gray-700 hover:border-primary/60 dark:hover:border-primary/60"
                                     }`}
                                     onClick={() => {
                                       if (isOtherConnecting) return
-                                      if (
-                                        selectedProvider ===
-                                        ENABLE_BANKING_PROVIDER
-                                      ) {
-                                        setEbConfirmInstitutionId(c.id)
-                                        return
-                                      }
-                                      handleConnectExternalEntity(c.id)
+                                      handleSelectInstitution(c)
                                     }}
                                   >
                                     {isConnecting ? (
@@ -756,27 +829,110 @@ export function ExternalEntityConnectionModals({
                                       </div>
                                     ) : (
                                       <>
-                                        <div className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
-                                          {iconSrc ? (
-                                            <AdaptiveLogo
-                                              src={iconSrc}
-                                              alt={c.name}
-                                              className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden"
-                                              imgClassName="w-10 h-10 object-contain"
-                                              lightBgClassName="bg-white p-0.5"
+                                        <div className="w-full flex items-center gap-4">
+                                          <div className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            {iconSrc ? (
+                                              <AdaptiveLogo
+                                                src={iconSrc}
+                                                alt={c.name}
+                                                className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden"
+                                                imgClassName="w-10 h-10 object-contain"
+                                                lightBgClassName="bg-white p-0.5"
+                                              />
+                                            ) : (
+                                              <Landmark className="h-5 w-5 text-gray-500" />
+                                            )}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="font-medium truncate group-hover:text-primary">
+                                              {c.name}
+                                            </div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                                              {c.bic}
+                                            </div>
+                                          </div>
+                                          {psuTypes.length > 1 && (
+                                            <ChevronDown
+                                              className={cn(
+                                                "h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 motion-reduce:transition-none",
+                                                isExpanded && "rotate-180",
+                                              )}
                                             />
-                                          ) : (
-                                            <Landmark className="h-5 w-5 text-gray-500" />
                                           )}
                                         </div>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="font-medium truncate group-hover:text-primary">
-                                            {c.name}
+                                        {psuTypes.length > 1 && (
+                                          <div
+                                            aria-hidden={!isExpanded}
+                                            inert={!isExpanded}
+                                            onClick={e => e.stopPropagation()}
+                                          >
+                                            <AnimatePresence initial={false}>
+                                              {isExpanded && (
+                                                <motion.div
+                                                  className="-mx-1 overflow-hidden"
+                                                  initial={{
+                                                    height: 0,
+                                                    opacity: 0,
+                                                  }}
+                                                  animate={{
+                                                    height: "auto",
+                                                    opacity: 1,
+                                                  }}
+                                                  exit={{
+                                                    height: 0,
+                                                    opacity: 0,
+                                                  }}
+                                                  transition={{
+                                                    duration: reducedMotion
+                                                      ? 0
+                                                      : 0.2,
+                                                    ease: "easeOut",
+                                                  }}
+                                                >
+                                                  <motion.div
+                                                    role="group"
+                                                    aria-label={
+                                                      t.entities.psuTypeTitle
+                                                    }
+                                                    className="grid grid-cols-2 gap-2 px-1 pt-4 pb-1"
+                                                    initial={{ y: -8 }}
+                                                    animate={{ y: 0 }}
+                                                    transition={{
+                                                      duration: reducedMotion
+                                                        ? 0
+                                                        : 0.2,
+                                                      ease: "easeOut",
+                                                    }}
+                                                  >
+                                                    {psuTypes.map(psuType => {
+                                                      const { label, Icon } =
+                                                        psuTypeMeta(psuType)
+                                                      return (
+                                                        <Button
+                                                          key={psuType}
+                                                          variant="outline"
+                                                          size="sm"
+                                                          className="min-w-0 gap-1.5"
+                                                          onClick={() =>
+                                                            handlePsuTypeSelected(
+                                                              c.id,
+                                                              psuType,
+                                                            )
+                                                          }
+                                                        >
+                                                          <Icon className="h-4 w-4 shrink-0" />
+                                                          <span className="truncate">
+                                                            {label}
+                                                          </span>
+                                                        </Button>
+                                                      )
+                                                    })}
+                                                  </motion.div>
+                                                </motion.div>
+                                              )}
+                                            </AnimatePresence>
                                           </div>
-                                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
-                                            {c.bic}
-                                          </div>
-                                        </div>
+                                        )}
                                       </>
                                     )}
                                   </Card>
@@ -803,6 +959,45 @@ export function ExternalEntityConnectionModals({
       <ConfirmationDialog
         isOpen={!!ebConfirmInstitutionId}
         title={t.entities.enableBankingPrelinkTitle}
+        details={
+          ebCandidate && (
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
+              <div className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
+                {candidateIcons[ebCandidate.id] ? (
+                  <AdaptiveLogo
+                    src={candidateIcons[ebCandidate.id]}
+                    alt={ebCandidate.name}
+                    className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden"
+                    imgClassName="w-10 h-10 object-contain"
+                    lightBgClassName="bg-white p-0.5"
+                  />
+                ) : (
+                  <Landmark className="h-5 w-5 text-gray-500" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold">{ebCandidate.name}</div>
+                {ebPsu && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {t.entities.psuTypeTitle}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "gap-1.5 border-transparent font-medium",
+                        ebPsu.tone,
+                      )}
+                    >
+                      <ebPsu.Icon className="h-3 w-3" />
+                      {ebPsu.label}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }
         message={
           <span>
             {t.entities.enableBankingPrelinkMessageBefore}{" "}
@@ -823,7 +1018,7 @@ export function ExternalEntityConnectionModals({
         onConfirm={() => {
           const id = ebConfirmInstitutionId
           setEbConfirmInstitutionId(null)
-          if (id) handleConnectExternalEntity(id)
+          if (id) handleConnectExternalEntity(id, ebConfirmPsuType)
         }}
         onCancel={() => setEbConfirmInstitutionId(null)}
       />
@@ -847,47 +1042,55 @@ export function ExternalEntityConnectionModals({
                 <h3 className="text-lg font-semibold">
                   {t.entities.confirmConnection}
                 </h3>
-                <button
-                  onClick={dismissCompleteModal}
-                  className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
-                  aria-label={t.entities.dismiss}
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                {!completingConnection && (
+                  <button
+                    onClick={dismissCompleteModal}
+                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
+                    aria-label={t.entities.dismiss}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
               </div>
-              <div className="p-6 pt-4 space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {t.entities.providerLinkInstructions}
-                </p>
-                <div className="flex flex-col gap-2">
-                  {externalLink && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        try {
-                          window.open(externalLink, "_blank")
-                        } catch {
-                          // ignore
-                        }
-                      }}
-                    >
-                      {t.entities.openLink}
-                    </Button>
-                  )}
-                  {externalCompleteProvider !== ENABLE_BANKING_PROVIDER && (
-                    <Button
-                      size="sm"
-                      onClick={handleCompleteExternalConnection}
-                      disabled={completingConnection}
-                    >
-                      {completingConnection
-                        ? t.common.loading
-                        : t.entities.confirmConnection}
-                    </Button>
-                  )}
+              {completingConnection ? (
+                <div className="p-6 pt-4 flex flex-col items-center gap-3 py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                    {t.entities.completingConnection}
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="p-6 pt-4 space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {t.entities.providerLinkInstructions}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {externalLink && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            window.open(externalLink, "_blank")
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                      >
+                        {t.entities.openLink}
+                      </Button>
+                    )}
+                    {externalCompleteProvider !== ENABLE_BANKING_PROVIDER && (
+                      <Button
+                        size="sm"
+                        onClick={handleCompleteExternalConnection}
+                      >
+                        {t.entities.confirmConnection}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

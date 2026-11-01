@@ -1,0 +1,6 @@
+version: 2
+general:
+  defaultCurrency: EUR
+assets:
+  crypto:
+    hideUnknownTokens: yes

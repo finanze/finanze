@@ -7,10 +7,12 @@ from domain.external_entity import (
     ExternalEntityFetchRequest,
     ExternalEntityLinkCompletion,
     ExternalEntityLoginRequest,
+    ExternalEntityTxFetchRequest,
     ProviderExternalEntityDetails,
 )
 from domain.external_integration import EnabledExternalIntegrations
 from domain.global_position import GlobalPosition
+from domain.transactions import Transactions
 
 
 class ExternalEntityFetcher(metaclass=abc.ABCMeta):
@@ -45,4 +47,7 @@ class ExternalEntityFetcher(metaclass=abc.ABCMeta):
     async def global_position(
         self, request: ExternalEntityFetchRequest
     ) -> GlobalPosition:
+        raise FeatureNotSupported
+
+    async def transactions(self, request: ExternalEntityTxFetchRequest) -> Transactions:
         raise FeatureNotSupported

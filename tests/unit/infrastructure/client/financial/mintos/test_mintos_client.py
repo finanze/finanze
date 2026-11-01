@@ -57,3 +57,30 @@ async def test_get_etf_instrument_details():
         "/assetx-api/v1/instruments/IE00B5L01S80",
         params={"productType": "SINGLE_ETF"},
     )
+
+
+@pytest.mark.asyncio
+async def test_get_equity_quotes():
+    client = MintosAPIClient()
+    client._get_request = AsyncMock(return_value={"quotes": []})
+
+    result = await client.get_equity_quotes("JP3735400008")
+
+    assert result == {"quotes": []}
+    client._get_request.assert_awaited_once_with(
+        "/assetx-price-api/v1/history/quotes/JP3735400008",
+        params={"range": "ONE_DAY"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_stock_details():
+    client = MintosAPIClient()
+    client._get_request = AsyncMock(return_value={"tradingVenue": "TRADEGATE"})
+
+    result = await client.get_stock_details("JP3735400008")
+
+    assert result == {"tradingVenue": "TRADEGATE"}
+    client._get_request.assert_awaited_once_with(
+        "/assetx-price-api/v1/instruments/equity/JP3735400008"
+    )

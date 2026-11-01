@@ -1,0 +1,13 @@
+lastUpdate: 2026-02-01T18:45:00+01:00
+version: 8
+somethingFromTheFuture: value
+general:
+  defaultCurrency: JPY
+  defaultCommodityWeightUnit: GRAM
+  editMode: QUICK
+  unknownField: ignored
+assets:
+  crypto:
+    stablecoins:
+    - JPYC
+    hideUnknownTokens: no

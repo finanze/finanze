@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Set
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from dateutil.tz import tzlocal
 
@@ -162,7 +162,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 raise RelatedFundPortfolioNotFound(pf_id)
 
         if new_account_id_map:
-            self._apply_new_account_ids(ctx, new_account_id_map)
+            self._apply_new_account_ids(ctx, base_position, new_account_id_map)
         if new_portfolio_id_map:
             self._apply_new_portfolio_ids(ctx, new_portfolio_id_map)
         return new_account_id_map, new_portfolio_id_map
@@ -330,22 +330,56 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
     @staticmethod
     def _apply_new_account_ids(
-        ctx: "UpdatePositionImpl._RelCtx", new_account_id_map: dict
+        ctx: "UpdatePositionImpl._RelCtx",
+        base_position: GlobalPosition,
+        new_account_id_map: dict,
     ):
         for old_id, new_id in new_account_id_map.items():
             acc = ctx.req_accounts_by_id.get(old_id)
             if acc:
                 acc.id = new_id
-        if ctx.cards_container and hasattr(ctx.cards_container, "entries"):
-            for card in ctx.cards_container.entries:
+        cards_container = base_position.products.get(ProductType.CARD)
+        if cards_container and hasattr(cards_container, "entries"):
+            for card in cards_container.entries:
                 if getattr(card, "related_account", None) in new_account_id_map:
                     card.related_account = new_account_id_map[card.related_account]
-        if ctx.portfolios_container_req and hasattr(
-            ctx.portfolios_container_req, "entries"
-        ):
-            for pf in ctx.portfolios_container_req.entries:
+        portfolios_container = base_position.products.get(ProductType.FUND_PORTFOLIO)
+        if portfolios_container and hasattr(portfolios_container, "entries"):
+            for pf in portfolios_container.entries:
                 if getattr(pf, "account_id", None) in new_account_id_map:
                     pf.account_id = new_account_id_map[pf.account_id]
+
+    @staticmethod
+    def _unlink_removed_accounts(
+        prior_position: GlobalPosition | None,
+        base_position: GlobalPosition,
+        request: UpdatePositionRequest,
+    ):
+        req_accounts = request.products.get(ProductType.ACCOUNT)
+        if prior_position is None or req_accounts is None:
+            return
+        removed = set(
+            UpdatePositionImpl._index_container_entries(
+                prior_position.products.get(ProductType.ACCOUNT)
+            )
+        ) - set(UpdatePositionImpl._index_container_entries(req_accounts))
+        if not removed:
+            return
+        if ProductType.CARD not in request.products:
+            cards_container = base_position.products.get(ProductType.CARD)
+            if cards_container and hasattr(cards_container, "entries"):
+                for card in cards_container.entries:
+                    if getattr(card, "related_account", None) in removed:
+                        card.related_account = None
+        if ProductType.FUND_PORTFOLIO not in request.products:
+            portfolios_container = base_position.products.get(
+                ProductType.FUND_PORTFOLIO
+            )
+            if portfolios_container and hasattr(portfolios_container, "entries"):
+                for pf in portfolios_container.entries:
+                    if getattr(pf, "account_id", None) in removed:
+                        pf.account_id = None
+                        pf.account = None
 
     @staticmethod
     def _apply_new_portfolio_ids(
@@ -406,7 +440,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
                 asset.crypto_asset = asset_details
 
-    async def execute(self, request: UpdatePositionRequest):
+    async def execute(self, request: UpdatePositionRequest) -> UUID:
         if request.entity_id:
             entity = await self._entity_port.get_by_id(request.entity_id)
             if entity is None:
@@ -465,6 +499,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             )
 
         base_position = self._build_base_position(entity, prior_position, now, request)
+        self._unlink_removed_accounts(prior_position, base_position, request)
         await self._prepare_relationship_mappings(entity, base_position, request)
         await self._process_crypto_assets_in_position(base_position)
 
@@ -472,3 +507,4 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         await self._historic_writer.sync_position(
             entity, base_position, create_investment_txs=request.create_investment_txs
         )
+        return entity.id

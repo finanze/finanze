@@ -2,19 +2,31 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
+import jwt
 import pytest
+import pytest_asyncio
 
+from application.use_cases.get_cloud_auth import GetCloudAuthImpl
+from application.use_cases.handle_cloud_auth import HandleCloudAuthImpl
 from domain.backup import (
     BackupFileType,
     BackupInfo,
+    BackupMode,
     BackupPieces,
     BackupProcessResult,
+    BackupSettings,
     BackupsInfo,
     BackupTransferPiece,
     SyncStatus,
 )
 from domain.cloud_auth import CloudAuthData, CloudAuthToken, CloudUserRole
 from domain.exception.exceptions import BackupTransferFailed
+from domain.user import User
+from infrastructure.cloud import cloud_data_register
+from infrastructure.cloud.cloud_data_register import CloudDataRegister
+from infrastructure.controller.config import quart
+from infrastructure.controller.routes.get_cloud_auth import get_cloud_auth
+from infrastructure.controller.routes.handle_cloud_auth import handle_cloud_auth
 
 GET_BACKUPS_URL = "/api/v1/cloud/backup"
 UPLOAD_URL = "/api/v1/cloud/backup/upload"
@@ -63,6 +75,131 @@ def _backup_info(
     )
 
 
+@pytest_asyncio.fixture
+async def cloud_auth_storage(tmp_path):
+    static_dir = tmp_path / "static"
+    static_dir.mkdir()
+    user = User(
+        id=uuid.uuid4(),
+        username=USERNAME,
+        path=tmp_path / "profile",
+        last_login=None,
+    )
+    register = CloudDataRegister()
+    await register.connect(user)
+    app = quart(static_dir)
+    get_auth_uc = GetCloudAuthImpl(register)
+    handle_auth_uc = HandleCloudAuthImpl(register)
+
+    @app.route("/api/v1/cloud/auth", methods=["GET"])
+    async def get_auth_route():
+        return await get_cloud_auth(get_auth_uc)
+
+    @app.route("/api/v1/cloud/auth", methods=["POST"])
+    async def handle_auth_route():
+        return await handle_cloud_auth(handle_auth_uc)
+
+    token = {
+        "access_token": jwt.encode(
+            {
+                "email": "test@example.com",
+                "user_role": "PLUS",
+                "permissions": ALL_PERMISSIONS,
+            },
+            "test-secret-key-that-is-at-least-32-bytes!",
+            algorithm="HS256",
+        ),
+        "refresh_token": "original-refresh-token",
+        "token_type": "Bearer",
+        "expires_at": 9999999999,
+    }
+
+    try:
+        yield app.test_client(), register, user, token
+    finally:
+        await register.disconnect()
+        await register.decode_token.cache.clear()
+
+
+class TestCloudAuthPersistence:
+    @pytest.mark.asyncio
+    async def test_auth_survives_reconnect_and_preserves_backup_metadata(
+        self, cloud_auth_storage
+    ):
+        client, register, user, token = cloud_auth_storage
+        backup = _backup_info(dt=datetime.now().astimezone())
+        settings = BackupSettings(mode=BackupMode.AUTO)
+        await register.insert([backup])
+        await register.save_backup_settings(settings)
+
+        response = await client.get("/api/v1/cloud/auth")
+        assert response.status_code == 204
+
+        response = await client.post("/api/v1/cloud/auth", json={"token": token})
+        assert response.status_code == 200
+        assert await response.get_json() == {
+            "role": "PLUS",
+            "permissions": ALL_PERMISSIONS,
+        }
+
+        await register.disconnect()
+        await register.connect(user)
+
+        response = await client.get("/api/v1/cloud/auth")
+        assert response.status_code == 200
+        assert await response.get_json() == {
+            "email": "test@example.com",
+            "role": "PLUS",
+            "permissions": ALL_PERMISSIONS,
+            "token": token,
+        }
+
+        response = await client.post("/api/v1/cloud/auth", json={"token": None})
+        assert response.status_code == 200
+        assert await response.get_json() == {"role": None, "permissions": []}
+
+        await register.disconnect()
+        await register.connect(user)
+
+        response = await client.get("/api/v1/cloud/auth")
+        assert response.status_code == 204
+        assert (await register.get_info()).pieces == {backup.type: backup}
+        assert await register.get_backup_settings() == settings
+        assert list(user.path.iterdir()) == [user.path / "cloud.json"]
+
+    @pytest.mark.asyncio
+    async def test_failed_replacement_preserves_previous_auth(
+        self, cloud_auth_storage, monkeypatch
+    ):
+        client, register, user, token = cloud_auth_storage
+        response = await client.post("/api/v1/cloud/auth", json={"token": token})
+        assert response.status_code == 200
+        cloud_file = user.path / "cloud.json"
+        original = cloud_file.read_bytes()
+
+        def fail_replace(*args, **kwargs):
+            raise OSError("Simulated storage failure")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(cloud_data_register.os, "replace", fail_replace)
+            response = await client.post(
+                "/api/v1/cloud/auth",
+                json={"token": {**token, "refresh_token": "replacement-refresh-token"}},
+            )
+
+        assert response.status_code == 500
+        assert (await response.get_json())["code"] == "UNEXPECTED_ERROR"
+        assert cloud_file.read_bytes() == original
+        assert list(user.path.iterdir()) == [cloud_file]
+
+        await register.disconnect()
+        await register.connect(user)
+
+        response = await client.get("/api/v1/cloud/auth")
+        assert response.status_code == 200
+        assert (await response.get_json())["token"] == token
+
+
 class TestGetBackupsRouteValidation:
     @pytest.mark.asyncio
     async def test_returns_401_when_no_cloud_auth(self, client, cloud_register):
@@ -99,15 +236,13 @@ class TestGetBackups:
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
             return_value=last_update
         )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
-            return_value=last_update
-        )
 
         response = await client.get(GET_BACKUPS_URL)
         assert response.status_code == 200
         body = await response.get_json()
         assert "pieces" in body
         assert "DATA" in body["pieces"]
+        assert "CONFIG" not in body["pieces"]
 
     @pytest.mark.asyncio
     async def test_sync_status_when_local_matches_remote(
@@ -131,9 +266,6 @@ class TestGetBackups:
             return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
         )
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
-            return_value=dt - timedelta(minutes=10)
-        )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
             return_value=dt - timedelta(minutes=10)
         )
 
@@ -166,9 +298,6 @@ class TestGetBackups:
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
             return_value=datetime.now(timezone.utc)
         )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
-            return_value=dt - timedelta(minutes=10)
-        )
 
         response = await client.get(GET_BACKUPS_URL)
         body = await response.get_json()
@@ -193,9 +322,6 @@ class TestGetBackups:
             return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
         )
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
-            return_value=dt - timedelta(minutes=10)
-        )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
             return_value=dt - timedelta(minutes=10)
         )
 
@@ -715,7 +841,7 @@ class TestImportBackup:
 
 class TestUploadMultipleTypes:
     @pytest.mark.asyncio
-    async def test_upload_data_and_config(
+    async def test_upload_ignores_legacy_config_type(
         self,
         client,
         cloud_register,
@@ -744,16 +870,8 @@ class TestUploadMultipleTypes:
             payload=b"enc",
             size=3,
         )
-        config_piece = BackupTransferPiece(
-            id=uuid.uuid4(),
-            protocol=1,
-            date=dt,
-            type=BackupFileType.CONFIG,
-            payload=b"enc",
-            size=3,
-        )
         backup_repository.upload = AsyncMock(
-            return_value=BackupPieces(pieces=[data_piece, config_piece])
+            return_value=BackupPieces(pieces=[data_piece])
         )
 
         response = await client.post(
@@ -762,10 +880,10 @@ class TestUploadMultipleTypes:
         )
         assert response.status_code == 200
         body = await response.get_json()
-        assert "DATA" in body["pieces"]
-        assert "CONFIG" in body["pieces"]
+        assert set(body["pieces"]) == {"DATA"}
         assert body["pieces"]["DATA"]["status"] == SyncStatus.SYNC.value
-        assert body["pieces"]["CONFIG"]["status"] == SyncStatus.SYNC.value
+        upload_params = backup_repository.upload.call_args[0][0]
+        assert [p.type for p in upload_params.pieces.pieces] == [BackupFileType.DATA]
 
 
 class TestBackupTransferFailed:

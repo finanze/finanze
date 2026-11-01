@@ -151,9 +151,9 @@ class MintosFetcher(FinancialEntityFetcher):
             ProductType.CROWDLENDING: crowdlending,
         }
 
-        etfs = await self._build_etf_positions()
-        if etfs:
-            products[ProductType.STOCK_ETF] = StockInvestments(etfs)
+        equities = await self._build_equity_positions()
+        if equities:
+            products[ProductType.STOCK_ETF] = StockInvestments(equities)
 
         return GlobalPosition(
             id=uuid4(),
@@ -161,96 +161,128 @@ class MintosFetcher(FinancialEntityFetcher):
             products=products,
         )
 
-    async def _get_etf_account_id(self) -> str | None:
+    async def _get_asset_account_ids(self) -> dict[str, str]:
         response = await self._client.get_asset_accounts()
-        account = response["accounts"].get("SINGLE_ETF")
-        return account["id"] if account else None
+        accounts = response.get("accounts", {})
+        account_ids = {}
+        for account_type in ("SINGLE_ETF", "SINGLE_STOCK"):
+            account = accounts.get(account_type) or {}
+            if account.get("id"):
+                account_ids[account_type] = account["id"]
+        return account_ids
 
-    async def _build_etf_positions(self) -> list[StockDetail]:
-        account_id = await self._get_etf_account_id()
-        if account_id is None:
-            return []
-
+    async def _build_equity_positions(self) -> list[StockDetail]:
+        account_ids = await self._get_asset_account_ids()
         entries = []
-        for position in await self._client.get_asset_positions(account_id):
-            try:
-                if position["productType"] != "SINGLE_ETF":
-                    continue
-                shares = Dezimal(position["shares"]["total"])
-                if shares <= 0:
-                    continue
-                instrument = position["instrument"]
-                isin = instrument["isin"]
-                quotes = await self._client.get_etf_quotes(isin)
-                latest_quote = max(quotes["quotes"], key=lambda quote: quote["ts"])
-                details = await self._client.get_etf_details(isin) or {}
-                instrument_details = (
-                    await self._client.get_etf_instrument_details(isin) or {}
-                )
-                fund_provider = details.get("fundProvider") or {}
-                issuer = resolve_issuer(
-                    fund_provider.get("title") or fund_provider.get("code"),
-                    instrument["name"],
-                )
-                entries.append(
-                    StockDetail(
-                        id=uuid4(),
-                        name=instrument["name"],
-                        isin=instrument["isin"],
-                        ticker=instrument.get("attributes", {}).get("ticker", ""),
-                        shares=shares,
-                        initial_investment=Dezimal(position["invested"]["amount"]),
-                        market_value=round(shares * Dezimal(latest_quote["l"]), 2),
-                        currency=position["invested"]["currency"],
-                        type=EquityType.ETF,
-                        market=details.get("tradingVenue") or "",
-                        issuer=issuer,
-                        info_sheet_url=(instrument_details.get("kid") or {}).get("url"),
+        for account_type, equity_type in (
+            ("SINGLE_ETF", EquityType.ETF),
+            ("SINGLE_STOCK", EquityType.STOCK),
+        ):
+            account_id = account_ids.get(account_type)
+            if account_id is None:
+                continue
+
+            for position in await self._client.get_asset_positions(account_id):
+                try:
+                    if position["productType"] != account_type:
+                        continue
+                    shares = Dezimal(position["shares"]["total"])
+                    if shares <= 0:
+                        continue
+                    instrument = position["instrument"]
+                    isin = instrument["isin"]
+                    quotes = await self._client.get_equity_quotes(isin)
+                    latest_quote = max(quotes["quotes"], key=lambda quote: quote["ts"])
+                    if equity_type == EquityType.ETF:
+                        details = await self._client.get_etf_details(isin) or {}
+                        instrument_details = (
+                            await self._client.get_etf_instrument_details(isin) or {}
+                        )
+                        fund_provider = details.get("fundProvider") or {}
+                        issuer = resolve_issuer(
+                            fund_provider.get("title") or fund_provider.get("code"),
+                            instrument["name"],
+                        )
+                        info_sheet_url = (instrument_details.get("kid") or {}).get(
+                            "url"
+                        )
+                    else:
+                        details = await self._client.get_stock_details(isin) or {}
+                        issuer = resolve_issuer(
+                            details.get("displayTitle"), instrument["name"]
+                        )
+                        info_sheet_url = None
+
+                    entries.append(
+                        StockDetail(
+                            id=uuid4(),
+                            name=instrument["name"],
+                            isin=isin,
+                            ticker=instrument.get("attributes", {}).get("ticker", ""),
+                            shares=shares,
+                            initial_investment=Dezimal(position["invested"]["amount"]),
+                            market_value=round(shares * Dezimal(latest_quote["l"]), 2),
+                            currency=position["invested"]["currency"],
+                            type=equity_type,
+                            market=details.get("tradingVenue") or "",
+                            issuer=issuer,
+                            info_sheet_url=info_sheet_url,
+                        )
                     )
-                )
-            except (KeyError, TypeError, ValueError, AttributeError) as error:
-                self._log.warning(
-                    "Skipping Mintos ETF asset due to invalid or missing fields: %s",
-                    error,
-                )
+                except (KeyError, TypeError, ValueError, AttributeError) as error:
+                    self._log.warning(
+                        "Skipping Mintos %s asset due to invalid or missing fields: %s",
+                        "ETF" if equity_type == EquityType.ETF else "stock",
+                        error,
+                    )
         return entries
 
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        account_id = await self._get_etf_account_id()
-        if account_id is None:
-            return Transactions(investment=[])
-
-        raw_txs = await self._client.get_asset_transactions(account_id)
-        orders = None
+        account_ids = await self._get_asset_account_ids()
         entries = []
         seen_refs = set(registered_txs)
-        for raw_tx in raw_txs:
-            try:
-                if raw_tx["id"] in seen_refs:
-                    continue
-                tx_type = self._get_etf_tx_type(raw_tx)
-                if tx_type is None:
-                    continue
+        for account_type, equity_type in (
+            ("SINGLE_ETF", EquityType.ETF),
+            ("SINGLE_STOCK", EquityType.STOCK),
+        ):
+            account_id = account_ids.get(account_type)
+            if account_id is None:
+                continue
 
-                execution = None
-                if tx_type in (TxType.BUY, TxType.SELL):
-                    if orders is None:
-                        orders = await self._get_etf_orders(account_id)
-                    order_id = raw_tx.get("orderId") or raw_tx["details"]["orderId"]
-                    execution = orders[order_id]["executed"]
+            raw_txs = await self._client.get_asset_transactions(account_id)
+            orders = None
+            for raw_tx in raw_txs:
+                try:
+                    if raw_tx["id"] in seen_refs:
+                        continue
+                    tx_type = self._get_equity_tx_type(raw_tx)
+                    if tx_type is None:
+                        continue
 
-                entries.append(self._map_etf_transaction(raw_tx, tx_type, execution))
-                seen_refs.add(raw_tx["id"])
-            except (KeyError, TypeError, ValueError, AttributeError) as error:
-                self._log.warning(
-                    "Skipping Mintos ETF transaction due to invalid or missing fields: %s",
-                    error,
-                )
+                    execution = None
+                    if tx_type in (TxType.BUY, TxType.SELL):
+                        if orders is None:
+                            orders = await self._get_equity_orders(account_id)
+                        order_id = raw_tx.get("orderId") or raw_tx["details"]["orderId"]
+                        execution = orders[order_id]["executed"]
+
+                    entries.append(
+                        self._map_equity_transaction(
+                            raw_tx, tx_type, execution, equity_type
+                        )
+                    )
+                    seen_refs.add(raw_tx["id"])
+                except (KeyError, TypeError, ValueError, AttributeError) as error:
+                    self._log.warning(
+                        "Skipping Mintos %s transaction due to invalid or missing fields: %s",
+                        "ETF" if equity_type == EquityType.ETF else "stock",
+                        error,
+                    )
         return Transactions(investment=entries)
 
-    async def _get_etf_orders(self, account_id: str) -> dict[str, dict]:
+    async def _get_equity_orders(self, account_id: str) -> dict[str, dict]:
         orders = {}
         for order in await self._client.get_asset_orders(account_id):
             try:
@@ -263,7 +295,7 @@ class MintosFetcher(FinancialEntityFetcher):
         return orders
 
     @staticmethod
-    def _get_etf_tx_type(raw_tx: dict) -> TxType | None:
+    def _get_equity_tx_type(raw_tx: dict) -> TxType | None:
         if raw_tx["type"] == "CA_CASH":
             corporate_action = raw_tx["details"].get("corporateAction", {})
             return CORPORATE_ACTION_TX_TYPE_MAPPING.get(
@@ -272,8 +304,11 @@ class MintosFetcher(FinancialEntityFetcher):
         return ORDER_TX_TYPE_MAPPING.get(raw_tx["type"])
 
     @staticmethod
-    def _map_etf_transaction(
-        raw_tx: dict, tx_type: TxType, execution: dict | None
+    def _map_equity_transaction(
+        raw_tx: dict,
+        tx_type: TxType,
+        execution: dict | None,
+        equity_type: EquityType,
     ) -> StockTx:
         instrument = raw_tx["instrument"]
         details = raw_tx["details"]
@@ -311,7 +346,7 @@ class MintosFetcher(FinancialEntityFetcher):
             entity=MINTOS,
             source=DataSource.REAL,
             product_type=ProductType.STOCK_ETF,
-            equity_type=EquityType.ETF,
+            equity_type=equity_type,
         )
 
     async def _build_smart_cash_account(

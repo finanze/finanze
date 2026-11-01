@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { useSearchParams } from "react-router-dom"
+import { Navigate, useSearchParams } from "react-router-dom"
 import { useI18n, type Locale } from "@/i18n"
 import {
   Card,
@@ -28,17 +28,19 @@ import {
   Languages,
   Palette,
   Fingerprint,
+  Bot,
 } from "lucide-react"
-import { useAppContext } from "@/context/AppContext"
+import { useAppContext, type SettingsKey } from "@/context/AppContext"
 import { useTheme } from "@/context/ThemeContext"
 import { useBackupAlert } from "@/context/BackupAlertContext"
 import { useCloud } from "@/context/CloudContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { CloudRole, FFStatus } from "@/types"
 import { AdvancedSettingsForm } from "@/components/ui/AdvancedSettingsForm"
-import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
 import { GeneralTab } from "@/components/settings/GeneralTab"
 import { CloudTab } from "@/components/settings/CloudTab"
+import { McpTab } from "@/components/settings/McpTab"
+import { BottomNavCard } from "@/components/settings/BottomNavCard"
 import { isNativeMobile } from "@/lib/platform"
 import {
   checkBiometricAvailability,
@@ -51,6 +53,12 @@ import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { DataDisplayMode } from "@/types"
 
 const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
+const GENERAL_TAB_SETTINGS: SettingsKey[] = ["general", "data", "assets"]
+const TAB_GRID_COLS: Record<number, string> = {
+  2: "sm:grid-cols-2",
+  3: "sm:grid-cols-3",
+  4: "sm:grid-cols-4",
+}
 
 export default function SettingsPage() {
   const { t, locale, changeLocale } = useI18n()
@@ -78,6 +86,8 @@ export default function SettingsPage() {
     useState(false)
 
   const isCloudEnabled = featureFlags.CLOUD === FFStatus.ON
+  const isMcpAvailable = !isNativeMobile()
+  const tabCount = 2 + Number(isCloudEnabled) + Number(isMcpAvailable)
 
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
@@ -93,7 +103,7 @@ export default function SettingsPage() {
   }))
 
   useEffect(() => {
-    fetchSettings()
+    fetchSettings(GENERAL_TAB_SETTINGS)
     fetchExternalIntegrations()
   }, [])
 
@@ -145,6 +155,12 @@ export default function SettingsPage() {
     }))
   }
 
+  if (searchParams.get("tab") === "integrations") {
+    const providerParams = new URLSearchParams(searchParams)
+    providerParams.set("tab", "providers")
+    return <Navigate to={`/entities?${providerParams.toString()}`} replace />
+  }
+
   if (isLoadingSettings) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -167,7 +183,7 @@ export default function SettingsPage() {
       >
         <div className="flex justify-center w-full">
           <TabsList
-            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] ${isCloudEnabled ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"}`}
+            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] grid-cols-2 ${TAB_GRID_COLS[tabCount]}`}
           >
             <TabsTrigger
               value="general"
@@ -212,12 +228,15 @@ export default function SettingsPage() {
               <SlidersHorizontal className="h-4 w-4 shrink-0" />
               {t.settings.application}
             </TabsTrigger>
-            <TabsTrigger
-              value="integrations"
-              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
-            >
-              {t.settings.integrations}
-            </TabsTrigger>
+            {isMcpAvailable && (
+              <TabsTrigger
+                value="mcp"
+                className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
+              >
+                <Bot className="h-4 w-4 shrink-0" />
+                {t.settings.mcp.tabTitle}
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -383,6 +402,8 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
+              <BottomNavCard />
+
               {isNativeMobile() && (
                 <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                   <CardHeader>
@@ -491,9 +512,11 @@ export default function SettingsPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="integrations" className="space-y-4 mt-4">
-          <IntegrationsTab />
-        </TabsContent>
+        {isMcpAvailable && (
+          <TabsContent value="mcp" className="space-y-4 mt-4">
+            <McpTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

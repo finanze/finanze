@@ -1,0 +1,18 @@
+lastUpdate: 2025-05-01T08:00:00+02:00
+version: 6
+integrations:
+  sheets:
+    credentials:
+      client_id: sheets-client-id
+      client_secret: sheets-client-secret
+  etherscan:
+    api_key: etherscan-key
+  gocardless:
+    secret_id: gc-secret-id
+    secret_key: gc-secret-key
+general:
+  defaultCurrency: EUR
+assets:
+  crypto:
+    stablecoins:
+    - USDT

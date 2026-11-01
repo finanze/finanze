@@ -14,6 +14,6 @@ export async function selectEntity(
     await trigger.click()
     await page.waitForTimeout(300)
     const popover = page.locator('[data-radix-popper-content-wrapper]').last()
-    await popover.getByRole('button', { name: entityName }).click()
+    await popover.getByText(entityName, { exact: true }).click()
     await page.waitForTimeout(200)
 }

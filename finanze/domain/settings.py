@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from domain.commodity import WeightUnit
+from domain.transactions import LabelOrigin
 from pydantic.dataclasses import dataclass
 
 CURRENT_VERSION = 8
@@ -162,6 +163,44 @@ class DataConfig:
 
 
 @dataclass
+class ExternalLabelingExamplesConfig:
+    enabled: bool = False
+    count: int = 20
+    origins: list[LabelOrigin] = field(
+        default_factory=lambda: [LabelOrigin.MANUAL, LabelOrigin.RULE]
+    )
+
+
+@dataclass
+class ExternalLabelingConfig:
+    enabled: bool = False
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    upstreamProvider: Optional[str] = None
+    autoRun: bool = True
+    minConfidence: int = 70
+    maxPerRun: int = 400
+    examples: ExternalLabelingExamplesConfig = field(
+        default_factory=ExternalLabelingExamplesConfig
+    )
+    instructions: Optional[str] = None
+
+
+@dataclass
+class LabelingConfig:
+    external: ExternalLabelingConfig = field(default_factory=ExternalLabelingConfig)
+
+
+class SettingsSection(str, Enum):
+    GENERAL = "general"
+    DATA = "data"
+    EXPORT = "export"
+    IMPORTING = "importing"
+    ASSETS = "assets"
+    LABELING = "labeling"
+
+
+@dataclass
 class Settings:
     lastUpdate: str
     version: int = CURRENT_VERSION
@@ -170,3 +209,23 @@ class Settings:
     export: ExportConfig = field(default_factory=ExportConfig)
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
+    labeling: LabelingConfig = field(default_factory=LabelingConfig)
+
+
+@dataclass
+class PartialSettings:
+    lastUpdate: Optional[str] = None
+    version: int = CURRENT_VERSION
+    general: Optional[GeneralConfig] = None
+    data: Optional[DataConfig] = None
+    export: Optional[ExportConfig] = None
+    importing: Optional[ImportConfig] = None
+    assets: Optional[AssetConfig] = None
+    labeling: Optional[LabelingConfig] = None
+
+    def included_sections(self) -> list[SettingsSection]:
+        return [
+            section
+            for section in SettingsSection
+            if getattr(self, section.value) is not None
+        ]

@@ -3,10 +3,13 @@ import {
     TEST_USER,
     TEST_PASSWORD,
     TEST_NEW_PASSWORD,
+    TEST_WRONG_PASSWORD,
 } from '../helpers/constants.js'
 
 const HEADING_XPATH = (text: string) =>
     `//*[self::h1 or self::h2 or self::h3 or self::h4][contains(text(),"${text}")]`
+
+const TEXT_XPATH = (text: string) => `//*[text()="${text}"]`
 
 const log = (msg: string, start: number) =>
     console.log(`[${((Date.now() - start) / 1000).toFixed(1)}s] ${msg}`)
@@ -42,7 +45,7 @@ describe('Basic Setup', () => {
                 return !url.includes('/login')
             },
             {
-                timeout: 45_000,
+                timeout: 60_000,
                 timeoutMsg: 'URL still contains /login after signup',
             },
         )
@@ -60,13 +63,38 @@ describe('Basic Setup', () => {
         await settingsBtn.waitForDisplayed({ timeout: 5_000 })
         await settingsBtn.click()
 
-        const logoutBtn = await $('button.text-red-500=Logout')
-        await logoutBtn.waitForDisplayed({ timeout: 5_000 })
+        const settingsHeading = await $(HEADING_XPATH('Settings'))
+        await settingsHeading.waitForDisplayed({ timeout: 30_000 })
+
+        const logoutBtn = await $('button=Logout')
+        await logoutBtn.waitForDisplayed({ timeout: 15_000 })
         await logoutBtn.click()
 
         const passwordField = await $('#password')
         await passwordField.waitForDisplayed({ timeout: 10_000 })
         log('before hook complete', t0)
+    })
+
+    it('wrong password shows invalid credentials', async () => {
+        const password = await $('#password')
+        await password.waitForDisplayed({ timeout: 5_000 })
+        await password.setValue(TEST_WRONG_PASSWORD)
+        const submitBtn = await $('button[type="submit"]')
+        await submitBtn.waitForClickable({ timeout: 5_000 })
+        await submitBtn.click()
+
+        await $(TEXT_XPATH('Invalid credentials')).waitForDisplayed({
+            timeout: 45_000,
+        })
+        expect(await browser.getUrl()).toContain('/login')
+        await expect(password).toBeDisplayed()
+        await expect(
+            $(
+                TEXT_XPATH(
+                    'Something went wrong, please contact the Finanze team.',
+                ),
+            ),
+        ).not.toBeDisplayed()
     })
 
     it('login after logout shows dashboard', async () => {
@@ -109,12 +137,23 @@ describe('Basic Setup', () => {
 
         const oldPasswordField = await $('#oldPassword')
         await oldPasswordField.waitForDisplayed({ timeout: 10_000 })
-        await oldPasswordField.setValue(TEST_PASSWORD)
+        await oldPasswordField.setValue(TEST_WRONG_PASSWORD)
         const newPasswordField = await $('#password')
         await newPasswordField.setValue(TEST_NEW_PASSWORD)
         const repeatField = await $('#repeatPassword')
         await repeatField.setValue(TEST_NEW_PASSWORD)
         const submitChangeBtn = await $('button[type="submit"]')
+        await submitChangeBtn.waitForClickable({ timeout: 5_000 })
+        await submitChangeBtn.click()
+
+        await $(TEXT_XPATH('Invalid credentials')).waitForDisplayed({
+            timeout: 45_000,
+        })
+        await expect(oldPasswordField).toBeDisplayed()
+
+        await oldPasswordField.setValue(TEST_PASSWORD)
+        await newPasswordField.setValue(TEST_NEW_PASSWORD)
+        await repeatField.setValue(TEST_NEW_PASSWORD)
         await submitChangeBtn.waitForClickable({ timeout: 5_000 })
         await submitChangeBtn.click()
 
@@ -232,11 +271,11 @@ describe('Basic Setup', () => {
         await heading.waitForDisplayed({ timeout: 10_000 })
     })
 
-    it('navigates to Management page', async () => {
-        const tab = await $('button[aria-label="Management"]')
+    it('navigates to My Money page', async () => {
+        const tab = await $('button[aria-label="My Money"]')
         await tab.click()
 
-        const heading = await $(HEADING_XPATH('Management'))
+        const heading = await $(HEADING_XPATH('My Money'))
         await heading.waitForDisplayed({ timeout: 10_000 })
     })
 

@@ -22,9 +22,14 @@ export function getCurrencySymbol(currency: string): string {
 }
 
 // Deterministic color classes (light/dark) based on a name string
-export function getColorForName(name?: string): string {
+export function getColorForName(
+  name?: string,
+  format: "class" | "hex" = "class",
+): string {
   if (!name)
-    return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
+    return format === "hex"
+      ? "#6b7280"
+      : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
 
   // Simple hash function to generate consistent colors for names
   let hash = 0
@@ -47,5 +52,18 @@ export function getColorForName(name?: string): string {
   ]
 
   const colorIndex = Math.abs(hash) % colors.length
+  if (format === "hex") {
+    const colorValues = [
+      "#2563eb",
+      "#16a34a",
+      "#ca8a04",
+      "#dc2626",
+      "#9333ea",
+      "#db2777",
+      "#4f46e5",
+      "#0d9488",
+    ]
+    return colorValues[colorIndex]
+  }
   return colors[colorIndex]
 }

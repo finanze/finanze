@@ -4,8 +4,8 @@ from e2e.mock_fetcher import (
     MockCryptoExchangeFetcher,
     MockFinancialEntityFetcher,
     MockManualLoginFetcher,
-    MockManualLoginFullCredsFetcher,
-    MockManualLoginReloginFetcher,
+    MockManualLoginFullCredsInAppOldTxsFetcher,
+    MockManualLoginReloginOldTxsFetcher,
     MockPinEntityFetcher,
 )
 
@@ -31,8 +31,10 @@ def get_e2e_financial_fetchers() -> dict:
     fetchers[native_entities.TRADE_REPUBLIC] = MockManualLoginFetcher(
         native_entities.TRADE_REPUBLIC
     )
-    fetchers[native_entities.ING] = MockManualLoginFullCredsFetcher(native_entities.ING)
-    fetchers[native_entities.UNICAJA] = MockManualLoginReloginFetcher(
+    fetchers[native_entities.ING] = MockManualLoginFullCredsInAppOldTxsFetcher(
+        native_entities.ING
+    )
+    fetchers[native_entities.UNICAJA] = MockManualLoginReloginOldTxsFetcher(
         native_entities.UNICAJA
     )
     fetchers[native_entities.BINANCE] = MockCryptoExchangeFetcher(

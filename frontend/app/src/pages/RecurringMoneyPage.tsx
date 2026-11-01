@@ -1,8 +1,16 @@
-import { useState, useEffect, useMemo, useCallback } from "react"
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
+import { useLabels } from "@/context/LabelsContext"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/Button"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
@@ -10,29 +18,41 @@ import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
+import { LabelSelector } from "@/components/labels/LabelSelector"
+import { LabelChip } from "@/components/labels/LabelChip"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { EmptyState } from "@/components/ui/EmptyState"
+import { type MultiSelectOption } from "@/components/ui/MultiSelect"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
+  PageTabs,
+  useTabSearchParam,
+  type PageTab,
+} from "@/components/ui/PageTabs"
+import { EventsCalendarView } from "@/components/EventsCalendarView"
+import { ContributionsView } from "@/components/contributions/ContributionsView"
+import {
+  Ban,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
   Banknote,
   BanknoteArrowDown,
   BanknoteArrowUp,
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronRight,
+  CircleHelp,
   Clock,
   Edit,
-  Eye,
-  EyeOff,
+  LayoutGrid,
   Lightbulb,
   LightbulbOff,
   Link2,
@@ -54,11 +74,17 @@ import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import {
+  MONTHLY_FLOW_MULTIPLIERS,
+  getMonthlyFlowTotals,
+} from "@/utils/savingsTarget"
+import {
   FlowType,
   FlowFrequency,
   PeriodicFlow,
   CreatePeriodicFlowRequest,
   UpdatePeriodicFlowRequest,
+  MoneyEventType,
+  type MoneyEvent,
 } from "@/types"
 import { ContributionFrequency } from "@/types/contributions"
 import { Loan, Loans, ProductType } from "@/types/position"
@@ -69,9 +95,242 @@ import {
 } from "@/services/api"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
+type RecurringTab = "overview" | "earnings" | "expenses" | "investments"
+
+const RECURRING_TABS: readonly RecurringTab[] = [
+  "overview",
+  "earnings",
+  "expenses",
+  "investments",
+]
+const COMMON_FLOW_FREQUENCIES: readonly FlowFrequency[] = [
+  FlowFrequency.DAILY,
+  FlowFrequency.MONTHLY,
+  FlowFrequency.WEEKLY,
+  FlowFrequency.QUARTERLY,
+  FlowFrequency.YEARLY,
+]
+const LESS_COMMON_FLOW_FREQUENCIES: readonly FlowFrequency[] = [
+  FlowFrequency.BIWEEKLY,
+  FlowFrequency.EVERY_FOUR_MONTHS,
+  FlowFrequency.SEMIANNUALLY,
+]
+const MOBILE_CATEGORY_LEGEND_PAGE_SIZE = 4
+
+interface CategoryFilterValue {
+  included: string[]
+  excluded: string[]
+}
+
+type CategoryFilterMode = "included" | "excluded"
+
+interface CategoryFilterSelectProps {
+  options: MultiSelectOption[]
+  value: CategoryFilterValue
+  onStateChange: (category: string, state: CategoryFilterMode | null) => void
+}
+
+const hasCategoryFilter = (filter: CategoryFilterValue) =>
+  filter.included.length > 0 || filter.excluded.length > 0
+
+const matchesCategoryFilter = (
+  category: string | null | undefined,
+  filter: CategoryFilterValue,
+) => {
+  if (
+    filter.included.length > 0 &&
+    (!category || !filter.included.includes(category))
+  ) {
+    return false
+  }
+  return !category || !filter.excluded.includes(category)
+}
+
+function CategoryFilterSelect({
+  options,
+  value,
+  onStateChange,
+}: CategoryFilterSelectProps) {
+  const { t } = useI18n()
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false)
+        setSearchTerm("")
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [isOpen])
+
+  const term = searchTerm.trim().toLowerCase()
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(term),
+  )
+  const stateButtonClass =
+    "inline-flex h-6 w-6 items-center justify-center rounded-md border transition-colors"
+
+  return (
+    <div className="relative w-full sm:w-56" ref={containerRef}>
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? "recurring-category-menu" : undefined}
+        data-testid="recurring-category-select"
+        onClick={() => {
+          setIsOpen(open => !open)
+          if (isOpen) setSearchTerm("")
+        }}
+        className={cn(
+          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          isOpen && "ring-2 ring-ring ring-offset-2",
+        )}
+      >
+        <span className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-muted-foreground" />
+          {t.management.categoryFilter.title}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 transition-transform",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+
+      <AnimatedPopup
+        id="recurring-category-menu"
+        role="group"
+        aria-label={t.management.categoryFilter.title}
+        open={isOpen}
+        className="absolute left-0 top-full z-50 mt-1 w-full min-w-[220px] rounded-md border border-input bg-background shadow-lg"
+      >
+        <div className="border-b p-2">
+          <input
+            type="text"
+            aria-label={t.common.searchOptions}
+            placeholder={t.common.searchOptions}
+            value={searchTerm}
+            onChange={event => setSearchTerm(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Escape") {
+                setIsOpen(false)
+                setSearchTerm("")
+              }
+            }}
+            className="w-full rounded border border-input bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="max-h-60 overflow-auto">
+          {filteredOptions.length === 0 ? (
+            <div className="p-2 text-center text-sm text-muted-foreground">
+              {t.common.noOptionsFound}
+            </div>
+          ) : (
+            filteredOptions.map(option => {
+              const included = value.included.includes(option.value)
+              const excluded = value.excluded.includes(option.value)
+              const includeLabel = `${t.management.categoryFilter.include}: ${option.label}`
+              const excludeLabel = `${t.management.categoryFilter.exclude}: ${option.label}`
+              return (
+                <div
+                  key={option.value}
+                  className={cn(
+                    "flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground",
+                    (included || excluded) &&
+                      "bg-accent text-accent-foreground",
+                  )}
+                  data-testid={`recurring-category-option-${option.value}`}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={included}
+                    onClick={() =>
+                      onStateChange(option.value, included ? null : "included")
+                    }
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-left",
+                      excluded && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      title={includeLabel}
+                      aria-label={includeLabel}
+                      aria-pressed={included}
+                      onClick={() =>
+                        onStateChange(
+                          option.value,
+                          included ? null : "included",
+                        )
+                      }
+                      data-testid={`recurring-category-include-${option.value}`}
+                      className={cn(
+                        stateButtonClass,
+                        included
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-transparent text-muted-foreground hover:border-input",
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title={excludeLabel}
+                      aria-label={excludeLabel}
+                      aria-pressed={excluded}
+                      onClick={() =>
+                        onStateChange(
+                          option.value,
+                          excluded ? null : "excluded",
+                        )
+                      }
+                      data-testid={`recurring-category-exclude-${option.value}`}
+                      className={cn(
+                        stateButtonClass,
+                        excluded
+                          ? "border-red-500 bg-red-500 text-white"
+                          : "border-transparent text-muted-foreground hover:border-input",
+                      )}
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </AnimatedPopup>
+    </div>
+  )
+}
+
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings, exchangeRates } = useAppContext()
+  const {
+    labels,
+    getLabel,
+    getLabelName,
+    excludedLabelIds,
+    revision: labelsRevision,
+  } = useLabels()
+  const previousLabelsRevision = useRef(labelsRevision)
+  const eligibleBudgetLabels = labels.filter(
+    label => !excludedLabelIds.has(label.id),
+  )
   const {
     periodicFlows,
     refreshFlows,
@@ -82,6 +341,18 @@ export default function RecurringMoneyPage() {
     ensurePeriodicFlows,
   } = useFinancialData()
   const navigate = useNavigate()
+  const [tab, setTabParam] = useTabSearchParam(RECURRING_TABS, "overview")
+  const tabScrollTopRef = useRef<number | null>(null)
+  const setTab = useCallback(
+    (next: RecurringTab) => {
+      if (next !== tab) {
+        tabScrollTopRef.current =
+          document.querySelector("main")?.scrollTop ?? null
+      }
+      setTabParam(next)
+    },
+    [setTabParam, tab],
+  )
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
@@ -94,17 +365,49 @@ export default function RecurringMoneyPage() {
     }
   })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [showMoreFrequencies, setShowMoreFrequencies] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingFlow, setEditingFlow] = useState<PeriodicFlow | null>(null)
   const [deletingFlow, setDeletingFlow] = useState<PeriodicFlow | null>(null)
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
-  const [showContributions, setShowContributions] = useState(true)
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterValue>({
+    included: [],
+    excluded: [],
+  })
+  const [labelFilter, setLabelFilter] = useState<string | null | undefined>(
+    undefined,
+  )
+  const [visibleEarningsLegendCount, setVisibleEarningsLegendCount] = useState(
+    MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+  )
+  const [visibleExpensesLegendCount, setVisibleExpensesLegendCount] = useState(
+    MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+  )
+  const [remainingCashOpen, setRemainingCashOpen] = useState(false)
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [expandedFlows, setExpandedFlows] = useState<Record<string, boolean>>(
     {},
   )
+  const hasActiveCategoryFilter = hasCategoryFilter(categoryFilter)
+  const filteredPeriodicFlows = useMemo(
+    () =>
+      periodicFlows.filter(
+        flow =>
+          matchesCategoryFilter(flow.category, categoryFilter) &&
+          (labelFilter === undefined ||
+            (!flow.category && (flow.label_id ?? null) === labelFilter)),
+      ),
+    [periodicFlows, categoryFilter, labelFilter],
+  )
+
+  useLayoutEffect(() => {
+    const scrollTop = tabScrollTopRef.current
+    if (scrollTop === null) return
+    const scrollContainer = document.querySelector("main")
+    if (scrollContainer) scrollContainer.scrollTop = scrollTop
+    tabScrollTopRef.current = null
+  }, [tab])
 
   useModalBackHandler(isDialogOpen, () => setIsDialogOpen(false))
   useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
@@ -113,17 +416,13 @@ export default function RecurringMoneyPage() {
     setExpandedFlows(prev => ({ ...prev, [id]: !prev[id] }))
   }, [])
 
-  // When category filter is active we suppress contributions per requirement
-  const effectiveShowContributions =
-    showContributions && categoryFilter.length === 0
-  const singleCategoryFiltered = categoryFilter.length === 1
-  const showSavingsCard = categoryFilter.length === 0
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
     amount: 0,
     flow_type: FlowType.EARNING,
     frequency: FlowFrequency.MONTHLY,
     category: "",
+    label_id: null,
     enabled: true,
     since: "",
     until: "",
@@ -132,11 +431,6 @@ export default function RecurringMoneyPage() {
 
   // Sort flows by amount or next_date
   const sortedFlows = useMemo(() => {
-    const baseFlows = categoryFilter.length
-      ? periodicFlows.filter(
-          f => f.category && categoryFilter.includes(f.category),
-        )
-      : periodicFlows
     const sortFn = (a: PeriodicFlow, b: PeriodicFlow) => {
       let cmp: number
       if (sortBy === "amount") {
@@ -150,7 +444,7 @@ export default function RecurringMoneyPage() {
       return sortOrder === "desc" ? -cmp : cmp
     }
 
-    const sortedPeriodicFlows = [...baseFlows].sort(sortFn)
+    const sortedPeriodicFlows = [...filteredPeriodicFlows].sort(sortFn)
 
     return {
       earnings: sortedPeriodicFlows.filter(
@@ -160,69 +454,16 @@ export default function RecurringMoneyPage() {
         flow => flow.flow_type === FlowType.EXPENSE,
       ),
     }
-  }, [periodicFlows, sortBy, sortOrder, categoryFilter])
+  }, [filteredPeriodicFlows, sortBy, sortOrder])
 
   // Calculate monthly amounts for KPIs
   const monthlyAmounts = useMemo(() => {
-    const baseFlows = categoryFilter.length
-      ? periodicFlows.filter(
-          f => f.category && categoryFilter.includes(f.category),
-        )
-      : periodicFlows
-    const getMonthlyMultiplier = (frequency: FlowFrequency): number => {
-      switch (frequency) {
-        case FlowFrequency.DAILY:
-          return 30 // Approximate days per month
-        case FlowFrequency.WEEKLY:
-          return 4.33 // Approximate weeks per month (52/12)
-        case FlowFrequency.BIWEEKLY:
-          return 26 / 12 // ~2.167
-        case FlowFrequency.SEMIMONTHLY:
-          return 2 // 24/12
-        case FlowFrequency.MONTHLY:
-          return 1
-        case FlowFrequency.EVERY_TWO_MONTHS:
-          return 0.5
-        case FlowFrequency.QUARTERLY:
-          return 1 / 3 // Every 3 months
-        case FlowFrequency.EVERY_FOUR_MONTHS:
-          return 1 / 4
-        case FlowFrequency.SEMIANNUALLY:
-          return 1 / 6 // Every 6 months
-        case FlowFrequency.YEARLY:
-          return 1 / 12
-        default:
-          return 1
-      }
-    }
-
-    const monthlyEarnings = baseFlows
-      .filter(flow => flow.flow_type === FlowType.EARNING && flow.enabled)
-      .reduce((total, flow) => {
-        const multiplier = getMonthlyMultiplier(flow.frequency)
-        const normalizedAmount = flow.amount * multiplier
-        const convertedAmount = convertCurrency(
-          normalizedAmount,
-          flow.currency,
-          defaultCurrency,
-          exchangeRates,
-        )
-        return total + convertedAmount
-      }, 0)
-
-    const monthlyExpenses = baseFlows
-      .filter(flow => flow.flow_type === FlowType.EXPENSE && flow.enabled)
-      .reduce((total, flow) => {
-        const multiplier = getMonthlyMultiplier(flow.frequency)
-        const normalizedAmount = flow.amount * multiplier
-        const convertedAmount = convertCurrency(
-          normalizedAmount,
-          flow.currency,
-          defaultCurrency,
-          exchangeRates,
-        )
-        return total + convertedAmount
-      }, 0)
+    const { monthlyEarnings, monthlyExpenses } = getMonthlyFlowTotals(
+      periodicFlows,
+      excludedLabelIds,
+      defaultCurrency,
+      exchangeRates,
+    )
 
     // Monthly contributions (always computed, visibility handled separately)
     let monthlyContributions = 0
@@ -231,7 +472,7 @@ export default function RecurringMoneyPage() {
         if (!group?.periodic) return
         group.periodic.forEach(c => {
           if (!c.active) return
-          const freq = c.frequency as ContributionFrequency
+          const freq: string = c.frequency
           const multiplier =
             freq === ContributionFrequency.WEEKLY
               ? 52 / 12
@@ -239,13 +480,15 @@ export default function RecurringMoneyPage() {
                 ? 26 / 12
                 : freq === ContributionFrequency.BIMONTHLY
                   ? 6 / 12
-                  : freq === ContributionFrequency.QUARTERLY
-                    ? 4 / 12
-                    : freq === ContributionFrequency.SEMIANNUAL
-                      ? 2 / 12
-                      : freq === ContributionFrequency.YEARLY
-                        ? 1 / 12
-                        : 1
+                  : freq === "EVERY_FOUR_MONTHS"
+                    ? 3 / 12
+                    : freq === ContributionFrequency.QUARTERLY
+                      ? 4 / 12
+                      : freq === ContributionFrequency.SEMIANNUAL
+                        ? 2 / 12
+                        : freq === ContributionFrequency.YEARLY
+                          ? 1 / 12
+                          : 1
           const normalized = c.amount * multiplier
           monthlyContributions += convertCurrency(
             normalized,
@@ -256,9 +499,7 @@ export default function RecurringMoneyPage() {
         })
       })
     }
-    const monthlyContributionsVisible = effectiveShowContributions
-      ? monthlyContributions
-      : 0
+    const monthlyContributionsVisible = monthlyContributions
     return {
       monthlyEarnings,
       monthlyExpenses,
@@ -267,9 +508,8 @@ export default function RecurringMoneyPage() {
     }
   }, [
     periodicFlows,
-    categoryFilter,
+    excludedLabelIds,
     contributions,
-    effectiveShowContributions,
     exchangeRates,
     defaultCurrency,
   ])
@@ -314,63 +554,39 @@ export default function RecurringMoneyPage() {
   // Darker colors for bigger amounts (lower index), lighter for smaller amounts
   const getEarningsColor = (index: number) => {
     const greenShades = [
-      "bg-green-700", // Darkest for biggest
-      "bg-green-600",
-      "bg-green-500",
-      "bg-green-400",
-      "bg-green-300",
-      "bg-green-200",
-      "bg-green-100",
+      { className: "bg-green-700", value: "#15803d" },
+      { className: "bg-green-600", value: "#16a34a" },
+      { className: "bg-green-500", value: "#22c55e" },
+      { className: "bg-green-400", value: "#4ade80" },
+      { className: "bg-green-300", value: "#86efac" },
+      { className: "bg-green-200", value: "#bbf7d0" },
+      { className: "bg-green-100", value: "#dcfce7" },
     ]
     return greenShades[index % greenShades.length]
   }
 
   const getExpensesColor = (index: number) => {
     const redShades = [
-      "bg-red-700", // Darkest for biggest
-      "bg-red-600",
-      "bg-red-500",
-      "bg-red-400",
-      "bg-red-300",
-      "bg-red-200",
-      "bg-red-100",
+      { className: "bg-red-700", value: "#b91c1c" },
+      { className: "bg-red-600", value: "#dc2626" },
+      { className: "bg-red-500", value: "#ef4444" },
+      { className: "bg-red-400", value: "#f87171" },
+      { className: "bg-red-300", value: "#fca5a5" },
+      { className: "bg-red-200", value: "#fecaca" },
+      { className: "bg-red-100", value: "#fee2e2" },
     ]
     return redShades[index % redShades.length]
   }
 
   // Calculate flow distribution for the horizontal bar chart
   const flowDistribution = useMemo(() => {
-    const baseFlows = categoryFilter.length
-      ? periodicFlows.filter(
-          f => f.category && categoryFilter.includes(f.category),
-        )
-      : periodicFlows
+    const baseFlows = periodicFlows.filter(
+      flow => !flow.label_id || !excludedLabelIds.has(flow.label_id),
+    )
     const enabledFlows = baseFlows.filter(flow => flow.enabled)
-    const singleCategoryMode = categoryFilter.length === 1
 
     const toMonthlyAmount = (flow: PeriodicFlow): number => {
-      const multiplier =
-        flow.frequency === FlowFrequency.DAILY
-          ? 30
-          : flow.frequency === FlowFrequency.WEEKLY
-            ? 4.33
-            : flow.frequency === FlowFrequency.BIWEEKLY
-              ? 26 / 12
-              : flow.frequency === FlowFrequency.SEMIMONTHLY
-                ? 2
-                : flow.frequency === FlowFrequency.MONTHLY
-                  ? 1
-                  : flow.frequency === FlowFrequency.EVERY_TWO_MONTHS
-                    ? 0.5
-                    : flow.frequency === FlowFrequency.QUARTERLY
-                      ? 1 / 3
-                      : flow.frequency === FlowFrequency.EVERY_FOUR_MONTHS
-                        ? 1 / 4
-                        : flow.frequency === FlowFrequency.SEMIANNUALLY
-                          ? 1 / 6
-                          : flow.frequency === FlowFrequency.YEARLY
-                            ? 1 / 12
-                            : 1
+      const multiplier = MONTHLY_FLOW_MULTIPLIERS[flow.frequency]
       const normalized = flow.amount * multiplier
       return convertCurrency(
         normalized,
@@ -388,32 +604,30 @@ export default function RecurringMoneyPage() {
       label: string
       amount: number
       flows: PeriodicFlow[]
-      sourceCategory: string | null
+      labelId: string | null
+      categoryName: string | null
     }> => {
-      if (singleCategoryMode) {
-        return flows.map((flow, index) => ({
-          id: flow.id ?? `${type}-${index}-${flow.name}`,
-          label: flow.name,
-          amount: toMonthlyAmount(flow),
-          flows: [flow],
-          sourceCategory: flow.category ?? null,
-        }))
-      }
-
       const grouped = flows.reduce(
         (acc, flow) => {
-          const category = flow.category || flow.name
-          if (!acc[category]) {
-            acc[category] = {
-              id: category,
-              label: category,
+          const categoryName = flow.category || null
+          const labelId = categoryName ? null : (flow.label_id ?? null)
+          const key = `${type}:${categoryName ? `category:${categoryName}` : `label:${labelId ?? "unassigned"}`}`
+          if (!acc[key]) {
+            acc[key] = {
+              id: key,
+              label:
+                categoryName ||
+                (labelId
+                  ? getLabelName(getLabel(labelId))
+                  : t.management.budgetLabel.unassigned),
               amount: 0,
               flows: [] as PeriodicFlow[],
-              sourceCategory: flow.category ?? null,
+              labelId,
+              categoryName,
             }
           }
-          acc[category].amount += toMonthlyAmount(flow)
-          acc[category].flows.push(flow)
+          acc[key].amount += toMonthlyAmount(flow)
+          acc[key].flows.push(flow)
           return acc
         },
         {} as Record<
@@ -423,7 +637,8 @@ export default function RecurringMoneyPage() {
             label: string
             amount: number
             flows: PeriodicFlow[]
-            sourceCategory: string | null
+            labelId: string | null
+            categoryName: string | null
           }
         >,
       )
@@ -448,47 +663,63 @@ export default function RecurringMoneyPage() {
     const totalAmount = totalEarnings + totalExpenses
 
     // Convert to arrays with percentages
-    const earningsData = earningsEntries.map((entry, index) => ({
-      id: entry.id,
-      category: entry.label,
-      amount: entry.amount,
-      percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
-      flows: entry.flows,
-      type: "earning" as const,
-      color: getEarningsColor(index),
-      sourceCategory: entry.sourceCategory,
-    }))
+    const earningsData = earningsEntries
+      .sort((a, b) => b.amount - a.amount)
+      .map((entry, index) => {
+        const color = getEarningsColor(index)
+        return {
+          id: entry.id,
+          category: entry.label,
+          amount: entry.amount,
+          percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
+          flows: entry.flows,
+          type: "earning" as const,
+          color: color.className,
+          labelId: entry.labelId,
+          categoryName: entry.categoryName,
+          groupColor: color.value,
+        }
+      })
 
-    const expensesData = expensesEntries.map((entry, index) => ({
-      id: entry.id,
-      category: entry.label,
-      amount: entry.amount,
-      percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
-      flows: entry.flows,
-      type: "expense" as const,
-      color: getExpensesColor(index),
-      sourceCategory: entry.sourceCategory,
-    }))
+    const expensesData = expensesEntries
+      .sort((a, b) => b.amount - a.amount)
+      .map((entry, index) => {
+        const color = getExpensesColor(index)
+        return {
+          id: entry.id,
+          category: entry.label,
+          amount: entry.amount,
+          percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
+          flows: entry.flows,
+          type: "expense" as const,
+          color: color.className,
+          labelId: entry.labelId,
+          categoryName: entry.categoryName,
+          groupColor: color.value,
+        }
+      })
 
     return {
-      earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first (leftmost)
-      expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first (rightmost)
+      earnings: earningsData,
+      expenses: expensesData,
       totalEarnings,
-      totalExpenses, // includes contributions when toggle on
+      totalExpenses,
       totalAmount,
-      contributionsAmount: effectiveShowContributions ? totalContributions : 0,
+      contributionsAmount: totalContributions,
     }
   }, [
     periodicFlows,
+    excludedLabelIds,
     monthlyAmounts,
-    categoryFilter,
-    effectiveShowContributions,
+    getLabel,
+    getLabelName,
+    t.management.budgetLabel.unassigned,
     exchangeRates,
     defaultCurrency,
   ])
 
   const flowHighlightMap = useMemo(() => {
-    if (!singleCategoryFiltered) {
+    if (labelFilter === undefined) {
       return {}
     }
     const map: Record<string, string> = {}
@@ -507,55 +738,101 @@ export default function RecurringMoneyPage() {
       })
     })
     return map
-  }, [flowDistribution, singleCategoryFiltered])
+  }, [flowDistribution, labelFilter])
 
   const flowBorderColorMap = useMemo(() => {
-    const bgToColor: Record<string, string> = {
-      "bg-green-700": "#15803d",
-      "bg-green-600": "#16a34a",
-      "bg-green-500": "#22c55e",
-      "bg-green-400": "#4ade80",
-      "bg-green-300": "#86efac",
-      "bg-green-200": "#bbf7d0",
-      "bg-green-100": "#dcfce7",
-      "bg-red-700": "#b91c1c",
-      "bg-red-600": "#dc2626",
-      "bg-red-500": "#ef4444",
-      "bg-red-400": "#f87171",
-      "bg-red-300": "#fca5a5",
-      "bg-red-200": "#fecaca",
-      "bg-red-100": "#fee2e2",
-    }
     const map: Record<string, string> = {}
     flowDistribution.earnings.forEach(entry => {
       entry.flows.forEach(flow => {
         if (flow.id) {
-          map[String(flow.id)] = bgToColor[entry.color] || "#16a34a"
+          map[String(flow.id)] = entry.groupColor
         }
       })
     })
     flowDistribution.expenses.forEach(entry => {
       entry.flows.forEach(flow => {
         if (flow.id) {
-          map[String(flow.id)] = bgToColor[entry.color] || "#dc2626"
+          map[String(flow.id)] = entry.groupColor
         }
       })
     })
     return map
   }, [flowDistribution])
 
-  const toggleCategoryFilter = (category: string) => {
-    setCategoryFilter(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category],
-    )
+  const updateCategoryFilter = (
+    category: string,
+    state: CategoryFilterMode | null,
+  ) => {
+    setCategoryFilter(previous => {
+      const currentState = previous.included.includes(category)
+        ? "included"
+        : previous.excluded.includes(category)
+          ? "excluded"
+          : null
+      if (currentState === state) return previous
+
+      const included = previous.included.filter(item => item !== category)
+      const excluded = previous.excluded.filter(item => item !== category)
+      if (state === "included") included.push(category)
+      if (state === "excluded") excluded.push(category)
+      return { included, excluded }
+    })
+  }
+
+  const focusGroup = (
+    categoryName: string | null,
+    labelId: string | null,
+    type: "earning" | "expense",
+  ) => {
+    setCategoryFilter({
+      included: categoryName ? [categoryName] : [],
+      excluded: [],
+    })
+    setLabelFilter(categoryName ? undefined : labelId)
+    setTab(type === "earning" ? "earnings" : "expenses")
+  }
+
+  const activeContributionsCount = useMemo(() => {
+    let count = 0
+    Object.values(contributions ?? {}).forEach(group => {
+      group?.periodic?.forEach(c => {
+        if (c.active) count++
+      })
+    })
+    return count
+  }, [contributions])
+
+  const handleEventClick = (event: MoneyEvent) => {
+    switch (event.type) {
+      case MoneyEventType.PERIODIC_FLOW:
+        setTab(event.amount > 0 ? "earnings" : "expenses")
+        break
+      case MoneyEventType.CONTRIBUTION:
+        setTab("investments")
+        break
+      case MoneyEventType.PENDING_FLOW:
+        navigate("/management/pending")
+        break
+      case MoneyEventType.MATURITY:
+        navigate("/investments")
+        break
+    }
   }
 
   const categoryOptions: MultiSelectOption[] = useMemo(
     () => existingCategories.map(c => ({ value: c, label: c })),
     [existingCategories],
   )
+  const selectedCategoryFilters = [
+    ...categoryFilter.included.map(category => ({
+      category,
+      state: "included" as const,
+    })),
+    ...categoryFilter.excluded.map(category => ({
+      category,
+      state: "excluded" as const,
+    })),
+  ]
 
   // Get loan suggestions from positions data
   const loanSuggestions = useMemo(() => {
@@ -636,6 +913,7 @@ export default function RecurringMoneyPage() {
     },
   )
   const [showDismissed, setShowDismissed] = useState(false)
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false)
 
   const handleDismissSuggestion = (loanId: string) => {
     const newDismissed = [...dismissedSuggestions, loanId]
@@ -687,6 +965,12 @@ export default function RecurringMoneyPage() {
     ensureContributions()
     ensurePeriodicFlows()
   }, [refreshFlowsIfStale, ensureContributions, ensurePeriodicFlows])
+
+  useEffect(() => {
+    const changed = previousLabelsRevision.current !== labelsRevision
+    previousLabelsRevision.current = labelsRevision
+    if (changed && labelsRevision > 1) void refreshFlows()
+  }, [labelsRevision, refreshFlows])
 
   useEffect(() => {
     try {
@@ -773,6 +1057,7 @@ export default function RecurringMoneyPage() {
       flow_type: FlowType.EARNING,
       frequency: FlowFrequency.MONTHLY,
       category: "",
+      label_id: null,
       enabled: true,
       since: "",
       until: "",
@@ -780,22 +1065,26 @@ export default function RecurringMoneyPage() {
     })
     setEditingFlow(null)
     setValidationErrors([])
+    setShowMoreFrequencies(false)
   }
 
   const openEditDialog = (flow: PeriodicFlow) => {
     setEditingFlow(flow)
     setValidationErrors([])
+    setShowMoreFrequencies(!COMMON_FLOW_FREQUENCIES.includes(flow.frequency))
     setFormData({
       name: flow.name,
       amount: flow.amount,
       flow_type: flow.flow_type,
       frequency: flow.frequency,
       category: flow.category || "",
+      label_id: flow.label_id ?? null,
       enabled: flow.enabled,
       since: flow.since,
       until: flow.until || "",
       currency: flow.currency,
       icon: flow.icon,
+      max_amount: flow.max_amount,
     })
     setIsDialogOpen(true)
   }
@@ -821,6 +1110,18 @@ export default function RecurringMoneyPage() {
     }
     return frequencyMap[frequency] || frequency
   }
+
+  const visibleFlowFrequencies = showMoreFrequencies
+    ? [...COMMON_FLOW_FREQUENCIES, ...LESS_COMMON_FLOW_FREQUENCIES]
+    : [
+        ...COMMON_FLOW_FREQUENCIES,
+        ...LESS_COMMON_FLOW_FREQUENCIES.filter(
+          frequency => frequency === formData.frequency,
+        ),
+      ]
+  const isFrequencyDisabled =
+    editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
+  const hasFrequencyError = validationErrors.includes("frequency")
 
   const getNextDateInfo = (nextDate: string | undefined) => {
     if (!nextDate) return null
@@ -855,20 +1156,16 @@ export default function RecurringMoneyPage() {
   }
 
   const renderFlowSection = ({
-    title,
     flows,
     flowType,
     emptyMessage,
     addMessage,
-    extraButton,
     runEntranceAnimation,
   }: {
-    title: string
     flows: PeriodicFlow[]
     flowType: FlowType
     emptyMessage: string
     addMessage: string
-    extraButton?: any
     runEntranceAnimation: boolean
   }) => {
     const initialVariant = runEntranceAnimation ? "hidden" : false
@@ -880,47 +1177,44 @@ export default function RecurringMoneyPage() {
         animate="show"
         className="space-y-4"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {flowType === FlowType.EARNING ? (
-              <BanknoteArrowUp className="text-green-600" size={24} />
-            ) : (
-              <BanknoteArrowDown className="text-red-600" size={24} />
-            )}
-            <h2 className="text-xl font-semibold">{title}</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {extraButton}
-            <Button
-              onClick={() => {
-                resetForm()
-                setFormData(prev => ({ ...prev, flow_type: flowType }))
-                setIsDialogOpen(true)
-              }}
-              size="sm"
-              className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
-            >
-              <Plus size={16} />
-            </Button>
-          </div>
-        </div>
-
         {flows.length === 0 ? (
           <motion.div
             variants={fadeListItem}
             initial={initialVariant}
             animate="show"
-            className="text-center py-12 text-gray-500"
           >
-            <div className="flex justify-center mb-4">
-              {flowType === FlowType.EARNING ? (
-                <BanknoteArrowUp className="text-green-400" size={48} />
-              ) : (
-                <BanknoteArrowDown className="text-red-400" size={48} />
-              )}
-            </div>
-            <p className="text-lg font-medium mb-2">{emptyMessage}</p>
-            <p className="text-sm">{addMessage}</p>
+            <Card className="hidden overflow-hidden md:block">
+              <EmptyState
+                icon={
+                  flowType === FlowType.EARNING
+                    ? BanknoteArrowUp
+                    : BanknoteArrowDown
+                }
+                title={emptyMessage}
+                description={addMessage}
+                iconClassName={
+                  flowType === FlowType.EARNING
+                    ? "text-green-400"
+                    : "text-red-400"
+                }
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              icon={
+                flowType === FlowType.EARNING
+                  ? BanknoteArrowUp
+                  : BanknoteArrowDown
+              }
+              title={emptyMessage}
+              description={addMessage}
+              iconClassName={
+                flowType === FlowType.EARNING
+                  ? "text-green-400"
+                  : "text-red-400"
+              }
+              className="py-16 md:hidden"
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -1026,6 +1320,31 @@ export default function RecurringMoneyPage() {
                             )}
                           </h3>
                           <div className="flex items-center gap-1.5 flex-wrap">
+                            {!groupByCategory && flow.category && (
+                              <button
+                                type="button"
+                                data-no-expand
+                                onClick={() =>
+                                  updateCategoryFilter(
+                                    flow.category!,
+                                    "included",
+                                  )
+                                }
+                                className={cn(
+                                  "text-[0.7rem] inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
+                                  getColorForName(flow.category),
+                                )}
+                              >
+                                <Tag size={10} />
+                                {flow.category}
+                              </button>
+                            )}
+                            {flow.label_id && getLabel(flow.label_id) && (
+                              <LabelChip
+                                label={getLabel(flow.label_id)}
+                                name={getLabelName(getLabel(flow.label_id))}
+                              />
+                            )}
                             <span className="hidden sm:inline-flex text-[0.7rem] items-center gap-1 rounded-full px-2 py-0.5 font-medium bg-secondary text-secondary-foreground">
                               <Clock size={10} />
                               {getFrequencyLabel(flow.frequency)}
@@ -1048,22 +1367,6 @@ export default function RecurringMoneyPage() {
                                   ? nextDateInfo.timeText
                                   : shortNextDate || nextDateInfo.timeText}
                               </span>
-                            )}
-                            {!groupByCategory && flow.category && (
-                              <button
-                                type="button"
-                                data-no-expand
-                                onClick={() =>
-                                  toggleCategoryFilter(flow.category!)
-                                }
-                                className={cn(
-                                  "text-[0.7rem] inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
-                                  getColorForName(flow.category),
-                                )}
-                              >
-                                <Tag size={10} />
-                                {flow.category}
-                              </button>
                             )}
                           </div>
                         </div>
@@ -1314,6 +1617,36 @@ export default function RecurringMoneyPage() {
     )
   }
 
+  const recurringTabs: PageTab<RecurringTab>[] = [
+    {
+      key: "overview",
+      label: t.management.tabs.overview,
+      Icon: LayoutGrid,
+    },
+    {
+      key: "earnings",
+      label: t.management.tabs.earnings,
+      Icon: BanknoteArrowUp,
+      count: periodicFlows.filter(
+        flow => flow.flow_type === FlowType.EARNING && flow.enabled,
+      ).length,
+    },
+    {
+      key: "expenses",
+      label: t.management.tabs.expenses,
+      Icon: BanknoteArrowDown,
+      count: periodicFlows.filter(
+        flow => flow.flow_type === FlowType.EXPENSE && flow.enabled,
+      ).length,
+    },
+    {
+      key: "investments",
+      label: t.management.tabs.investments,
+      Icon: PiggyBank,
+      count: contributions ? activeContributionsCount : null,
+    },
+  ]
+
   if (loading) {
     return (
       <div className="p-6">
@@ -1334,13 +1667,13 @@ export default function RecurringMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className="flex flex-row items-center justify-between gap-3"
+          className="flex flex-row items-center gap-3"
         >
           <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
               size="sm"
-              className="p-1 h-8 w-8 shrink-0"
+              className="p-1 h-8 w-8 shrink-0 md:hidden"
               onClick={() => navigate("/management")}
             >
               <ArrowLeft size={20} />
@@ -1358,13 +1691,6 @@ export default function RecurringMoneyPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => navigate("/management/pending")}
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
-          >
-            {t.management.pending}
-            <ArrowRight size={16} />
-          </button>
         </motion.div>
 
         {/* KPI Cards */}
@@ -1372,827 +1698,1184 @@ export default function RecurringMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className={cn(
-            "grid grid-cols-1 gap-4",
-            showSavingsCard
-              ? "md:grid-cols-2 xl:grid-cols-3"
-              : "md:grid-cols-2",
-          )}
+          className="min-w-0"
         >
-          <Card className="p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
-            <div className="flex items-center gap-2 mb-2">
-              <BanknoteArrowUp className="h-5 w-5 text-green-500" />
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t.management.monthlyRecurringEarnings}
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-green-600">
-              <Sensitive>
-                <FormattedMarketValue
-                  value={formatCurrency(
-                    monthlyAmounts.monthlyEarnings,
-                    locale,
-                    settings?.general?.defaultCurrency,
-                  )}
-                  locale={locale}
-                />
-              </Sensitive>
-            </div>
-            <div className="text-xs text-gray-500">
-              {sortedFlows.earnings.filter(flow => flow.enabled).length}{" "}
-              {sortedFlows.earnings.filter(flow => flow.enabled).length === 1
-                ? t.management.flowType.EARNING.toLowerCase()
-                : t.management.earnings.toLowerCase()}
-            </div>
-          </Card>
+          <Card
+            className="-mx-6 overflow-hidden rounded-none border-x-0 md:mx-0 md:rounded-lg md:border-x"
+            data-testid="recurring-kpis"
+          >
+            <div className="grid grid-cols-2 gap-px bg-border xl:grid-cols-3">
+              <button
+                type="button"
+                className={cn(
+                  "flex min-w-0 w-full flex-col gap-1 bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  tab === "earnings" && "ring-2 ring-inset ring-green-500/50",
+                )}
+                onClick={() => setTab("earnings")}
+                data-testid="recurring-kpi-earnings"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-green-500/10 text-green-600 dark:text-green-400">
+                    <BanknoteArrowUp className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate">
+                    {t.management.monthlyRecurringEarnings}
+                  </span>
+                  <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                </div>
+                <div className="truncate text-lg font-semibold tabular-nums text-green-600 dark:text-green-400 sm:text-2xl">
+                  <Sensitive>
+                    <FormattedMarketValue
+                      value={formatCurrency(
+                        monthlyAmounts.monthlyEarnings,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )}
+                      locale={locale}
+                    />
+                  </Sensitive>
+                </div>
+              </button>
 
-          <Card className="p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
-            <div className="flex items-center gap-2 mb-2">
-              <BanknoteArrowDown className="h-5 w-5 text-red-500" />
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t.management.monthlyRecurringExpenses}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-2xl font-bold text-red-600">
-                <Sensitive>
-                  <FormattedMarketValue
-                    value={formatCurrency(
-                      monthlyAmounts.monthlyExpenses,
-                      locale,
-                      settings?.general?.defaultCurrency,
-                    )}
-                    locale={locale}
-                  />
-                </Sensitive>
-              </div>
-              {monthlyAmounts.monthlyEarnings > 0 &&
-                (() => {
-                  // Percentage intentionally excludes contributions per latest requirement
-                  const percent =
-                    (monthlyAmounts.monthlyExpenses /
-                      Math.max(monthlyAmounts.monthlyEarnings, 1)) *
-                    100
-                  const overrun = percent > 100
-                  return (
-                    <div
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-md font-semibold",
-                        getUtilizationBadgeClasses(percent),
-                        overrun && "animate-pulse",
-                      )}
-                      title={
-                        overrun
-                          ? t.management.expensesOverrunMessage.replace(
-                              "{percentage}",
-                              (percent - 100).toFixed(1),
-                            )
-                          : undefined
-                      }
-                    >
-                      <Sensitive>{percent.toFixed(1)}%</Sensitive>
+              <button
+                type="button"
+                className={cn(
+                  "flex min-w-0 w-full flex-col gap-1 bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  tab === "expenses" && "ring-2 ring-inset ring-red-500/50",
+                )}
+                onClick={() => setTab("expenses")}
+                data-testid="recurring-kpi-expenses"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-red-600 dark:text-red-400">
+                    <BanknoteArrowDown className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate">
+                    {t.management.monthlyRecurringExpenses}
+                  </span>
+                  <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                </div>
+                <div
+                  className="flex min-w-0 items-baseline gap-1.5"
+                  data-testid="recurring-expense-amount"
+                >
+                  <div className="min-w-0 flex-1 truncate text-lg font-semibold tabular-nums text-red-600 dark:text-red-400 sm:text-2xl">
+                    <Sensitive>
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          monthlyAmounts.monthlyExpenses,
+                          locale,
+                          settings?.general?.defaultCurrency,
+                        )}
+                        locale={locale}
+                      />
+                    </Sensitive>
+                  </div>
+                  {monthlyAmounts.monthlyEarnings > 0 &&
+                    (() => {
+                      // Percentage intentionally excludes contributions per latest requirement
+                      const percent =
+                        (monthlyAmounts.monthlyExpenses /
+                          Math.max(monthlyAmounts.monthlyEarnings, 1)) *
+                        100
+                      const overrun = percent > 100
+                      return (
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1 py-0 text-[11px] font-medium tabular-nums",
+                            getUtilizationBadgeClasses(percent),
+                            overrun && "animate-pulse",
+                          )}
+                          data-testid="recurring-expense-rate"
+                          title={
+                            overrun
+                              ? t.management.expensesOverrunMessage.replace(
+                                  "{percentage}",
+                                  (percent - 100).toFixed(1),
+                                )
+                              : undefined
+                          }
+                        >
+                          <Sensitive>{percent.toFixed(1)}%</Sensitive>
+                        </span>
+                      )
+                    })()}
+                </div>
+              </button>
+              {
+                <div
+                  className="col-span-2 grid grid-cols-2 gap-px bg-border xl:col-span-1"
+                  data-testid="recurring-kpi-savings"
+                >
+                  <div className="min-w-0 space-y-1 bg-card p-3">
+                    <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <PiggyBank className="h-3.5 w-3.5" />
+                      </span>
+                      <span
+                        className="truncate"
+                        data-testid="recurring-savable-title"
+                      >
+                        {t.management.savableAmount}
+                      </span>
                     </div>
-                  )
-                })()}
-            </div>
-            <div className="text-xs text-gray-500">
-              {sortedFlows.expenses.filter(flow => flow.enabled).length}{" "}
-              {sortedFlows.expenses.filter(flow => flow.enabled).length === 1
-                ? t.management.flowType.EXPENSE.toLowerCase()
-                : t.management.expenses.toLowerCase()}
+                    <div className="flex min-w-0 flex-nowrap items-start gap-1.5">
+                      <div
+                        className={cn(
+                          "min-w-0 flex-1 truncate text-base font-semibold tabular-nums sm:text-2xl",
+                          savingsSummary.totalSavable >= 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400",
+                        )}
+                        data-testid="recurring-savable-amount"
+                      >
+                        <Sensitive>
+                          <FormattedMarketValue
+                            value={formatCurrency(
+                              savingsSummary.totalSavable,
+                              locale,
+                              settings?.general?.defaultCurrency,
+                            )}
+                            locale={locale}
+                          />
+                        </Sensitive>
+                      </div>
+                      <div
+                        className={cn(
+                          "shrink-0 self-center whitespace-nowrap rounded-full px-1 py-0 text-[11px] font-medium tabular-nums",
+                          savingsSummary.totalSavable >= 0
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+                        )}
+                        data-testid="recurring-savable-rate"
+                      >
+                        <Sensitive>
+                          {savingsSummary.totalPercent.toFixed(1)}%
+                        </Sensitive>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative flex min-w-0 flex-col bg-card">
+                    <button
+                      type="button"
+                      onClick={() => setTab("investments")}
+                      className={cn(
+                        "flex w-full min-w-0 flex-1 flex-col gap-1 bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        tab === "investments" &&
+                          "ring-2 ring-inset ring-cyan-500/50",
+                      )}
+                      data-testid="recurring-kpi-investments"
+                    >
+                      <div className="flex h-6 min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <span
+                          className="min-w-0 truncate"
+                          data-testid="recurring-invested-title"
+                        >
+                          {t.management.monthlyInvestedAmount}
+                        </span>
+                        <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                      </div>
+                      <div className="flex min-w-0 flex-nowrap items-start gap-1.5">
+                        <span
+                          className="min-w-0 flex-1 truncate text-base font-semibold tabular-nums text-cyan-600 dark:text-cyan-300 sm:text-2xl"
+                          data-testid="recurring-invested-amount"
+                        >
+                          <Sensitive>
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                savingsSummary.investedAmount,
+                                locale,
+                                settings?.general?.defaultCurrency,
+                              )}
+                              locale={locale}
+                            />
+                          </Sensitive>
+                        </span>
+                        <span className="shrink-0 self-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                          <Sensitive>
+                            {savingsSummary.investedPercent.toFixed(1)}%
+                          </Sensitive>
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              }
             </div>
           </Card>
-          {showSavingsCard && (
-            <Card className="p-4 md:col-span-2 xl:col-span-1 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <PiggyBank className="h-5 w-5 text-emerald-500" />
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.management.savableAmount}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <div
-                      className={cn(
-                        "text-2xl font-bold",
-                        savingsSummary.totalSavable >= 0
-                          ? "text-emerald-600"
-                          : "text-red-600",
-                      )}
-                    >
-                      <Sensitive>
-                        <FormattedMarketValue
-                          value={formatCurrency(
-                            savingsSummary.totalSavable,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )}
-                          locale={locale}
-                        />
-                      </Sensitive>
-                    </div>
-                    <div
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-md font-semibold",
-                        savingsSummary.totalSavable >= 0
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-                      )}
-                    >
-                      <Sensitive>
-                        {savingsSummary.totalPercent.toFixed(1)}%
-                      </Sensitive>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-1 sm:text-right min-w-0">
-                  <div className="flex items-center gap-2 sm:justify-end min-w-0">
-                    <span className="text-sm font-medium text-muted-foreground truncate min-w-0">
-                      {t.management.monthlyInvestedAmount}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setShowContributions(prev => !prev)}
-                      className={cn(
-                        "h-8 w-8 rounded-full border border-transparent transition-colors",
-                        showContributions
-                          ? "bg-cyan-600 text-white hover:bg-cyan-600/90 dark:bg-cyan-500 dark:text-black dark:hover:bg-cyan-500/90"
-                          : "text-muted-foreground hover:text-cyan-600 dark:hover:text-cyan-300",
-                      )}
-                      aria-pressed={showContributions}
-                      aria-label={t.management.contributionsShort}
-                      title={t.management.contributionsShort}
-                    >
-                      {showContributions ? (
-                        <Eye className="h-4 w-4" />
-                      ) : (
-                        <EyeOff className="h-4 w-4" />
-                      )}
-                      <span className="sr-only">
-                        {t.management.contributionsShort}
-                      </span>
-                    </Button>
-                  </div>
-                  <div className="flex items-baseline gap-2 sm:justify-end">
-                    <span className="text-lg font-semibold text-cyan-600 dark:text-cyan-300">
-                      <Sensitive>
-                        <FormattedMarketValue
-                          value={formatCurrency(
-                            savingsSummary.investedAmount,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )}
-                          locale={locale}
-                        />
-                      </Sensitive>
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-md font-semibold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
-                      <Sensitive>
-                        {savingsSummary.investedPercent.toFixed(1)}%
-                      </Sensitive>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
         </motion.div>
 
-        {/* Earnings vs Expenses Consumption Bars */}
-        {(flowDistribution.totalEarnings > 0 ||
-          flowDistribution.totalExpenses > 0) && (
-          <motion.div variants={fadeListItem}>
-            <Card className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
-              {(() => {
-                const scale = Math.max(
-                  flowDistribution.totalEarnings,
-                  flowDistribution.totalExpenses,
-                  1,
-                )
-                const earningsOverrun =
-                  flowDistribution.totalExpenses >
-                  flowDistribution.totalEarnings
-                return (
-                  <div className="space-y-3">
-                    {/* Earnings Bar */}
+        <PageTabs
+          tabs={recurringTabs}
+          active={tab}
+          onChange={setTab}
+          layoutId="recurring-tab-indicator"
+        />
+
+        {(tab === "earnings" || tab === "expenses") && (
+          <div className="flex flex-wrap items-center gap-2">
+            {labelFilter !== undefined && (
+              <button
+                type="button"
+                data-testid="recurring-label-filter"
+                onClick={() => setLabelFilter(undefined)}
+                aria-label={t.common.clear}
+                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
+              >
+                {labelFilter ? (
+                  <LabelChip
+                    label={getLabel(labelFilter)}
+                    name={getLabelName(getLabel(labelFilter))}
+                  />
+                ) : (
+                  t.management.budgetLabel.unassigned
+                )}
+                <X className="h-3 w-3" />
+              </button>
+            )}
+            {hasActiveCategoryFilter && (
+              <div
+                className="flex flex-wrap items-center gap-2"
+                data-testid="recurring-category-filter"
+              >
+                <Tag size={14} className="text-muted-foreground" />
+                {selectedCategoryFilters.map(({ category, state }) => {
+                  const excluded = state === "excluded"
+                  const stateLabel = excluded
+                    ? t.management.categoryFilter.exclude
+                    : t.management.categoryFilter.include
+                  return (
+                    <button
+                      key={`${state}-${category}`}
+                      type="button"
+                      title={`${stateLabel}: ${category}`}
+                      aria-label={`${t.common.clear} ${category}`}
+                      onClick={() => updateCategoryFilter(category, null)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
+                        excluded
+                          ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                          : getColorForName(category),
+                      )}
+                    >
+                      {excluded ? (
+                        <Ban className="h-3 w-3" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
+                      <span className={cn(excluded && "line-through")}>
+                        {category}
+                      </span>
+                      <X size={12} />
+                    </button>
+                  )
+                })}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() =>
+                    setCategoryFilter({ included: [], excluded: [] })
+                  }
+                >
+                  {t.common.clear}
+                </Button>
+              </div>
+            )}
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="min-w-0 flex-1 sm:flex-none">
+                <CategoryFilterSelect
+                  options={categoryOptions}
+                  value={categoryFilter}
+                  onStateChange={updateCategoryFilter}
+                />
+              </div>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {tab === "expenses" &&
+                  dismissedSuggestions.length > 0 &&
+                  loanSuggestions.some(suggestion =>
+                    dismissedSuggestions.includes(suggestion.id),
+                  ) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setShowDismissed(value => !value)
+                        setSuggestionsExpanded(true)
+                      }}
+                      className="h-8 px-3 text-yellow-600 hover:text-yellow-700"
+                      aria-label={t.management.loanSuggestions.title}
+                      title={t.management.loanSuggestions.title}
+                    >
+                      {showDismissed ? (
+                        <LightbulbOff size={14} />
+                      ) : (
+                        <Lightbulb size={14} />
+                      )}
+                    </Button>
+                  )}
+                <Button
+                  onClick={() => {
+                    resetForm()
+                    setFormData(prev => ({
+                      ...prev,
+                      flow_type:
+                        tab === "earnings"
+                          ? FlowType.EARNING
+                          : FlowType.EXPENSE,
+                    }))
+                    setIsDialogOpen(true)
+                  }}
+                  size="sm"
+                  aria-label={t.management.addNew}
+                  title={t.management.addNew}
+                  className="flex shrink-0 items-center gap-2 bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                >
+                  <Plus size={16} />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "overview" && (
+          <>
+            {/* Earnings vs Expenses Consumption Bars */}
+            {flowDistribution.totalEarnings > 0 ||
+            flowDistribution.totalExpenses > 0 ? (
+              <motion.div variants={fadeListItem}>
+                <Card className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+                  {(() => {
+                    const scale = Math.max(
+                      flowDistribution.totalEarnings,
+                      flowDistribution.totalExpenses,
+                      1,
+                    )
+                    const earningsOverrun =
+                      flowDistribution.totalExpenses >
+                      flowDistribution.totalEarnings
+                    return (
+                      <div className="space-y-3">
+                        {/* Earnings Bar */}
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-green-600 dark:text-green-400">
+                            {t.management.earnings}
+                          </div>
+                          <div
+                            className={cn(
+                              "relative h-6 rounded-md overflow-hidden bg-green-50 dark:bg-green-950/20",
+                            )}
+                          >
+                            <div className="flex h-full relative">
+                              {flowDistribution.earnings.map(earning => {
+                                const w = (earning.amount / scale) * 100
+                                return (
+                                  <button
+                                    type="button"
+                                    key={`earning-bar-${earning.id}`}
+                                    className={cn(
+                                      "h-full transition-all duration-300 hover:opacity-80 relative group cursor-pointer",
+                                      earning.color,
+                                    )}
+                                    style={{
+                                      width: `${w}%`,
+                                      backgroundColor: earning.groupColor,
+                                    }}
+                                    aria-label={earning.category}
+                                    onClick={() =>
+                                      focusGroup(
+                                        earning.categoryName,
+                                        earning.labelId,
+                                        "earning",
+                                      )
+                                    }
+                                    title={`${earning.category}: ${formatCurrency(
+                                      earning.amount,
+                                      locale,
+                                      settings?.general?.defaultCurrency,
+                                    )}`}
+                                  >
+                                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                                      <Sensitive>
+                                        {formatCurrency(
+                                          earning.amount,
+                                          locale,
+                                          settings?.general?.defaultCurrency,
+                                        )}
+                                      </Sensitive>
+                                    </div>
+                                  </button>
+                                )
+                              })}
+                              {earningsOverrun &&
+                                flowDistribution.totalEarnings > 0 && (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <div
+                                        className="absolute inset-y-0 right-0 h-full flex items-stretch cursor-pointer"
+                                        style={{
+                                          width: `${((flowDistribution.totalExpenses - flowDistribution.totalEarnings) / scale) * 100}%`,
+                                        }}
+                                      >
+                                        <div className="w-full h-full bg-yellow-300/60 dark:bg-yellow-300/30 backdrop-blur-[1px]" />
+                                      </div>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      className="max-w-xs text-xs"
+                                      side="bottom"
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        <AlertTriangle className="text-yellow-600 dark:text-yellow-400 h-4 w-4 mt-0.5" />
+                                        <div className="space-y-1">
+                                          <div className="font-semibold text-yellow-700 dark:text-yellow-300 text-xs">
+                                            {t.management.expensesOverrunTitle}
+                                          </div>
+                                          <div className="text-muted-foreground leading-snug">
+                                            {t.management.expensesOverrunMessage.replace(
+                                              "{percentage}",
+                                              (
+                                                ((flowDistribution.totalExpenses -
+                                                  flowDistribution.totalEarnings) /
+                                                  Math.max(
+                                                    flowDistribution.totalEarnings,
+                                                    1,
+                                                  )) *
+                                                100
+                                              ).toFixed(1),
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expenses Bar (with optional contributions segment) */}
+                        <div className="space-y-1">
+                          <div
+                            className={cn(
+                              "text-xs font-medium",
+                              earningsOverrun
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-red-600 dark:text-red-400",
+                            )}
+                          >
+                            {t.management.expenses}
+                          </div>
+                          <div
+                            className={cn(
+                              "relative h-6 rounded-md overflow-hidden bg-red-50 dark:bg-red-950/20",
+                            )}
+                          >
+                            <div className="flex h-full relative">
+                              {flowDistribution.expenses.map(expense => {
+                                const w = (expense.amount / scale) * 100
+                                return (
+                                  <button
+                                    type="button"
+                                    key={`expense-bar-${expense.id}`}
+                                    className={cn(
+                                      "h-full transition-all duration-300 hover:opacity-80 relative group cursor-pointer",
+                                      expense.color,
+                                    )}
+                                    style={{
+                                      width: `${w}%`,
+                                      backgroundColor: expense.groupColor,
+                                    }}
+                                    aria-label={expense.category}
+                                    onClick={() =>
+                                      focusGroup(
+                                        expense.categoryName,
+                                        expense.labelId,
+                                        "expense",
+                                      )
+                                    }
+                                    title={`${expense.category}: ${formatCurrency(
+                                      expense.amount,
+                                      locale,
+                                      settings?.general?.defaultCurrency,
+                                    )}`}
+                                  >
+                                    <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                                      {expense.category}:{" "}
+                                      <Sensitive>
+                                        {formatCurrency(
+                                          expense.amount,
+                                          locale,
+                                          settings?.general?.defaultCurrency,
+                                        )}
+                                      </Sensitive>
+                                    </div>
+                                  </button>
+                                )
+                              })}
+                              {(() => {
+                                if (
+                                  monthlyAmounts.monthlyContributionsVisible <=
+                                  0
+                                )
+                                  return null
+                                const earnings = flowDistribution.totalEarnings
+                                const expensesOnly =
+                                  monthlyAmounts.monthlyExpenses
+                                const contributionsAmt =
+                                  monthlyAmounts.monthlyContributionsVisible
+                                const contributionsCount = (() => {
+                                  if (!contributions) return 0
+                                  let count = 0
+                                  Object.values(contributions).forEach(
+                                    group => {
+                                      group?.periodic?.forEach(c => {
+                                        if (c.active) count++
+                                      })
+                                    },
+                                  )
+                                  return count
+                                })()
+                                // Gap only if earnings covers expenses + contributions fully
+                                const gap =
+                                  earnings >= expensesOnly + contributionsAmt
+                                    ? earnings -
+                                      (expensesOnly + contributionsAmt)
+                                    : 0
+                                const gapPct = (gap / scale) * 100
+                                const contribPct =
+                                  (contributionsAmt / scale) * 100
+                                return (
+                                  <>
+                                    {gapPct > 0 && (
+                                      <Popover
+                                        open={remainingCashOpen}
+                                        onOpenChange={setRemainingCashOpen}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <div
+                                            className="h-full cursor-pointer bg-neutral-200 dark:bg-neutral-800/50 hover:bg-neutral-300 dark:hover:bg-neutral-700/60 transition-colors"
+                                            style={{ width: `${gapPct}%` }}
+                                            onMouseEnter={() =>
+                                              setRemainingCashOpen(true)
+                                            }
+                                            onMouseLeave={() =>
+                                              setRemainingCashOpen(false)
+                                            }
+                                            onClick={e => {
+                                              e.preventDefault()
+                                              setRemainingCashOpen(true)
+                                            }}
+                                            data-testid="recurring-remaining-cash"
+                                          />
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                          side="top"
+                                          className="text-xs space-y-2 w-64"
+                                          onOpenAutoFocus={e =>
+                                            e.preventDefault()
+                                          }
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-semibold">
+                                              {t.management.remainingCash}
+                                            </span>
+                                            <span className="font-semibold">
+                                              <Sensitive>
+                                                {formatCurrency(
+                                                  gap,
+                                                  locale,
+                                                  settings?.general
+                                                    ?.defaultCurrency,
+                                                )}
+                                              </Sensitive>
+                                            </span>
+                                          </div>
+                                          <div className="text-muted-foreground leading-snug">
+                                            {t.management.remainingCashDescription.replace(
+                                              "{percentage}",
+                                              (
+                                                (gap / Math.max(earnings, 1)) *
+                                                100
+                                              ).toFixed(1),
+                                            )}
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    )}
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <div
+                                          className="h-full relative group cursor-pointer bg-cyan-700 dark:bg-cyan-600 hover:bg-cyan-600 dark:hover:bg-cyan-500 transition-colors"
+                                          style={{ width: `${contribPct}%` }}
+                                        >
+                                          <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                                            {t.management.contributionsShort}:{" "}
+                                            <Sensitive>
+                                              {formatCurrency(
+                                                monthlyAmounts.monthlyContributionsVisible,
+                                                locale,
+                                                settings?.general
+                                                  ?.defaultCurrency,
+                                              )}
+                                            </Sensitive>
+                                          </div>
+                                        </div>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        side="top"
+                                        className="text-xs space-y-2 w-64"
+                                      >
+                                        <div className="font-semibold text-cyan-700 dark:text-cyan-300">
+                                          {
+                                            t.management
+                                              .contributionsPopoverTitle
+                                          }
+                                        </div>
+                                        <div className="text-muted-foreground leading-snug">
+                                          {(() => {
+                                            const tpl = t.management
+                                              .contributionsPopoverDetails as string
+                                            const formattedAmount =
+                                              formatCurrency(
+                                                monthlyAmounts.monthlyContributionsVisible,
+                                                locale,
+                                                settings?.general
+                                                  ?.defaultCurrency,
+                                              )
+                                            return tpl
+                                              .split(/({count}|{amount})/g)
+                                              .map((part, idx) => {
+                                                if (part === "{count}")
+                                                  return (
+                                                    <strong key={idx}>
+                                                      {contributionsCount}
+                                                    </strong>
+                                                  )
+                                                if (part === "{amount}")
+                                                  return (
+                                                    <strong key={idx}>
+                                                      {formattedAmount}
+                                                    </strong>
+                                                  )
+                                                return (
+                                                  <span key={idx}>{part}</span>
+                                                )
+                                              })
+                                          })()}
+                                        </div>
+                                        <div
+                                          className="pt-1 text-[11px] text-cyan-600 dark:text-cyan-400/90 hover:text-cyan-500 dark:hover:text-cyan-300 cursor-pointer underline-offset-2"
+                                          onClick={() => setTab("investments")}
+                                        >
+                                          {t.management.contributionsPopoverCta}
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Removed bottom tiny numbers per new requirement */}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Legends */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap md:max-h-40 md:overflow-auto">
+                      {flowDistribution.earnings.map((earning, index) => {
+                        return (
+                          <button
+                            type="button"
+                            key={`legend2-earning-${earning.id}`}
+                            data-testid={
+                              earning.categoryName
+                                ? `budget-category-earning-${earning.categoryName}`
+                                : `budget-label-earning-${earning.labelId ?? "unassigned"}`
+                            }
+                            className={cn(
+                              "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden cursor-pointer",
+                              index >= visibleEarningsLegendCount &&
+                                "hidden md:flex",
+                            )}
+                            onClick={() =>
+                              focusGroup(
+                                earning.categoryName,
+                                earning.labelId,
+                                "earning",
+                              )
+                            }
+                          >
+                            <div
+                              className={`w-3 h-3 rounded ${earning.color}`}
+                              style={{ backgroundColor: earning.groupColor }}
+                            ></div>
+                            <span className="font-medium truncate min-w-0 flex-1">
+                              {earning.category}
+                            </span>
+                            <span className="text-green-600 shrink-0">
+                              <Sensitive>
+                                <FormattedMarketValue
+                                  value={formatCurrency(
+                                    earning.amount,
+                                    locale,
+                                    settings?.general?.defaultCurrency,
+                                  )}
+                                  locale={locale}
+                                />
+                              </Sensitive>
+                            </span>
+                          </button>
+                        )
+                      })}
+                      {flowDistribution.earnings.length >
+                        visibleEarningsLegendCount && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setVisibleEarningsLegendCount(count =>
+                              Math.min(
+                                count + MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.earnings.length,
+                              ),
+                            )
+                          }
+                          className="inline-flex h-7 w-fit items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+                        >
+                          {t.management.categoryLegend.showMore.replace(
+                            "{count}",
+                            String(
+                              Math.min(
+                                MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.earnings.length -
+                                  visibleEarningsLegendCount,
+                              ),
+                            ),
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end md:max-h-40 md:overflow-auto">
+                      {flowDistribution.expenses.map((expense, index) => {
+                        return (
+                          <button
+                            type="button"
+                            key={`legend2-expense-${expense.id}`}
+                            data-testid={
+                              expense.categoryName
+                                ? `budget-category-expense-${expense.categoryName}`
+                                : `budget-label-expense-${expense.labelId ?? "unassigned"}`
+                            }
+                            className={cn(
+                              "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden cursor-pointer",
+                              index >= visibleExpensesLegendCount &&
+                                "hidden md:flex",
+                            )}
+                            onClick={() =>
+                              focusGroup(
+                                expense.categoryName,
+                                expense.labelId,
+                                "expense",
+                              )
+                            }
+                          >
+                            <div
+                              className={`w-3 h-3 rounded ${expense.color}`}
+                              style={{ backgroundColor: expense.groupColor }}
+                            ></div>
+                            <span className="font-medium truncate min-w-0 flex-1">
+                              {expense.category}
+                            </span>
+                            <span className="text-red-600 shrink-0">
+                              <Sensitive>
+                                <FormattedMarketValue
+                                  value={formatCurrency(
+                                    expense.amount,
+                                    locale,
+                                    settings?.general?.defaultCurrency,
+                                  )}
+                                  locale={locale}
+                                />
+                              </Sensitive>
+                            </span>
+                          </button>
+                        )
+                      })}
+                      {flowDistribution.expenses.length >
+                        visibleExpensesLegendCount && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setVisibleExpensesLegendCount(count =>
+                              Math.min(
+                                count + MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.expenses.length,
+                              ),
+                            )
+                          }
+                          className="inline-flex h-7 w-fit items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+                        >
+                          {t.management.categoryLegend.showMore.replace(
+                            "{count}",
+                            String(
+                              Math.min(
+                                MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.expenses.length -
+                                  visibleExpensesLegendCount,
+                              ),
+                            ),
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div variants={fadeListItem}>
+                <Card className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+                  <div className="space-y-3" aria-hidden="true">
                     <div className="space-y-1">
                       <div className="text-xs font-medium text-green-600 dark:text-green-400">
                         {t.management.earnings}
                       </div>
-                      <div
-                        className={cn(
-                          "relative h-6 rounded-md overflow-hidden bg-green-50 dark:bg-green-950/20",
-                        )}
-                      >
-                        <div className="flex h-full relative">
-                          {flowDistribution.earnings.map(earning => {
-                            const w = (earning.amount / scale) * 100
-                            const sourceCategory =
-                              earning.sourceCategory ?? null
-                            const canFilter = Boolean(
-                              sourceCategory &&
-                              existingCategories.includes(sourceCategory),
-                            )
-                            return (
-                              <div
-                                key={`earning-bar-${earning.id}`}
-                                className={cn(
-                                  "h-full transition-all duration-300 hover:opacity-80 relative group",
-                                  earning.color,
-                                  canFilter
-                                    ? "cursor-pointer"
-                                    : "cursor-default opacity-70",
-                                )}
-                                style={{ width: `${w}%` }}
-                                onClick={() =>
-                                  canFilter &&
-                                  toggleCategoryFilter(sourceCategory!)
-                                }
-                                title={`${earning.category}: ${formatCurrency(
-                                  earning.amount,
-                                  locale,
-                                  settings?.general?.defaultCurrency,
-                                )}`}
-                              >
-                                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
-                                  <Sensitive>
-                                    {formatCurrency(
-                                      earning.amount,
-                                      locale,
-                                      settings?.general?.defaultCurrency,
-                                    )}
-                                  </Sensitive>
-                                </div>
-                              </div>
-                            )
-                          })}
-                          {earningsOverrun &&
-                            flowDistribution.totalEarnings > 0 && (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <div
-                                    className="absolute inset-y-0 right-0 h-full flex items-stretch cursor-pointer"
-                                    style={{
-                                      width: `${((flowDistribution.totalExpenses - flowDistribution.totalEarnings) / scale) * 100}%`,
-                                    }}
-                                  >
-                                    <div className="w-full h-full bg-yellow-300/60 dark:bg-yellow-300/30 backdrop-blur-[1px]" />
-                                  </div>
-                                </PopoverTrigger>
-                                <PopoverContent
-                                  className="max-w-xs text-xs"
-                                  side="bottom"
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <AlertTriangle className="text-yellow-600 dark:text-yellow-400 h-4 w-4 mt-0.5" />
-                                    <div className="space-y-1">
-                                      <div className="font-semibold text-yellow-700 dark:text-yellow-300 text-xs">
-                                        {t.management.expensesOverrunTitle}
-                                      </div>
-                                      <div className="text-muted-foreground leading-snug">
-                                        {t.management.expensesOverrunMessage.replace(
-                                          "{percentage}",
-                                          (
-                                            ((flowDistribution.totalExpenses -
-                                              flowDistribution.totalEarnings) /
-                                              Math.max(
-                                                flowDistribution.totalEarnings,
-                                                1,
-                                              )) *
-                                            100
-                                          ).toFixed(1),
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            )}
+                      <div className="h-6 overflow-hidden rounded-md bg-green-50 dark:bg-green-950/20">
+                        <div className="flex h-full">
+                          <div className="w-[34%] bg-green-500/20" />
+                          <div className="w-[22%] bg-emerald-500/20" />
+                          <div className="w-[16%] bg-lime-500/20" />
                         </div>
                       </div>
                     </div>
-
-                    {/* Expenses Bar (with optional contributions segment) */}
                     <div className="space-y-1">
-                      <div
-                        className={cn(
-                          "text-xs font-medium",
-                          earningsOverrun
-                            ? "text-red-600 dark:text-red-400"
-                            : "text-red-600 dark:text-red-400",
-                        )}
-                      >
+                      <div className="text-xs font-medium text-red-600 dark:text-red-400">
                         {t.management.expenses}
                       </div>
-                      <div
-                        className={cn(
-                          "relative h-6 rounded-md overflow-hidden bg-red-50 dark:bg-red-950/20",
-                        )}
-                      >
-                        <div className="flex h-full relative">
-                          {flowDistribution.expenses.map(expense => {
-                            const w = (expense.amount / scale) * 100
-                            const sourceCategory =
-                              expense.sourceCategory ?? null
-                            const canFilter = Boolean(
-                              sourceCategory &&
-                              existingCategories.includes(sourceCategory),
-                            )
-                            return (
-                              <div
-                                key={`expense-bar-${expense.id}`}
-                                className={cn(
-                                  "h-full transition-all duration-300 hover:opacity-80 relative group",
-                                  expense.color,
-                                  canFilter
-                                    ? "cursor-pointer"
-                                    : "cursor-default opacity-70",
-                                )}
-                                style={{ width: `${w}%` }}
-                                onClick={() =>
-                                  canFilter &&
-                                  toggleCategoryFilter(sourceCategory!)
-                                }
-                                title={`${expense.category}: ${formatCurrency(
-                                  expense.amount,
-                                  locale,
-                                  settings?.general?.defaultCurrency,
-                                )}`}
-                              >
-                                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
-                                  {expense.category}:{" "}
-                                  <Sensitive>
-                                    {formatCurrency(
-                                      expense.amount,
-                                      locale,
-                                      settings?.general?.defaultCurrency,
-                                    )}
-                                  </Sensitive>
-                                </div>
-                              </div>
-                            )
-                          })}
-                          {(() => {
-                            if (
-                              !effectiveShowContributions ||
-                              monthlyAmounts.monthlyContributionsVisible <= 0
-                            )
-                              return null
-                            const earnings = flowDistribution.totalEarnings
-                            const expensesOnly = monthlyAmounts.monthlyExpenses
-                            const contributionsAmt =
-                              monthlyAmounts.monthlyContributionsVisible
-                            const contributionsCount = (() => {
-                              if (!contributions) return 0
-                              let count = 0
-                              Object.values(contributions).forEach(group => {
-                                group?.periodic?.forEach(c => {
-                                  if (c.active) count++
-                                })
-                              })
-                              return count
-                            })()
-                            // Gap only if earnings covers expenses + contributions fully
-                            const gap =
-                              earnings >= expensesOnly + contributionsAmt
-                                ? earnings - (expensesOnly + contributionsAmt)
-                                : 0
-                            const gapPct = (gap / scale) * 100
-                            const contribPct = (contributionsAmt / scale) * 100
-                            return (
-                              <>
-                                {gapPct > 0 && (
-                                  <div
-                                    className="h-full bg-neutral-200 dark:bg-neutral-800/50"
-                                    style={{ width: `${gapPct}%` }}
-                                    aria-hidden
-                                  />
-                                )}
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <div
-                                      className="h-full relative group cursor-pointer bg-cyan-700 dark:bg-cyan-600 hover:bg-cyan-600 dark:hover:bg-cyan-500 transition-colors"
-                                      style={{ width: `${contribPct}%` }}
-                                    >
-                                      <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
-                                        {t.management.contributionsShort}:{" "}
-                                        <Sensitive>
-                                          {formatCurrency(
-                                            monthlyAmounts.monthlyContributionsVisible,
-                                            locale,
-                                            settings?.general?.defaultCurrency,
-                                          )}
-                                        </Sensitive>
-                                      </div>
-                                    </div>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    side="top"
-                                    className="text-xs space-y-2 w-64"
-                                  >
-                                    <div className="font-semibold text-cyan-700 dark:text-cyan-300">
-                                      {t.management.contributionsPopoverTitle}
-                                    </div>
-                                    <div className="text-muted-foreground leading-snug">
-                                      {(() => {
-                                        const tpl = t.management
-                                          .contributionsPopoverDetails as string
-                                        const formattedAmount = formatCurrency(
-                                          monthlyAmounts.monthlyContributionsVisible,
-                                          locale,
-                                          settings?.general?.defaultCurrency,
-                                        )
-                                        return tpl
-                                          .split(/({count}|{amount})/g)
-                                          .map((part, idx) => {
-                                            if (part === "{count}")
-                                              return (
-                                                <strong key={idx}>
-                                                  {contributionsCount}
-                                                </strong>
-                                              )
-                                            if (part === "{amount}")
-                                              return (
-                                                <strong key={idx}>
-                                                  {formattedAmount}
-                                                </strong>
-                                              )
-                                            return <span key={idx}>{part}</span>
-                                          })
-                                      })()}
-                                    </div>
-                                    <div
-                                      className="pt-1 text-[11px] text-cyan-600 dark:text-cyan-400/90 hover:text-cyan-500 dark:hover:text-cyan-300 cursor-pointer underline-offset-2"
-                                      onClick={() =>
-                                        navigate(
-                                          "/management/auto-contributions",
-                                        )
-                                      }
-                                    >
-                                      {t.management.contributionsPopoverCta}
-                                    </div>
-                                  </PopoverContent>
-                                </Popover>
-                              </>
-                            )
-                          })()}
+                      <div className="h-6 overflow-hidden rounded-md bg-red-50 dark:bg-red-950/20">
+                        <div className="flex h-full">
+                          <div className="w-[27%] bg-red-500/20" />
+                          <div className="w-[20%] bg-rose-500/20" />
+                          <div className="w-[14%] bg-orange-500/20" />
+                          <div className="w-[10%] bg-amber-500/20" />
                         </div>
                       </div>
                     </div>
-                    {/* Removed bottom tiny numbers per new requirement */}
                   </div>
-                )
-              })()}
+                  <div className="space-y-1 pt-1 text-center">
+                    <h3 className="text-base font-semibold">
+                      {t.management.flowDistributionEmptyTitle}
+                    </h3>
+                    <p className="mx-auto max-w-xl text-sm text-muted-foreground">
+                      {t.management.flowDistributionEmptyDescription}
+                    </p>
+                  </div>
+                </Card>
+              </motion.div>
+            )}
 
-              {/* Legends */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full max-h-40 overflow-auto">
-                  {flowDistribution.earnings.map(earning => {
-                    const sourceCategory = earning.sourceCategory ?? null
-                    const canFilter = Boolean(
-                      sourceCategory &&
-                      existingCategories.includes(sourceCategory),
-                    )
-                    return (
-                      <div
-                        key={`legend2-earning-${earning.id}`}
-                        className={cn(
-                          "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden",
-                          canFilter
-                            ? "cursor-pointer"
-                            : "cursor-default opacity-70",
-                        )}
-                        onClick={() =>
-                          canFilter && toggleCategoryFilter(sourceCategory!)
-                        }
-                      >
-                        <div
-                          className={`w-3 h-3 rounded ${earning.color}`}
-                        ></div>
-                        <span className="font-medium truncate min-w-0 flex-1">
-                          {earning.category}
-                        </span>
-                        <span className="text-green-600 shrink-0">
-                          <Sensitive>
-                            <FormattedMarketValue
-                              value={formatCurrency(
-                                earning.amount,
-                                locale,
-                                settings?.general?.defaultCurrency,
-                              )}
-                              locale={locale}
-                            />
-                          </Sensitive>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full max-h-40 overflow-auto sm:justify-end">
-                  {flowDistribution.expenses.map(expense => {
-                    const sourceCategory = expense.sourceCategory ?? null
-                    const canFilter = Boolean(
-                      sourceCategory &&
-                      existingCategories.includes(sourceCategory),
-                    )
-                    return (
-                      <div
-                        key={`legend2-expense-${expense.id}`}
-                        className={cn(
-                          "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden",
-                          canFilter
-                            ? "cursor-pointer"
-                            : "cursor-default opacity-70",
-                        )}
-                        onClick={() =>
-                          canFilter && toggleCategoryFilter(sourceCategory!)
-                        }
-                      >
-                        <div
-                          className={`w-3 h-3 rounded ${expense.color}`}
-                        ></div>
-                        <span className="font-medium truncate min-w-0 flex-1">
-                          {expense.category}
-                        </span>
-                        <span className="text-red-600 shrink-0">
-                          <Sensitive>
-                            <FormattedMarketValue
-                              value={formatCurrency(
-                                expense.amount,
-                                locale,
-                                settings?.general?.defaultCurrency,
-                              )}
-                              locale={locale}
-                            />
-                          </Sensitive>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </Card>
-          </motion.div>
+            <motion.div variants={fadeListItem}>
+              <Card className="p-4 space-y-3 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+                <EventsCalendarView
+                  defaultMode="agenda"
+                  onEventClick={handleEventClick}
+                  mobileFullWidth
+                  header={
+                    <div className="flex min-w-0 items-center gap-2">
+                      <CalendarDays className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      <h2 className="truncate text-lg font-semibold">
+                        {t.management.upcoming.title}
+                      </h2>
+                    </div>
+                  }
+                />
+              </Card>
+            </motion.div>
+          </>
         )}
 
         {/* Sorting Controls */}
-        <motion.div
-          variants={fadeListItem}
-          initial={runEntranceAnimation ? "hidden" : false}
-          animate="show"
-          className="flex items-center gap-3 pt-4 flex-wrap"
-        >
-          <span className="text-sm text-muted-foreground">
-            {t.management.sortBy}
-          </span>
-          <div className="flex items-center bg-muted rounded-lg p-1">
-            <button
-              onClick={() => setSortBy("amount")}
-              title={t.management.sortByAmount}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                sortBy === "amount"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Banknote size={16} />
-            </button>
-            <button
-              onClick={() => setSortBy("date")}
-              title={t.management.sortByDate}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                sortBy === "date"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <CalendarDays size={16} />
-            </button>
-          </div>
-          <button
-            onClick={() =>
-              setSortOrder(prev => (prev === "asc" ? "desc" : "asc"))
-            }
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-            aria-label={
-              sortOrder === "asc" ? "Sort descending" : "Sort ascending"
-            }
-          >
-            {sortOrder === "asc" ? (
-              <ArrowRight size={16} className="rotate-[-90deg]" />
-            ) : (
-              <ArrowRight size={16} className="rotate-90" />
-            )}
-          </button>
-
-          <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
-            <span className="text-sm text-muted-foreground">
-              {t.management.groupBy}
-            </span>
-            <button
-              onClick={() => setGroupByCategory(prev => !prev)}
-              title={t.management.groupByCategory}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
-                groupByCategory
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Tag size={14} />
-              <span className="hidden sm:inline">
-                {t.management.groupByCategory}
-              </span>
-            </button>
-            <MultiSelect
-              options={categoryOptions}
-              value={categoryFilter}
-              onChange={setCategoryFilter}
-              className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
-            />
-          </div>
-        </motion.div>
-
-        {/* Loan Suggestions */}
-        {(loanSuggestions.filter(
-          suggestion => !dismissedSuggestions.includes(suggestion.id),
-        ).length > 0 ||
-          showDismissed) && (
+        {(tab === "earnings" || tab === "expenses") && (
           <motion.div
             variants={fadeListItem}
             initial={runEntranceAnimation ? "hidden" : false}
             animate="show"
-            className="space-y-4"
+            className="flex items-center gap-3 flex-wrap"
           >
-            <div className="flex items-center gap-2">
-              <Lightbulb className="text-yellow-500" size={20} />
-              <h2 className="text-lg font-semibold">
-                {t.management.loanSuggestions.title}
-              </h2>
+            <div className="flex items-center bg-muted rounded-lg p-1">
+              <button
+                onClick={() => setSortBy("amount")}
+                title={t.management.sortByAmount}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  sortBy === "amount"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Banknote size={16} />
+              </button>
+              <button
+                onClick={() => setSortBy("date")}
+                title={t.management.sortByDate}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  sortBy === "date"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <CalendarDays size={16} />
+              </button>
             </div>
+            <button
+              onClick={() =>
+                setSortOrder(prev => (prev === "asc" ? "desc" : "asc"))
+              }
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              aria-label={
+                sortOrder === "asc" ? t.banking.descending : t.banking.ascending
+              }
+              title={
+                sortOrder === "asc" ? t.banking.descending : t.banking.ascending
+              }
+            >
+              {sortOrder === "desc" ? (
+                <ArrowDownWideNarrow size={16} />
+              ) : (
+                <ArrowUpNarrowWide size={16} />
+              )}
+            </button>
+
+            <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
+              <span className="text-sm text-muted-foreground">
+                {t.management.groupBy}
+              </span>
+              <button
+                onClick={() => setGroupByCategory(prev => !prev)}
+                title={t.management.groupByCategory}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+                  groupByCategory
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Tag size={14} />
+                <span className="hidden sm:inline">
+                  {t.management.groupByCategory}
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Loan Suggestions */}
+        {tab === "expenses" &&
+          (loanSuggestions.filter(
+            suggestion => !dismissedSuggestions.includes(suggestion.id),
+          ).length > 0 ||
+            showDismissed) && (
             <motion.div
-              variants={fadeListContainer}
+              variants={fadeListItem}
               initial={runEntranceAnimation ? "hidden" : false}
               animate="show"
-              className="space-y-3"
+              className={cn(suggestionsExpanded && "space-y-4")}
             >
-              {loanSuggestions
-                .filter(
-                  suggestion =>
-                    showDismissed ||
-                    !dismissedSuggestions.includes(suggestion.id),
-                )
-                .map(suggestion => {
-                  const isDismissed = dismissedSuggestions.includes(
-                    suggestion.id,
+              <button
+                type="button"
+                onClick={() => setSuggestionsExpanded(value => !value)}
+                aria-expanded={suggestionsExpanded}
+                aria-controls="loan-suggestions-content"
+                className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <span
+                  role="heading"
+                  aria-level={2}
+                  className="flex items-center gap-2"
+                >
+                  <Lightbulb
+                    className="text-yellow-500"
+                    size={20}
+                    aria-hidden="true"
+                  />
+                  <span className="text-lg font-semibold">
+                    {t.management.loanSuggestions.title}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                    suggestionsExpanded && "rotate-180",
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
+              <motion.div
+                id="loan-suggestions-content"
+                initial={false}
+                animate={{
+                  height: suggestionsExpanded ? "auto" : 0,
+                  opacity: suggestionsExpanded ? 1 : 0,
+                }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                aria-hidden={!suggestionsExpanded}
+                inert={!suggestionsExpanded}
+                className="-mx-6 overflow-hidden space-y-3 sm:mx-0"
+              >
+                {loanSuggestions
+                  .filter(
+                    suggestion =>
+                      showDismissed ||
+                      !dismissedSuggestions.includes(suggestion.id),
                   )
-                  return (
-                    <motion.div
-                      key={suggestion.id}
-                      variants={fadeListItem}
-                      initial={runEntranceAnimation ? "hidden" : false}
-                      animate="show"
-                      className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 border rounded-lg ${
-                        isDismissed
-                          ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 opacity-70"
-                          : "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800"
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <h3 className="font-medium">
-                            {t.management.loanSuggestions.loanPayment.replace(
-                              "{loanName}",
-                              suggestion.name,
-                            )}
-                          </h3>
-                          <Badge
-                            variant="secondary"
-                            className="flex items-center gap-1"
-                          >
-                            <Tag size={12} />
-                            {t.management.loanSuggestions.loanCategory}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1"
-                          >
-                            <Clock size={12} />
-                            {t.management.frequency.MONTHLY}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          {suggestion.sinceDate && (
-                            <>
-                              {t.management.since}:{" "}
-                              {formatDate(suggestion.sinceDate, locale)}
-                              {suggestion.maturityDate &&
-                                ` • ${t.management.until}: ${formatDate(suggestion.maturityDate, locale)}`}
-                            </>
+                  .map(suggestion => {
+                    const isDismissed = dismissedSuggestions.includes(
+                      suggestion.id,
+                    )
+                    return (
+                      <motion.div
+                        key={suggestion.id}
+                        variants={fadeListItem}
+                        initial={runEntranceAnimation ? "hidden" : false}
+                        animate="show"
+                        className={`flex flex-col gap-3 rounded-none border-y p-4 sm:flex-row sm:items-start sm:justify-between sm:rounded-lg sm:border ${
+                          isDismissed
+                            ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 opacity-70"
+                            : "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <h3 className="font-medium">
+                              {t.management.loanSuggestions.loanPayment.replace(
+                                "{loanName}",
+                                suggestion.name,
+                              )}
+                            </h3>
+                            <Badge
+                              variant="secondary"
+                              className="flex items-center gap-1"
+                            >
+                              <Tag size={12} />
+                              {t.management.loanSuggestions.loanCategory}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className="flex items-center gap-1"
+                            >
+                              <Clock size={12} />
+                              {t.management.frequency.MONTHLY}
+                            </Badge>
+                          </div>
+                          {(suggestion.sinceDate ||
+                            suggestion.maturityDate) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-gray-500">
+                              {suggestion.sinceDate && (
+                                <span>
+                                  {formatDate(suggestion.sinceDate, locale)}
+                                </span>
+                              )}
+                              {suggestion.sinceDate &&
+                                suggestion.maturityDate && (
+                                  <ArrowRight
+                                    size={14}
+                                    className="shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                              {suggestion.maturityDate && (
+                                <span>
+                                  {formatDate(suggestion.maturityDate, locale)}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-2 sm:shrink-0">
-                        <span className="font-semibold">
-                          <Sensitive>
-                            <FormattedMarketValue
-                              value={formatCurrency(
-                                suggestion.amount,
-                                locale,
-                                suggestion.currency,
-                              )}
-                              locale={locale}
-                            />
-                          </Sensitive>
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {isDismissed ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                handleRestoreSuggestion(suggestion.id)
-                              }
-                              className="h-8 px-3"
-                            >
-                              <Check size={14} className="mr-1" />
-                              {t.management.loanSuggestions.add}
-                            </Button>
-                          ) : (
-                            <>
+                        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-2 sm:shrink-0">
+                          <span className="font-semibold">
+                            <Sensitive>
+                              <FormattedMarketValue
+                                value={formatCurrency(
+                                  suggestion.amount,
+                                  locale,
+                                  suggestion.currency,
+                                )}
+                                locale={locale}
+                              />
+                            </Sensitive>
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {isDismissed ? (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  handleDismissSuggestion(suggestion.id)
-                                }
-                                className="h-8 w-8 p-0"
-                              >
-                                <X size={14} />
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() =>
-                                  handleAcceptSuggestion(suggestion)
+                                  handleRestoreSuggestion(suggestion.id)
                                 }
                                 className="h-8 px-3"
                               >
                                 <Check size={14} className="mr-1" />
                                 {t.management.loanSuggestions.add}
                               </Button>
-                            </>
-                          )}
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleDismissSuggestion(suggestion.id)
+                                  }
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <X size={14} />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleAcceptSuggestion(suggestion)
+                                  }
+                                  className="h-8 px-3"
+                                >
+                                  <Check size={14} className="mr-1" />
+                                  {t.management.loanSuggestions.add}
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  )
-                })}
+                      </motion.div>
+                    )
+                  })}
+              </motion.div>
             </motion.div>
+          )}
+
+        {tab === "earnings" && (
+          <motion.div variants={fadeListItem}>
+            {renderFlowSection({
+              flows: sortedFlows.earnings,
+              flowType: FlowType.EARNING,
+              emptyMessage: t.management.noEarnings,
+              addMessage: t.management.addFirstEarning,
+              runEntranceAnimation,
+            })}
           </motion.div>
         )}
 
-        <motion.div variants={fadeListItem} className="pt-4">
-          {renderFlowSection({
-            title: t.management.earnings,
-            flows: sortedFlows.earnings,
-            flowType: FlowType.EARNING,
-            emptyMessage: t.management.noEarnings,
-            addMessage: t.management.addFirstEarning,
-            runEntranceAnimation,
-          })}
-        </motion.div>
+        {tab === "expenses" && (
+          <motion.div variants={fadeListItem}>
+            {renderFlowSection({
+              flows: sortedFlows.expenses,
+              flowType: FlowType.EXPENSE,
+              emptyMessage: t.management.noExpenses,
+              addMessage: t.management.addFirstExpense,
+              runEntranceAnimation,
+            })}
+          </motion.div>
+        )}
 
-        <motion.div variants={fadeListItem}>
-          {renderFlowSection({
-            title: t.management.expenses,
-            flows: sortedFlows.expenses,
-            flowType: FlowType.EXPENSE,
-            emptyMessage: t.management.noExpenses,
-            addMessage: t.management.addFirstExpense,
-            extraButton:
-              dismissedSuggestions.length > 0 &&
-              loanSuggestions.some(suggestion =>
-                dismissedSuggestions.includes(suggestion.id),
-              ) ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowDismissed(!showDismissed)}
-                  className="h-8 px-3 text-yellow-600 hover:text-yellow-700"
-                >
-                  {showDismissed ? (
-                    <LightbulbOff size={14} />
-                  ) : (
-                    <Lightbulb size={14} />
-                  )}
-                </Button>
-              ) : undefined,
-            runEntranceAnimation,
-          })}
-        </motion.div>
+        {tab === "investments" && <ContributionsView />}
       </motion.div>
 
       {/* Dialog for Add/Edit */}
@@ -2210,7 +2893,7 @@ export default function RecurringMoneyPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="w-full max-w-md my-auto"
+              className="w-full max-w-md md:max-w-2xl my-auto"
             >
               <Card className="max-h-[85vh] flex flex-col">
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-4">
@@ -2257,8 +2940,8 @@ export default function RecurringMoneyPage() {
                   </Button>
                 </CardHeader>
 
-                <CardContent className="space-y-4 overflow-y-auto">
-                  <div className="flex items-end justify-between gap-4">
+                <CardContent className="grid gap-4 overflow-y-auto md:grid-cols-2">
+                  <div className="flex items-end justify-between gap-4 md:col-span-2">
                     <div className="min-w-0">
                       <label className="text-sm font-medium block mb-1">
                         {t.management.iconLabel}
@@ -2291,7 +2974,7 @@ export default function RecurringMoneyPage() {
                       />
                     </div>
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="text-sm font-medium block mb-1">
                       {t.management.name}
                       <span className="text-red-500 ml-1">*</span>
@@ -2336,6 +3019,52 @@ export default function RecurringMoneyPage() {
                     </div>
                   </div>
 
+                  <div
+                    className="space-y-2 md:col-start-2 md:row-span-2"
+                    data-testid="budget-label-field"
+                  >
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      {t.management.budgetLabel.title}
+                      <span className="font-normal text-muted-foreground">
+                        ({t.management.recommended})
+                      </span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground"
+                            aria-label={t.management.budgetLabel.help}
+                          >
+                            <CircleHelp className="h-4 w-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="max-w-xs text-sm">
+                          {t.management.budgetLabel.help}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    {formData.label_id && getLabel(formData.label_id) && (
+                      <LabelChip
+                        label={getLabel(formData.label_id)}
+                        name={getLabelName(getLabel(formData.label_id))}
+                        onRemove={() =>
+                          setFormData(prev => ({ ...prev, label_id: null }))
+                        }
+                      />
+                    )}
+                    <LabelSelector
+                      mode="single"
+                      options={eligibleBudgetLabels}
+                      value={formData.label_id ? [formData.label_id] : []}
+                      onChange={ids =>
+                        setFormData(prev => ({
+                          ...prev,
+                          label_id: ids[0] ?? null,
+                        }))
+                      }
+                    />
+                  </div>
+
                   <div>
                     <label className="text-sm font-medium block mb-1">
                       {t.management.category}{" "}
@@ -2359,38 +3088,65 @@ export default function RecurringMoneyPage() {
                     />
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="text-sm font-medium block mb-1">
                       {t.management.frequencyLabel}
                       <span className="text-red-500 ml-1">*</span>
                     </label>
-                    <select
-                      value={formData.frequency}
-                      onChange={e =>
-                        setFormData(prev => ({
-                          ...prev,
-                          frequency: e.target.value as FlowFrequency,
-                        }))
-                      }
-                      disabled={
-                        editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
-                      }
-                      className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${validationErrors.includes("frequency") ? "border-red-500" : ""}`}
+                    <div
+                      role="group"
+                      aria-label={t.management.frequencyLabel}
+                      aria-invalid={hasFrequencyError}
+                      data-testid="recurring-frequency-options"
+                      className={cn(
+                        "flex flex-wrap gap-1.5 rounded-md",
+                        hasFrequencyError && "ring-1 ring-red-500",
+                      )}
                     >
-                      {Object.values(FlowFrequency)
-                        .filter(
-                          freq =>
-                            ![
-                              FlowFrequency.BIWEEKLY,
-                              FlowFrequency.SEMIMONTHLY,
-                            ].includes(freq) || freq === formData.frequency,
+                      {visibleFlowFrequencies.map(frequency => {
+                        const selected = formData.frequency === frequency
+                        return (
+                          <button
+                            key={frequency}
+                            type="button"
+                            onClick={() =>
+                              setFormData(prev => ({ ...prev, frequency }))
+                            }
+                            disabled={isFrequencyDisabled}
+                            aria-pressed={selected}
+                            data-testid={`recurring-frequency-option-${frequency.toLowerCase()}`}
+                            className={cn(
+                              "inline-flex min-h-8 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                              selected
+                                ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+                                : "border-border bg-background text-foreground hover:bg-accent",
+                            )}
+                          >
+                            {getFrequencyLabel(frequency)}
+                          </button>
                         )
-                        .map(freq => (
-                          <option key={freq} value={freq}>
-                            {getFrequencyLabel(freq)}
-                          </option>
-                        ))}
-                    </select>
+                      })}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowMoreFrequencies(showingMore => !showingMore)
+                        }
+                        disabled={isFrequencyDisabled}
+                        aria-expanded={showMoreFrequencies}
+                        data-testid="recurring-frequency-more"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {showMoreFrequencies
+                          ? t.common.showLess
+                          : t.common.more}
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showMoreFrequencies && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -2432,7 +3188,7 @@ export default function RecurringMoneyPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-2">
+                  <div className="flex justify-end gap-2 pt-2 md:col-span-2">
                     <Button
                       variant="outline"
                       onClick={() => setIsDialogOpen(false)}

@@ -1,8 +1,12 @@
+import asyncio
 import logging
-from datetime import datetime, timedelta
+import time
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
+from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -14,9 +18,16 @@ from domain.auto_contributions import (
     PeriodicContribution,
 )
 from domain.dezimal import Dezimal
-from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.entity_login import (
+    EntityLoginParams,
+    EntityLoginResult,
+    LoginConfirmationType,
+    LoginResultCode,
+    TwoFactor,
+)
 from domain.fetch_record import DataSource
-from domain.fetch_result import FetchOptions
+from domain.fetch_pointer import FetchPointer
+from domain.fetch_result import FetchOptions, FetchStage
 from domain.global_position import (
     Account,
     Accounts,
@@ -36,8 +47,43 @@ from domain.global_position import (
 )
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import ING
-from domain.transactions import FundTx, StockTx, Transactions, TxType
+from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
+    AccountTx,
+    FundTx,
+    StockTx,
+    Transactions,
+    TxType,
+    normalize_iban,
+)
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
+
+ACCOUNT_TXS_POINTER = "account_txs"
+ACCOUNT_TXS_PAGE_SIZE = 100
+ACCOUNT_TXS_SETTLE_DAYS = 7
+
+OLD_TXS_SCA_TTL_SECONDS = 300
+SCA_APPROVAL_TIMEOUT_SECONDS = 120
+SCA_POLL_INTERVAL_SECONDS = 2
+SCA_CIPHER_REQUEST_CODE = "security.cipherRequest.required"
+SCA_APPROVED_RESULT_CODE = 0
+
+
+@dataclass(frozen=True)
+class _AccountTxsCursor:
+    product_id: str
+    currency: Optional[str]
+    iban: Optional[str]
+    from_date: date
+    to_date: date
+    offset: int = 0
+
+
+@dataclass(frozen=True)
+class _PendingSca:
+    process_id: str
+    requested_at: float
+
 
 CONTRIBUTION_FREQUENCY = {
     "MENSUAL": ContributionFrequency.MONTHLY,
@@ -167,6 +213,43 @@ def _map_movement_to_stock_tx(
         source=DataSource.REAL,
         linked_tx=None,
         equity_type=equity_type,
+    )
+
+
+def _map_movement_to_account_tx(
+    movement: dict, currency: str, iban: str | None = None
+) -> AccountTx | None:
+    transaction_id = movement.get("transactionId") or {}
+    product_id = transaction_id.get("productId")
+    sequence = transaction_id.get("transactionSequence")
+    raw_amount = movement.get("amount")
+    if not product_id or sequence is None or raw_amount is None:
+        return None
+
+    signed_amount = Dezimal(str(raw_amount))
+    if signed_amount == 0:
+        return None
+
+    amount = round(abs(signed_amount), 2)
+    tx_date = datetime.strptime(movement["transactionDate"], "%Y-%m-%d").replace(
+        tzinfo=tzlocal()
+    )
+    name = (movement.get("description") or movement.get("concept") or "").strip()
+    return AccountTx(
+        id=uuid4(),
+        ref=f"{product_id}:{sequence}",
+        name=name,
+        amount=amount,
+        net_amount=amount,
+        currency=currency,
+        type=TxType.INFLOW if signed_amount > 0 else TxType.OUTFLOW,
+        date=tx_date,
+        entity=ING,
+        source=DataSource.REAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        iban=normalize_iban(iban),
     )
 
 
@@ -370,12 +453,28 @@ class INGFetcher(FinancialEntityFetcher):
         self._fund_isin_cache: dict[str, str] = {}
         self._fund_product_codes_loaded: bool = False
 
+        self._old_txs_cursors: dict[str, _AccountTxsCursor] = {}
+        self._pending_sca: Optional[_PendingSca] = None
+        self._sca_unlocked: bool = False
+        self._cancel_event = asyncio.Event()
+
         self._log = logging.getLogger(__name__)
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
-        return await self._client.complete_login(
+        result = await self._client.complete_login(
             login_params.credentials, login_params.options, login_params.session
         )
+        if result.code == LoginResultCode.CREATED:
+            self._reset_old_txs_state()
+        return result
+
+    def cancel_login(self) -> None:
+        self._cancel_event.set()
+
+    def _reset_old_txs_state(self):
+        self._old_txs_cursors = {}
+        self._pending_sca = None
+        self._sca_unlocked = False
 
     async def global_position(self) -> GlobalPosition:
         position = await self._client.get_position()
@@ -417,13 +516,232 @@ class INGFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
+        if options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
+            return Transactions(
+                investment=[],
+                account=await self._fetch_old_account_txs(registered_txs),
+            )
+
+        self._reset_old_txs_state()
         position = await self._client.get_position()
         products = position.get("products", [])
 
         investment_txs = await self._fetch_broker_txs(products, registered_txs)
         investment_txs += await self._fetch_fund_txs(products, registered_txs)
 
-        return Transactions(investment=investment_txs, account=[])
+        account_txs = await self._fetch_account_txs(
+            products,
+            _legacy_by_product_number(position.get("legacyProducts", [])),
+            registered_txs,
+            options,
+        )
+        return Transactions(investment=investment_txs, account=account_txs)
+
+    async def _fetch_account_txs(
+        self,
+        products: list[dict],
+        legacy_by_number: dict[str, dict],
+        registered_txs: set[str],
+        options: FetchOptions,
+    ) -> list[AccountTx]:
+        today = datetime.now(tzlocal()).date()
+        oldest_date = today - relativedelta(months=3)
+        old_txs_date = today - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
+        pointer_context = options.pointer_context
+        seen_refs = set(registered_txs)
+        txs: list[AccountTx] = []
+
+        for product in products:
+            if product.get("type") not in ("CURRENT_ACCOUNT", "SAVINGS_ACCOUNT"):
+                continue
+            product_id = product.get("uuid")
+            if not product_id:
+                continue
+            if any(
+                status.get("type") == "PRODUCT_STATUS"
+                and status.get("value") != "EFF_AR"
+                for status in product.get("statuses", []) or []
+            ):
+                continue
+
+            product_number = _get_identifier(product, "PRODUCT_NUMBER")
+            legacy = legacy_by_number.get(product_number, {})
+            currency = legacy.get("currency") or product.get("denominationCurrency")
+            iban = normalize_iban(
+                legacy.get("iban") or _get_identifier(product, "IBAN")
+            )
+            pointer_key = f"{ACCOUNT_TXS_POINTER}:{iban or product_id}"
+            from_date = oldest_date
+            if options.two_factor_old_txs:
+                from_date = old_txs_date
+            elif pointer_context and not options.deep:
+                pointer = pointer_context.pointers.get(pointer_key)
+                if pointer:
+                    from_date = max(
+                        oldest_date,
+                        min(pointer.threshold, today)
+                        - timedelta(days=ACCOUNT_TXS_SETTLE_DAYS),
+                    )
+
+            locked = await self._page_account_txs(
+                _AccountTxsCursor(product_id, currency, iban, from_date, today),
+                seen_refs,
+                txs,
+            )
+            if locked and options.two_factor_old_txs:
+                self._old_txs_cursors[product_id] = locked
+
+            if pointer_context:
+                pointer_context.pointers[pointer_key] = FetchPointer(
+                    entity_id=pointer_context.entity_id,
+                    entity_account_id=pointer_context.entity_account_id,
+                    key=pointer_key,
+                    threshold=today,
+                )
+
+        return txs
+
+    async def _page_account_txs(
+        self,
+        cursor: _AccountTxsCursor,
+        seen_refs: set[str],
+        txs: list[AccountTx],
+        cache_read: bool = True,
+    ) -> Optional[_AccountTxsCursor]:
+        cache_kwargs = {} if cache_read else {"cache_read": False}
+        offset = cursor.offset
+        while True:
+            response = await self._client.get_account_transactions(
+                cursor.product_id,
+                cursor.from_date,
+                offset=offset,
+                limit=ACCOUNT_TXS_PAGE_SIZE,
+                to_date=cursor.to_date,
+                **cache_kwargs,
+            )
+            movements = response.get("transactions") or []
+
+            for movement in movements:
+                tx = _map_movement_to_account_tx(movement, cursor.currency, cursor.iban)
+                if tx is None or tx.ref in seen_refs:
+                    continue
+                if not cursor.from_date <= tx.date.date() <= cursor.to_date:
+                    continue
+                txs.append(tx)
+                seen_refs.add(tx.ref)
+
+            offset += response.get("count") or len(movements)
+            if response.get("moreSca"):
+                return replace(cursor, offset=offset)
+            if not movements:
+                return None
+
+            total = response.get("total")
+            has_more = response.get("mayHasMoreElements")
+            if has_more is False:
+                return None
+            if not has_more and (
+                (total is not None and offset >= total)
+                or (total is None and len(movements) < ACCOUNT_TXS_PAGE_SIZE)
+            ):
+                return None
+
+    async def request_old_txs_code(self) -> Optional[EntityLoginResult]:
+        self._pending_sca = None
+        if not self._old_txs_cursors:
+            return None
+        if not self._client.supports_sca():
+            self._log.warning("ING SCA status cookie missing, skipping older movements")
+            return None
+
+        response = await self._client.start_sca()
+        methods = response.get("acceptanceMethods") or []
+        method = methods[0] if methods else {}
+        process_id = method.get("securityProcessId")
+        if method.get("code") != SCA_CIPHER_REQUEST_CODE or not process_id:
+            raise ValueError(
+                f"Unsupported ING SCA acceptance method: {method.get('code')}"
+            )
+
+        self._pending_sca = _PendingSca(
+            process_id=process_id, requested_at=time.monotonic()
+        )
+        self._cancel_event.clear()
+        return EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.IN_APP,
+            process_id=process_id,
+        )
+
+    async def confirm_old_txs_code(self, two_factor: TwoFactor) -> EntityLoginResult:
+        pending = self._pending_sca
+        self._pending_sca = None
+        if (
+            not pending
+            or time.monotonic() - pending.requested_at > OLD_TXS_SCA_TTL_SECONDS
+            or (two_factor.process_id and two_factor.process_id != pending.process_id)
+        ):
+            return EntityLoginResult(
+                LoginResultCode.NOT_LOGGED,
+                message="ING older movements approval expired or not requested",
+            )
+
+        approved = await self._wait_for_sca_approval(pending.process_id)
+        if approved is None:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="Approval cancelled by user.",
+            )
+        if not approved:
+            return EntityLoginResult(
+                LoginResultCode.NOT_LOGGED,
+                message="ING older movements approval timed out",
+            )
+
+        await self._client.confirm_sca(pending.process_id)
+        if not await self._client.synchronize_access_token():
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="ING did not return a new access token",
+            )
+
+        self._sca_unlocked = True
+        return EntityLoginResult(LoginResultCode.CREATED)
+
+    async def _wait_for_sca_approval(self, process_id: str) -> Optional[bool]:
+        deadline = time.monotonic() + SCA_APPROVAL_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            status = await self._client.get_sca_status(process_id)
+            if self._cancel_event.is_set():
+                return None
+            if status.get("resultCode") == SCA_APPROVED_RESULT_CODE:
+                return True
+            self._log.debug("ING SCA approval pending: %s", status)
+            try:
+                await asyncio.wait_for(
+                    self._cancel_event.wait(), timeout=SCA_POLL_INTERVAL_SECONDS
+                )
+                return None
+            except TimeoutError:
+                pass
+        return False
+
+    async def _fetch_old_account_txs(self, registered_txs: set[str]) -> list[AccountTx]:
+        if not self._sca_unlocked:
+            return []
+        self._sca_unlocked = False
+        cursors = self._old_txs_cursors
+        self._old_txs_cursors = {}
+
+        seen_refs = set(registered_txs)
+        txs: list[AccountTx] = []
+        for product_id, cursor in cursors.items():
+            locked = await self._page_account_txs(
+                cursor, seen_refs, txs, cache_read=False
+            )
+            if locked and locked.offset > cursor.offset:
+                self._old_txs_cursors[product_id] = locked
+        return txs
 
     async def auto_contributions(self) -> AutoContributions:
         position = await self._client.get_position()

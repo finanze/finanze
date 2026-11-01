@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -34,8 +35,9 @@ import {
 } from "@/types/position"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
+  ArrowUpNarrowWide,
   Filter,
   FilterX,
   Pencil,
@@ -60,10 +62,12 @@ import {
 import { EntitySelector } from "@/components/EntitySelector"
 import { useNavigate } from "react-router-dom"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import { CopyableValue } from "@/components/ui/CopyableValue"
 import {
   ManualPositionsManager,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   mergeManualDisplayItems,
@@ -145,7 +149,6 @@ function FundsInvestmentPageContent({
   const portfolioManual = portfolioContext
   const {
     drafts,
-    isEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -664,6 +667,14 @@ function FundsInvestmentPageContent({
     [displayItems, sortBy, sortOrder],
   )
 
+  const emptyPositionsTitle =
+    selectedEntities.length > 0
+      ? t.investments.noPositionsFound.replace(
+          "{type}",
+          t.common.fundsInvestments.toLowerCase(),
+        )
+      : t.investments.noInvestmentsRegistered
+
   const showDraftList = portfolioManual.isEditMode
 
   const handleAddPortfolioDraft = useCallback(() => {
@@ -724,36 +735,38 @@ function FundsInvestmentPageContent({
       </motion.div>
 
       <motion.div variants={fadeListItem}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <Filter size={16} />
-            <span className="hidden sm:inline">{t.transactions.filters}:</span>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <div className="w-full sm:max-w-xs">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex min-w-64 flex-1 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Filter size={16} />
+              <span className="hidden sm:inline">
+                {t.transactions.filters}:
+              </span>
+            </div>
+            <div className="min-w-0 flex-1 sm:max-w-xs">
               <EntitySelector
                 entities={filteredEntities}
                 selectedEntityIds={selectedEntities}
                 onSelectionChange={setSelectedEntities}
               />
             </div>
-            {portfolioOptions.length > 0 && (
-              <div className="w-full sm:max-w-xs">
-                <MultiSelect
-                  options={portfolioOptions}
-                  value={selectedPortfolios}
-                  onChange={setSelectedPortfolios}
-                  placeholder={(t.investments as any).portfolio}
-                />
-              </div>
-            )}
           </div>
+          {portfolioOptions.length > 0 && (
+            <div className="min-w-64 flex-1 sm:max-w-xs">
+              <MultiSelect
+                options={portfolioOptions}
+                value={selectedPortfolios}
+                onChange={setSelectedPortfolios}
+                placeholder={(t.investments as any).portfolio}
+              />
+            </div>
+          )}
           {(selectedEntities.length > 0 || selectedPortfolios.length > 0) && (
             <Button
               variant="outline"
               size="sm"
               onClick={handleClearAllFilters}
-              className="flex items-center gap-2 self-start lg:self-auto"
+              className="flex shrink-0 items-center gap-2"
             >
               <FilterX size={16} />
               {t.transactions.clear}
@@ -777,24 +790,20 @@ function FundsInvestmentPageContent({
 
       <motion.div variants={fadeListItem}>
         {sortedDisplayItems.length === 0 ? (
-          <Card className="p-14 text-center flex flex-col items-center gap-4">
-            {getIconForAssetType(
-              ProductType.FUND,
-              "h-16 w-16",
-              "text-gray-400 dark:text-gray-600",
-            )}
-            <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {selectedEntities.length > 0
-                ? t.investments.noPositionsFound.replace(
-                    "{type}",
-                    t.common.fundsInvestments.toLowerCase(),
-                  )
-                : t.investments.noPositionsAvailable.replace(
-                    "{type}",
-                    t.common.fundsInvestments.toLowerCase(),
-                  )}
-            </div>
-          </Card>
+          <>
+            <Card className="hidden md:block overflow-hidden">
+              <EmptyState
+                iconNode={getIconForAssetType(ProductType.FUND, "h-5 w-5")}
+                title={emptyPositionsTitle}
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              iconNode={getIconForAssetType(ProductType.FUND, "h-5 w-5")}
+              title={emptyPositionsTitle}
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
@@ -934,9 +943,9 @@ function FundsInvestmentPageContent({
                 }
               >
                 {sortOrder === "asc" ? (
-                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                  <ArrowUpNarrowWide size={16} />
                 ) : (
-                  <ArrowRight size={16} className="rotate-90" />
+                  <ArrowDownWideNarrow size={16} />
                 )}
               </button>
             </div>
@@ -964,7 +973,7 @@ function FundsInvestmentPageContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
 
                 const infoSheetUrl = position.infoSheetUrl?.trim()
                 const isExpanded = expandedCards[item.key] ?? false
@@ -1253,13 +1262,13 @@ function FundsInvestmentPageContent({
                         >
                           <div className="px-4 pb-4">
                             <div className="border-t border-border/50 pt-3 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                              <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 sm:gap-x-6 gap-y-2.5 text-sm">
                                 {(formattedShares || formattedMarketPrice) && (
-                                  <div>
+                                  <div className="col-span-2 sm:col-span-1">
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                       {t.investments.shares}
                                     </div>
-                                    <div className="flex items-center gap-1 text-foreground">
+                                    <div className="flex flex-wrap items-center gap-1 text-foreground">
                                       {formattedShares && (
                                         <>
                                           <span>
@@ -1274,21 +1283,20 @@ function FundsInvestmentPageContent({
                                           )}
                                         </>
                                       )}
-                                      {formattedShares &&
-                                        formattedMarketPrice && (
-                                          <span className="text-muted-foreground">
-                                            ×
-                                          </span>
-                                        )}
                                       {formattedMarketPrice && (
-                                        <>
+                                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                                          {formattedShares && (
+                                            <span className="text-muted-foreground">
+                                              ×
+                                            </span>
+                                          )}
                                           <span>{formattedMarketPrice}</span>
                                           {formattedShares && eachLabel && (
                                             <span className="text-muted-foreground">
                                               {eachLabel}
                                             </span>
                                           )}
-                                        </>
+                                        </span>
                                       )}
                                     </div>
                                     {formattedAvgBuyPrice && (
@@ -1303,14 +1311,14 @@ function FundsInvestmentPageContent({
                                     )}
                                   </div>
                                 )}
-                                {position.isin && (
+                                {position.isin?.trim() && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
-                                      ISIN
+                                      {t.investments.isin}
                                     </div>
-                                    <div className="text-foreground font-mono text-xs">
-                                      {position.isin}
-                                    </div>
+                                    <CopyableValue
+                                      value={position.isin.trim()}
+                                    />
                                   </div>
                                 )}
                                 {position.issuer && (
@@ -1370,14 +1378,11 @@ function FundsInvestmentPageContent({
                               )}
                               {showActions && (
                                 <div
-                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
                                   data-no-expand
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-2"
-                                    onClick={() => {
+                                  <ManualPositionActions
+                                    onEdit={() => {
                                       if (manualDraft?.originalId) {
                                         editByOriginalId(manualDraft.originalId)
                                       } else if (manualDraft) {
@@ -1386,15 +1391,7 @@ function FundsInvestmentPageContent({
                                         editByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    {t.common.edit}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-600"
-                                    onClick={() => {
+                                    onDelete={() => {
                                       if (manualDraft?.originalId) {
                                         deleteByOriginalId(
                                           manualDraft.originalId,
@@ -1405,9 +1402,7 @@ function FundsInvestmentPageContent({
                                         deleteByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  />
                                 </div>
                               )}
                             </div>

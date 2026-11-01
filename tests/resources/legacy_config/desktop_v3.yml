@@ -1,0 +1,14 @@
+version: 3
+general:
+  defaultCurrency: EUR
+fetch:
+  virtual:
+    globals:
+      spreadsheetId: virtual-sheet
+    position:
+    - range: Virtual!A1
+      data: FUND
+assets:
+  crypto:
+    stablecoins:
+    - USDT

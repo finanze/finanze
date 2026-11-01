@@ -54,6 +54,7 @@ class PeriodicFlow:
     real_estate_flow: Optional[RealEstateFlowInfo] = None
     next_date: Optional[date] = None
     max_amount: Optional[Dezimal] = None
+    label_id: Optional[UUID] = None
 
 
 @dataclass

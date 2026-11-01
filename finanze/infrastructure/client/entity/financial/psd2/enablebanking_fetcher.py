@@ -18,6 +18,7 @@ from domain.exception.exceptions import (
     ExternalEntityNotFound,
     ExternalIntegrationRequired,
     ProviderInstitutionNotFound,
+    ProviderPsuTypeNotSupported,
     TooManyRequests,
 )
 from domain.external_entity import (
@@ -26,7 +27,9 @@ from domain.external_entity import (
     ExternalEntityLinkCompletion,
     ExternalEntityLoginRequest,
     ExternalEntitySetupResponseCode,
+    ExternalEntityTxFetchRequest,
     ProviderExternalEntityDetails,
+    PsuType,
 )
 from domain.external_integration import (
     EnabledExternalIntegrations,
@@ -39,11 +42,17 @@ from domain.global_position import (
     GlobalPosition,
     ProductType,
 )
+from domain.transactions import Transactions
+from infrastructure.client.entity.financial.psd2.psd2_transactions import (
+    map_enablebanking_transaction,
+)
 from infrastructure.client.financial.enablebanking.enablebanking_client import (
     EnableBankingClient,
 )
 
 MAX_CONSENT_VALIDITY_SECONDS = 90 * 24 * 60 * 60
+MAX_TRANSACTION_PAGES = 50
+FALLBACK_HISTORY_DAYS = 89
 
 ACCOUNT_TYPE_MAP = {
     "CACC": AccountType.CHECKING,
@@ -56,6 +65,7 @@ ACCOUNT_TYPE_MAP = {
 }
 
 BALANCE_TYPE_PREFERENCE = ["CLAV", "ITAV", "CLBD", "XPCD", "OTHR"]
+PSU_TYPE_VALUES = {psu_type.value for psu_type in PsuType}
 
 
 def _build_auth_state(external_entity_id: str, completion_url: Optional[str]) -> str:
@@ -100,17 +110,24 @@ class EnableBankingFetcher(ExternalEntityFetcher):
                 pass
 
         valid_until = self._compute_valid_until(aspsp)
+        psu_type = self._resolve_psu_type(
+            request.psu_type,
+            (external_entity.payload or {}).get("psu_type"),
+            aspsp.get("psu_types"),
+        )
         auth = await self._client.start_auth(
             aspsp_name=aspsp["name"],
             aspsp_country=aspsp["country"],
             state=_build_auth_state(str(external_entity.id), request.completion_url),
             valid_until=valid_until,
+            psu_type=psu_type.value,
         )
 
         authorization_id = auth.get("authorization_id")
         payload = {
             "aspsp": {"name": aspsp["name"], "country": aspsp["country"]},
             "authorization_id": authorization_id,
+            "psu_type": psu_type.value,
         }
 
         return ExternalEntityConnectionResult(
@@ -142,11 +159,17 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         accounts = self._map_session_accounts(session.get("accounts", []))
         aspsp = session.get("aspsp") or (external_entity.payload or {}).get("aspsp")
         valid_until = (session.get("access") or {}).get("valid_until")
+        psu_type = (
+            session.get("psu_type")
+            or (external_entity.payload or {}).get("psu_type")
+            or PsuType.PERSONAL.value
+        )
 
         payload = {
             "accounts": accounts,
             "aspsp": aspsp,
             "valid_until": valid_until,
+            "psu_type": psu_type,
         }
 
         return ExternalEntityLinkCompletion(
@@ -195,12 +218,27 @@ class EnableBankingFetcher(ExternalEntityFetcher):
     ) -> GlobalPosition:
         payload = request.external_entity.payload or {}
         raw_accounts = payload.get("accounts", [])
+        aspsp = payload.get("aspsp") or {}
+        institution_name = aspsp.get("name") or "unknown"
+        account_count = len(raw_accounts)
 
         accounts: list[Account] = []
 
-        for raw_account in raw_accounts:
+        if not raw_accounts:
+            self._log.warning(
+                "Enable Banking returned no accounts for institution %s",
+                institution_name,
+            )
+
+        for account_index, raw_account in enumerate(raw_accounts, start=1):
             uid = raw_account.get("uid")
             if not uid:
+                self._log.warning(
+                    "Enable Banking account %d/%d for institution %s has no UID",
+                    account_index,
+                    account_count,
+                    institution_name,
+                )
                 continue
 
             try:
@@ -214,18 +252,56 @@ class EnableBankingFetcher(ExternalEntityFetcher):
                 else:
                     raise ExternalEntityFailed() from e
 
-            balance = self._select_balance(balances.get("balances", []))
+            balance_entries = balances.get("balances") or []
+            balance_types = [
+                entry.get("balance_type")
+                for entry in balance_entries
+                if entry.get("balance_type")
+            ]
+            balance = self._select_balance(balance_entries)
+            cat = (raw_account.get("cash_account_type") or "CACC").upper()
             if not balance:
-                self._log.error("Account %s has no usable balance", uid)
+                self._log.error(
+                    "Enable Banking returned no usable balance for institution %s account %d/%d "
+                    "(cash account type %s, balance count %d, balance types %s)",
+                    institution_name,
+                    account_index,
+                    account_count,
+                    cat,
+                    len(balance_entries),
+                    balance_types,
+                )
                 continue
 
             amount = balance.get("balance_amount", {})
+            balance_type = balance.get("balance_type") or "unknown"
             currency = amount.get("currency") or raw_account.get("currency")
+            self._log.debug(
+                "Enable Banking balance for institution %s account %d/%d "
+                "(cash account type %s, balance count %d, balance types %s, "
+                "selected type %s, amount present %s, currency present %s)",
+                institution_name,
+                account_index,
+                account_count,
+                cat,
+                len(balance_entries),
+                balance_types,
+                balance_type,
+                amount.get("amount") is not None,
+                bool(currency),
+            )
             if not currency:
-                self._log.error("Account %s without currency", uid)
+                self._log.error(
+                    "Enable Banking balance has no currency for institution %s "
+                    "account %d/%d (cash account type %s, balance type %s)",
+                    institution_name,
+                    account_index,
+                    account_count,
+                    cat,
+                    balance_type,
+                )
                 continue
 
-            cat = (raw_account.get("cash_account_type") or "CACC").upper()
             acc_type = ACCOUNT_TYPE_MAP.get(cat, AccountType.CHECKING)
 
             account = Account(
@@ -241,6 +317,56 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         products = {ProductType.ACCOUNT: Accounts(accounts)}
 
         return GlobalPosition(id=uuid4(), entity=request.entity, products=products)
+
+    async def transactions(self, request: ExternalEntityTxFetchRequest) -> Transactions:
+        payload = request.external_entity.payload or {}
+        account_txs = []
+        for raw_account in payload.get("accounts", []):
+            uid = raw_account.get("uid")
+            if not uid:
+                continue
+            account_key = raw_account.get("iban") or uid
+            raw_txs = await self._fetch_account_transactions(uid, request.from_date)
+            for raw_tx in raw_txs:
+                tx = map_enablebanking_transaction(
+                    raw_tx, account_key, request.entity, raw_account.get("iban")
+                )
+                if tx and tx.ref not in request.registered_txs:
+                    account_txs.append(tx)
+        return Transactions(investment=[], account=account_txs)
+
+    async def _fetch_account_transactions(self, uid: str, from_date) -> list[dict]:
+        try:
+            return await self._fetch_transaction_pages(uid, from_date)
+        except httpx.HTTPStatusError as e:
+            code = e.response.status_code
+            fallback_date = (
+                datetime.now(tzlocal()) - timedelta(days=FALLBACK_HISTORY_DAYS)
+            ).date()
+            if code in (400, 422) and from_date < fallback_date:
+                self._log.warning(
+                    "Enable Banking rejected the transactions period, retrying with a shorter one"
+                )
+                try:
+                    return await self._fetch_transaction_pages(uid, fallback_date)
+                except httpx.HTTPStatusError as retry_error:
+                    raise ExternalEntityFailed() from retry_error
+            if code == 429:
+                raise TooManyRequests() from e
+            raise ExternalEntityFailed() from e
+
+    async def _fetch_transaction_pages(self, uid: str, from_date) -> list[dict]:
+        raw_txs = []
+        continuation_key = None
+        for _ in range(MAX_TRANSACTION_PAGES):
+            page = await self._client.get_account_transactions(
+                uid, from_date.isoformat(), continuation_key
+            )
+            raw_txs += page.get("transactions") or []
+            continuation_key = page.get("continuation_key")
+            if not continuation_key:
+                break
+        return raw_txs
 
     async def _resolve_aspsp(
         self, request: ExternalEntityLoginRequest, external_entity
@@ -280,6 +406,25 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         return valid_until.isoformat()
 
     @staticmethod
+    def _resolve_psu_type(
+        requested: Optional[PsuType],
+        stored: Optional[str],
+        listed: Optional[list[str]],
+    ) -> PsuType:
+        supported = {PsuType(t) for t in (listed or []) if t in PSU_TYPE_VALUES}
+        if requested:
+            psu_type = PsuType(requested)
+        elif stored:
+            psu_type = PsuType(stored)
+        elif len(supported) == 1:
+            psu_type = next(iter(supported))
+        else:
+            psu_type = PsuType.PERSONAL
+        if supported and psu_type not in supported:
+            raise ProviderPsuTypeNotSupported()
+        return psu_type
+
+    @staticmethod
     def _parse_institution_id(
         institution_id: str,
     ) -> Tuple[Optional[str], Optional[str]]:
@@ -300,6 +445,7 @@ class EnableBankingFetcher(ExternalEntityFetcher):
             bic=aspsp.get("bic") or "",
             type=EntityType.FINANCIAL_INSTITUTION,
             icon=aspsp.get("logo"),
+            psu_types=aspsp.get("psu_types") or None,
         )
 
     @staticmethod

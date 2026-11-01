@@ -9,18 +9,9 @@ import {
 } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import {
-  LayoutDashboard,
-  TrendingUp,
-  ArrowLeftRight,
-  Calculator,
-  CalendarCog,
-  Blocks,
-  Settings,
-  FileUp,
-  MoreVertical,
-} from "lucide-react"
+import { MoreVertical } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { prepareLightHaptic, triggerLightHaptic } from "@/lib/capacitor/haptics"
 import { useI18n } from "@/i18n"
 import { useLayoutScroll } from "@/context/LayoutScrollContext"
 import { useBackupAlert } from "@/context/BackupAlertContext"
@@ -31,6 +22,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { Button } from "@/components/ui/Button"
+import { useBottomNav } from "@/context/BottomNavContext"
+import { getActiveBottomNavId, useBottomNavCatalog } from "./bottomNavItems"
 
 const PILL_HEIGHT = 48
 const PILL_HEIGHT_COLLAPSED = 33
@@ -66,6 +59,8 @@ export function FloatingBottomNav() {
   const location = useLocation()
   const { scrolling, atTop, atBottom } = useLayoutScroll()
   const { alertColor } = useBackupAlert()
+  const { bar, menu, isCustomizing } = useBottomNav()
+  const catalog = useBottomNavCatalog()
 
   const [collapsed, setCollapsed] = useState(false)
   const [disableIndicatorAnim, setDisableIndicatorAnim] = useState(false)
@@ -107,6 +102,7 @@ export function FloatingBottomNav() {
 
       if (event.pointerType === "mouse" && event.button !== 0) return
 
+      prepareLightHaptic()
       didLongPressRef.current = false
       isPressingRef.current = true
       pressStartRef.current = { x: event.clientX, y: event.clientY }
@@ -145,6 +141,10 @@ export function FloatingBottomNav() {
   )
 
   useEffect(() => {
+    prepareLightHaptic()
+  }, [])
+
+  useEffect(() => {
     setIndicatorReady(false)
     if (!collapsed) {
       setDisableIndicatorAnim(true)
@@ -155,12 +155,13 @@ export function FloatingBottomNav() {
   }, [collapsed])
 
   useEffect(() => {
-    if (scrolling) setCollapsed(true)
-  }, [scrolling])
+    if (scrolling && !isCustomizing) setCollapsed(true)
+  }, [scrolling, isCustomizing])
 
   useEffect(() => {
-    if (!scrolling && (atTop || atBottom)) setCollapsed(false)
-  }, [atBottom, atTop, scrolling])
+    if (isCustomizing || (!scrolling && (atTop || atBottom)))
+      setCollapsed(false)
+  }, [atBottom, atTop, scrolling, isCustomizing])
 
   useEffect(() => {
     cancelPress()
@@ -180,48 +181,13 @@ export function FloatingBottomNav() {
 
   const navItems: NavItem[] = useMemo(
     () => [
-      {
-        kind: "route",
-        key: "dashboard",
-        path: "/",
-        label: t.common.dashboard,
-        icon: <LayoutDashboard size={22} />,
-      },
-      {
-        kind: "route",
-        key: "investments",
-        path: "/investments",
-        label: t.common.investments,
-        icon: <TrendingUp size={22} />,
-      },
-      {
-        kind: "route",
-        key: "transactions",
-        path: "/transactions",
-        label: t.common.transactions,
-        icon: <ArrowLeftRight size={22} />,
-      },
-      {
-        kind: "route",
-        key: "calculations",
-        path: "/calculations",
-        label: t.calculations.title,
-        icon: <Calculator size={22} />,
-      },
-      {
-        kind: "route",
-        key: "management",
-        path: "/management",
-        label: t.management.title,
-        icon: <CalendarCog size={22} />,
-      },
-      {
-        kind: "route",
-        key: "integrations",
-        path: "/entities",
-        label: t.entities.title,
-        icon: <Blocks size={22} />,
-      },
+      ...bar.map(key => ({
+        kind: "route" as const,
+        key,
+        path: catalog[key].path,
+        label: catalog[key].label,
+        icon: catalog[key].renderIcon("h-[22px] w-[22px]"),
+      })),
       {
         kind: "more",
         key: "more",
@@ -229,47 +195,30 @@ export function FloatingBottomNav() {
         icon: <MoreVertical size={22} />,
       },
     ],
-    [t],
+    [bar, catalog, t.common.more],
   )
 
-  const getActiveIndex = useCallback(() => {
-    const exactMatch = navItems.findIndex(item => {
-      if (item.kind !== "route") return false
-      return item.path === location.pathname
-    })
-    if (exactMatch !== -1) return exactMatch
+  const activePageId = getActiveBottomNavId(
+    location.pathname,
+    bar,
+    menu,
+    catalog,
+  )
+  const activeId = bar.some(id => id === activePageId) ? activePageId : "more"
+  const activeIndex = navItems.findIndex(item => item.key === activeId)
 
-    const prefixMatch = navItems.findIndex(item => {
-      if (item.kind !== "route") return false
-      return item.path !== "/" && location.pathname.startsWith(item.path)
-    })
-    if (prefixMatch !== -1) return prefixMatch
-
-    const investmentsIndex = navItems.findIndex(
-      item => item.kind === "route" && item.path === "/investments",
-    )
-    const investmentPrefixes = ["/banking", "/investments", "/real-estate"]
-    if (
-      investmentsIndex !== -1 &&
-      investmentPrefixes.some(prefix => location.pathname.startsWith(prefix))
-    ) {
-      return investmentsIndex
-    }
-
-    const moreIndex = navItems.findIndex(item => item.kind === "more")
-    if (moreIndex !== -1) {
-      if (
-        location.pathname.startsWith("/settings") ||
-        location.pathname.startsWith("/export")
-      ) {
-        return moreIndex
-      }
-    }
-
-    return moreIndex !== -1 ? moreIndex : 0
-  }, [navItems, location.pathname])
-
-  const activeIndex = getActiveIndex()
+  const backupDot = alertColor ? (
+    <span
+      className={cn(
+        "inline-block h-1.5 w-1.5 rounded-full shrink-0",
+        alertColor === "dark-red"
+          ? "bg-red-700"
+          : alertColor === "red"
+            ? "bg-red-500"
+            : "bg-amber-500",
+      )}
+    />
+  ) : null
 
   const tabsContainerRef = useRef<HTMLDivElement>(null)
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -318,12 +267,13 @@ export function FloatingBottomNav() {
     }
   }
 
-  const handleNavigation = (path: string) => {
+  const handleNavigation = (id: string, path: string) => {
     if (collapsed) return
     if (didLongPressRef.current) {
       didLongPressRef.current = false
       return
     }
+    if (activePageId !== id) triggerLightHaptic()
     navigate(path)
   }
 
@@ -337,7 +287,11 @@ export function FloatingBottomNav() {
       (navItems.length - 1) * TAB_GAP
 
   const content = (
-    <div className="fixed bottom-0 left-0 right-0 flex justify-center pointer-events-none z-50 select-none pb-[max(12px,var(--safe-area-inset-bottom,0px))] sm:pb-[max(16px,var(--safe-area-inset-bottom,0px))]">
+    <div
+      data-testid="floating-bottom-nav"
+      data-state={collapsed ? "collapsed" : "expanded"}
+      className="fixed bottom-0 left-0 right-0 flex justify-center pointer-events-none z-50 select-none pb-[max(12px,var(--safe-area-inset-bottom,0px))] sm:pb-[max(16px,var(--safe-area-inset-bottom,0px))]"
+    >
       <motion.div
         className="pointer-events-auto"
         onClick={handlePillPress}
@@ -356,7 +310,7 @@ export function FloatingBottomNav() {
           }}
           transition={{ duration: COLLAPSE_DURATION, ease: "easeInOut" }}
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="sync">
             {collapsed ? (
               <motion.div
                 key="dots"
@@ -462,17 +416,10 @@ export function FloatingBottomNav() {
                           }
                         >
                           {item.icon}
-                          {alertColor && (
-                            <span
-                              className={cn(
-                                "absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full",
-                                alertColor === "dark-red"
-                                  ? "bg-red-700"
-                                  : alertColor === "red"
-                                    ? "bg-red-500"
-                                    : "bg-amber-500",
-                              )}
-                            />
+                          {menu.includes("settings") && (
+                            <span className="absolute top-1.5 right-1.5">
+                              {backupDot}
+                            </span>
                           )}
                         </button>
                       </PopoverTrigger>
@@ -481,52 +428,35 @@ export function FloatingBottomNav() {
                         align="end"
                         sideOffset={6}
                         className={cn(
-                          "p-0.5 w-max select-none rounded-xl",
+                          "p-0.5 w-max max-w-[calc(100vw-24px)] select-none rounded-lg",
                           "relative more-popover",
                           "after:content-[''] after:absolute after:-bottom-[7px] after:right-3 after:h-4 after:w-4 after:rotate-45 after:scale-y-73 after:rounded-[4px] after:bg-popover after:border after:border-border after:border-t-0 after:border-l-0",
                         )}
                       >
-                        <div className="relative z-20 flex flex-col gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start select-none focus-visible:ring-0 focus-visible:ring-offset-0 rounded-lg"
-                            tabIndex={-1}
-                            onMouseDown={event => event.preventDefault()}
-                            onClick={() => {
-                              setMoreOpen(false)
-                              navigate("/settings")
-                            }}
-                          >
-                            <Settings size={16} className="mr-2" />
-                            {t.common.settings}
-                            {alertColor && (
-                              <span
-                                className={cn(
-                                  "ml-2 inline-block h-1.5 w-1.5 rounded-full",
-                                  alertColor === "dark-red"
-                                    ? "bg-red-700"
-                                    : alertColor === "red"
-                                      ? "bg-red-500"
-                                      : "bg-amber-500",
-                                )}
-                              />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start select-none focus-visible:ring-0 focus-visible:ring-offset-0 rounded-lg"
-                            tabIndex={-1}
-                            onMouseDown={event => event.preventDefault()}
-                            onClick={() => {
-                              setMoreOpen(false)
-                              navigate("/export")
-                            }}
-                          >
-                            <FileUp size={16} className="mr-2" />
-                            {t.export.title}
-                          </Button>
+                        <div className="relative z-20 flex max-h-[min(60svh,480px)] flex-col gap-1 overflow-y-auto">
+                          {menu.map(id => (
+                            <Button
+                              key={id}
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto min-h-9 shrink-0 justify-start whitespace-normal text-left select-none rounded-md"
+                              aria-current={
+                                activePageId === id ? "page" : undefined
+                              }
+                              onPointerDown={prepareLightHaptic}
+                              onClick={() => {
+                                setMoreOpen(false)
+                                if (activePageId !== id) triggerLightHaptic()
+                                navigate(catalog[id].path)
+                              }}
+                            >
+                              {catalog[id].renderIcon("mr-2 h-4 w-4 shrink-0")}
+                              {catalog[id].label}
+                              {id === "settings" && (
+                                <span className="ml-2">{backupDot}</span>
+                              )}
+                            </Button>
+                          ))}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -537,7 +467,7 @@ export function FloatingBottomNav() {
                       ref={el => {
                         buttonRefs.current[index] = el
                       }}
-                      onClick={() => handleNavigation(item.path)}
+                      onClick={() => handleNavigation(item.key, item.path)}
                       onPointerDown={handleTabPointerDown(item.label)}
                       onPointerMove={handleTabPointerMove}
                       onPointerUp={cancelPress}
@@ -556,6 +486,11 @@ export function FloatingBottomNav() {
                       aria-current={index === activeIndex ? "page" : undefined}
                     >
                       {item.icon}
+                      {item.key === "settings" && (
+                        <span className="absolute top-1.5 right-1.5">
+                          {backupDot}
+                        </span>
+                      )}
                     </button>
                   ),
                 )}

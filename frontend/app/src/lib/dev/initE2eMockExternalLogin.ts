@@ -6,13 +6,14 @@ const MOCK_INTERNAL_CREDENTIALS: Record<string, Record<string, string>> = {
   "e0000000-0000-0000-0000-000000000003": { awsWafToken: "mock-waf-token" },
   // Unicaja — abck cookie is internal
   "e0000000-0000-0000-0000-000000000002": { abck: "mock-abck-cookie" },
-  // ING — all 5 credentials are internal
+  // ING — all credentials are internal
   "e0000000-0000-0000-0000-000000000010": {
     genomaCookie: "mock-genoma-cookie",
     genomaSessionId: "mock-genoma-session",
     apiCookie: "mock-api-cookie",
     apiAuth: "mock-api-auth",
     apiExtendedSessionCtx: "mock-api-extended-session",
+    genomaLoginCookie: "mock-genoma-login-cookie",
   },
   // Mintos — cookie is internal
   "e0000000-0000-0000-0000-000000000007": { cookie: "mock-mintos-cookie" },

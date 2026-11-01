@@ -14,6 +14,7 @@ export function GlobalEntityModals() {
     pinRequired,
     challengeRequired,
     inAppConfirmation,
+    inAppOldTxsConfirmation,
     cancelInAppConfirmation,
     cancelChallenge,
     view,
@@ -94,7 +95,9 @@ export function GlobalEntityModals() {
                 <CardContent className="flex flex-col items-center py-8">
                   <LoadingSpinner size="lg" />
                   <p className="mt-4 text-center text-muted-foreground">
-                    {t.login.inAppConfirmationMessage}
+                    {inAppOldTxsConfirmation
+                      ? t.login.inAppOldTxsConfirmationMessage
+                      : t.login.inAppConfirmationMessage}
                   </p>
                   <Button
                     variant="outline"

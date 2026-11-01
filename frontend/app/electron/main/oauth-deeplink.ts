@@ -139,6 +139,13 @@ export function setupOAuthDeepLinking(options: {
       return
     }
 
+    if (url.startsWith(`${OAUTH_PROTOCOL_NAME}://integration/complete`)) {
+      console.debug("[OAuth] Integration authorization completion callback")
+      sendToAllWindows("integration-complete-url", { url })
+      focusWindow(getMainWindow())
+      return
+    }
+
     // Always forward the full URL to the renderer so Supabase can parse it.
     // This avoids mixing flows (oauth, recovery, signup confirmation) and keeps
     // parsing logic in one place.

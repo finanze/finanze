@@ -1,0 +1,11 @@
+lastUpdate: 2025-09-10T12:00:00+02:00
+version: 6
+general:
+  defaultCurrency: EUR
+  defaultCommodityWeightUnit: TROY_OUNCE
+assets:
+  crypto:
+    stablecoins:
+    - USDT
+    - DAI
+    hideUnknownTokens: no

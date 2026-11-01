@@ -153,7 +153,11 @@ class EnableBankingClient(ConnectableIntegration):
         psu_type: str = DEFAULT_PSU_TYPE,
     ) -> dict:
         body = {
-            "access": {"valid_until": valid_until},
+            "access": {
+                "valid_until": valid_until,
+                "balances": True,
+                "transactions": True,
+            },
             "aspsp": {"name": aspsp_name, "country": aspsp_country},
             "state": state,
             "redirect_url": self.REDIRECT_URL,
@@ -169,6 +173,19 @@ class EnableBankingClient(ConnectableIntegration):
 
     async def get_account_balances(self, account_uid: str) -> dict:
         return await self._request("GET", f"/accounts/{account_uid}/balances")
+
+    async def get_account_transactions(
+        self,
+        account_uid: str,
+        date_from: str,
+        continuation_key: Optional[str] = None,
+    ) -> dict:
+        params = {"date_from": date_from, "transaction_status": "BOOK"}
+        if continuation_key:
+            params["continuation_key"] = continuation_key
+        return await self._request(
+            "GET", f"/accounts/{account_uid}/transactions", params=params
+        )
 
     async def delete_session(self, session_id: str) -> dict:
         return await self._request("DELETE", f"/sessions/{session_id}")

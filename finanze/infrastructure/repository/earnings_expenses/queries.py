@@ -3,13 +3,13 @@ from enum import Enum
 
 class PeriodicFlowsQueries(str, Enum):
     INSERT = """
-        INSERT INTO periodic_flows (id, name, amount, currency, flow_type, frequency, category, enabled, since, until, icon, max_amount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO periodic_flows (id, name, amount, currency, flow_type, frequency, category, enabled, since, until, icon, max_amount, label_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     UPDATE = """
         UPDATE periodic_flows
-        SET name = ?, amount = ?, currency = ?, flow_type = ?, frequency = ?, category = ?, enabled = ?, since = ?, until = ?, icon = ?, max_amount = ?
+        SET name = ?, amount = ?, currency = ?, flow_type = ?, frequency = ?, category = ?, enabled = ?, since = ?, until = ?, icon = ?, max_amount = ?, label_id = ?
         WHERE id = ?
     """
 

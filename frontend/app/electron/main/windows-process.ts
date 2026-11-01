@@ -3,7 +3,7 @@ import util from "util"
 
 const execPromise = util.promisify(exec)
 
-const TARGET_PROCESS_PREFIX = "finanze-server"
+const TARGET_PROCESS_PREFIXES = ["finanze-server", "finanze-llama-server"]
 
 interface ProcessInfo {
   pid: number
@@ -38,7 +38,7 @@ export async function findAndKillProcesses() {
         proc &&
         proc.name &&
         proc.pid &&
-        proc.name.startsWith(TARGET_PROCESS_PREFIX),
+        TARGET_PROCESS_PREFIXES.some(prefix => proc.name.startsWith(prefix)),
     ) as Array<ProcessInfo>
 
   if (processesToKill.length === 0) {

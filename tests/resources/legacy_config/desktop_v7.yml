@@ -1,0 +1,16 @@
+lastUpdate: 2025-11-20T09:30:00+01:00
+version: 7
+general:
+  defaultCurrency: USD
+  defaultCommodityWeightUnit: GRAM
+data:
+  autoRefresh:
+    mode: NO_2FA
+    max_outdated: DAY
+assets:
+  crypto:
+    stablecoins:
+    - USDT
+    - USDC
+    - PUSD
+    hideUnknownTokens: yes

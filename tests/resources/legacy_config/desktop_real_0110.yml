@@ -1,0 +1,215 @@
+lastUpdate: 2026-10-12T16:59:35.166498+02:00
+version: 8
+general:
+  defaultCurrency: EUR
+  defaultCommodityWeightUnit: GRAM
+  editMode: DRAFT
+data:
+  autoRefresh:
+    mode: OFF
+    max_outdated: WEEK
+    entities:
+    - id: 00000000-0000-4000-8000-000000000001
+export:
+  sheets:
+    globals:
+      spreadsheetId: anonymized-export-spreadsheet-id
+      datetimeFormat: '%d/%m/%Y %H:%M:%S'
+      dateFormat: '%d/%m/%Y'
+    position:
+    - range: Funds
+      lastUpdate: no
+      data:
+      - FUND
+      template:
+        id: 00000000-0000-4000-8000-000000000002
+    - range: Stocks
+      lastUpdate: no
+      data:
+      - STOCK_ETF
+      template:
+        id: 00000000-0000-4000-8000-000000000003
+    - range: Real State CF
+      lastUpdate: no
+      data:
+      - REAL_ESTATE_CF
+    - range: Other
+      lastUpdate: no
+      data:
+      - FACTORING
+    - range: Accounts
+      lastUpdate: yes
+      data:
+      - ACCOUNT
+    - range: Cards
+      lastUpdate: no
+      data:
+      - CARD
+    - range: Loans
+      lastUpdate: no
+      data:
+      - LOAN
+    - range: Deposits
+      lastUpdate: no
+      data:
+      - DEPOSIT
+    - range: Crypto
+      lastUpdate: no
+      data:
+      - CRYPTO
+    - range: Crowdlending
+      lastUpdate: no
+      data:
+      - CROWDLENDING
+    contributions:
+    - range: Auto Contribuciones
+      lastUpdate: yes
+    transactions:
+    - range: Investment TXs
+      lastUpdate: no
+      data:
+      - STOCK_ETF
+      - FUND
+      - FUND_PORTFOLIO
+      - FACTORING
+      - REAL_ESTATE_CF
+      - DEPOSIT
+    - range: Account TXs
+      lastUpdate: no
+      data:
+      - ACCOUNT
+    - range: ING NEW
+      lastUpdate: no
+      data:
+      - STOCK_ETF
+      - FUND
+      - FUND_PORTFOLIO
+      - FACTORING
+      - REAL_ESTATE_CF
+      - DEPOSIT
+      filters:
+      - field: source
+        values:
+        - REAL
+      - field: entity
+        values:
+        - ING
+    - range: ING OLD
+      lastUpdate: no
+      data:
+      - STOCK_ETF
+      - FUND
+      - FUND_PORTFOLIO
+      - FACTORING
+      - REAL_ESTATE_CF
+      - DEPOSIT
+      filters:
+      - field: source
+        values:
+        - SHEETS
+      - field: entity
+        values:
+        - ING
+    historic:
+    - range: Historic
+      lastUpdate: yes
+      data:
+      - REAL_ESTATE_CF
+      - FACTORING
+importing:
+  sheets:
+    globals:
+      spreadsheetId: anonymized-import-spreadsheet-id
+      datetimeFormat: '%d/%m/%Y %H:%M:%S'
+      dateFormat: '%d/%m/%Y'
+    position:
+    - range: Accounts
+      template:
+        id: 00000000-0000-4000-8000-000000000004
+      data: ACCOUNT
+    - range: Deposits
+      template:
+        id: 00000000-0000-4000-8000-000000000005
+        params:
+          entity: Goibank
+      data: DEPOSIT
+    - range: Real State CF
+      template:
+        id: 00000000-0000-4000-8000-000000000006
+      data: REAL_ESTATE_CF
+    - range: Cards
+      template:
+        id: 00000000-0000-4000-8000-000000000007
+      data: CARD
+    - range: Loans
+      dateFormat: '%d-%m-%Y'
+      template:
+        id: 00000000-0000-4000-8000-000000000008
+      data: LOAN
+    - range: Fake Funds
+      template:
+        id: 00000000-0000-4000-8000-000000000009
+      data: FUND
+    - range: FakeP Funds
+      template:
+        id: 00000000-0000-4000-8000-000000000009
+      data: FUND
+    transactions:
+    - range: Investment TXss
+      template:
+        id: 00000000-0000-4000-8000-000000000010
+        params:
+          entity: ING
+      data: STOCK_ETF
+    - range: Inv TXs 2
+      template:
+        id: 00000000-0000-4000-8000-000000000010
+      data: STOCK_ETF
+assets:
+  crypto:
+    stablecoins:
+    - USDT
+    - USDC
+    - USDE
+    - DAI
+    - USD1
+    - BUSD
+    - PYUSD
+    - FDUSD
+    - TUSD
+    - USDD
+    - GUSD
+    - USDP
+    - LUSD
+    - CUSD
+    - OUSD
+    - FRAX
+    - SUSD
+    - USDX
+    - USDY
+    - USYC
+    - EURC
+    - EURS
+    - EURT
+    - PAXG
+    - JPYC
+    - XAUT
+    - BNFCR
+    - PUSD
+    hideUnknownTokens: no
+labeling:
+  external:
+    enabled: yes
+    provider: OPENROUTER
+    model: ~typesafe/jev-latest
+    autoRun: yes
+    minConfidence: 70
+    maxPerRun: 500
+    examples:
+      enabled: yes
+      count: 20
+      origins:
+      - MANUAL
+    instructions: I am based in Spain. I have insurances, and housing related
+      expenses. I also have credit cards which are credited around first day for each
+      month in a tx.

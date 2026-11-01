@@ -3,6 +3,8 @@ import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
+import { cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const formatDateKey = (date: Date): string => {
@@ -36,6 +38,7 @@ export interface BaseCalendarProps<T> {
   maxYear?: number
   showTodayButton?: boolean
   todayButtonLabel?: string
+  className?: string
 }
 
 export function BaseCalendar<T>({
@@ -53,6 +56,7 @@ export function BaseCalendar<T>({
   maxYear,
   showTodayButton = true,
   todayButtonLabel,
+  className,
 }: BaseCalendarProps<T>) {
   const { t, locale } = useI18n()
   const [showYearPicker, setShowYearPicker] = useState(false)
@@ -249,7 +253,7 @@ export function BaseCalendar<T>({
     currentMonth === currentMonthNow && currentYear === currentYearNow
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn("overflow-hidden", className)}>
       <div className="flex items-center justify-between p-2 sm:p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <h2 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-gray-100 capitalize">
@@ -300,23 +304,24 @@ export function BaseCalendar<T>({
             >
               {currentYear}
             </Button>
-            {showYearPicker && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {yearOptions.map(year => (
-                  <button
-                    key={year}
-                    onClick={() => handleYearSelect(year)}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                      year === currentYear
-                        ? "bg-gray-100 dark:bg-gray-700 font-medium"
-                        : ""
-                    }`}
-                  >
-                    {year}
-                  </button>
-                ))}
-              </div>
-            )}
+            <AnimatedPopup
+              open={showYearPicker}
+              className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto"
+            >
+              {yearOptions.map(year => (
+                <button
+                  key={year}
+                  onClick={() => handleYearSelect(year)}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    year === currentYear
+                      ? "bg-gray-100 dark:bg-gray-700 font-medium"
+                      : ""
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </AnimatedPopup>
           </div>
         </div>
       </div>

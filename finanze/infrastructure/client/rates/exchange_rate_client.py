@@ -28,8 +28,11 @@ class ExchangeRateClient(ExchangeRateProvider):
     MATRIX_CACHE_TTL = 2 * 60 * 60
     TIMEOUT = 10
 
-    BASE_URL = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1"
-    CURRENCIES_URL = f"{BASE_URL}/currencies.min.json"
+    BASE_URLS = [
+        "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1",
+        "https://latest.currency-api.pages.dev/v1",
+    ]
+    CURRENCIES_PATH = "/currencies.min.json"
     DATE_FORMAT = "%Y-%m-%d"
 
     def __init__(self):
@@ -61,11 +64,22 @@ class ExchangeRateClient(ExchangeRateProvider):
         return self._rates
 
     async def _fetch_available_currencies(self, request_timeout: int) -> dict:
-        return await self._fetch(self.CURRENCIES_URL, request_timeout)
+        return await self._fetch_with_fallback(self.CURRENCIES_PATH, request_timeout)
 
     async def _fetch_rates(self, currency: str, request_timeout: int) -> dict:
-        url = f"{self.BASE_URL}/currencies/{currency.lower()}.min.json"
-        return await self._fetch(url, request_timeout)
+        path = f"/currencies/{currency.lower()}.min.json"
+        return await self._fetch_with_fallback(path, request_timeout)
+
+    async def _fetch_with_fallback(self, path: str, request_timeout: int) -> dict:
+        last_error = None
+        for base_url in self.BASE_URLS:
+            url = f"{base_url}{path}"
+            try:
+                return await self._fetch(url, request_timeout)
+            except Exception as e:
+                self._log.warning(f"Failed fetching {url}: {e}")
+                last_error = e
+        raise last_error
 
     async def _fetch(self, url: str, request_timeout: int) -> dict:
         response = await self._session.get(url, timeout=request_timeout)

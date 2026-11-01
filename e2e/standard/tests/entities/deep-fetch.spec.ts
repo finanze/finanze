@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
 
 /**
  * Helper: connect Urbanitae and reload the page to populate entity accounts.
@@ -93,6 +94,12 @@ test.describe('Deep Fetch / Force Refetch', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        await selectEntity(page, 'Urbanitae')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
         await expect(page.getByText('Mock Stock A').first()).toBeVisible({
             timeout: 5_000,
         })
@@ -158,6 +165,12 @@ test.describe('Deep Fetch / Force Refetch', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        await selectEntity(page, 'Urbanitae')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
         await expect(page.getByText('Mock Stock A').first()).toBeVisible({
             timeout: 5_000,
         })

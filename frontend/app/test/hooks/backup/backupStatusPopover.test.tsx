@@ -25,253 +25,109 @@ async function openPopover() {
 
 describe("popover status display", () => {
   it.each([
-    { data: SyncStatus.SYNC, config: SyncStatus.SYNC, label: "Synced" },
-    { data: SyncStatus.PENDING, config: SyncStatus.PENDING, label: "Pending" },
-    {
-      data: SyncStatus.OUTDATED,
-      config: SyncStatus.OUTDATED,
-      label: "Outdated",
-    },
-    {
-      data: SyncStatus.MISSING,
-      config: SyncStatus.MISSING,
-      label: "Not backed up",
-    },
-    { data: SyncStatus.PENDING, config: SyncStatus.SYNC, label: "Pending" },
-    { data: SyncStatus.SYNC, config: SyncStatus.OUTDATED, label: "Outdated" },
-    {
-      data: SyncStatus.PENDING,
-      config: SyncStatus.OUTDATED,
-      label: "Pending",
-    },
-  ])(
-    "shows '$label' when DATA=$data and CONFIG=$config",
-    async ({ data, config, label }) => {
-      const info = buildBackupsInfo(data, config)
-      mockGetBackupsInfo.mockResolvedValue(info)
+    { data: SyncStatus.SYNC, label: "Synced" },
+    { data: SyncStatus.PENDING, label: "Pending" },
+    { data: SyncStatus.OUTDATED, label: "Outdated" },
+    { data: SyncStatus.MISSING, label: "Not backed up" },
+  ])("shows '$label' when DATA=$data", async ({ data, label }) => {
+    const info = buildBackupsInfo(data)
+    mockGetBackupsInfo.mockResolvedValue(info)
 
-      renderPopoverUI()
-      await openPopover()
+    renderPopoverUI()
+    await openPopover()
 
-      await waitFor(() => {
-        expect(screen.getByText(label)).toBeInTheDocument()
-      })
+    await waitFor(() => {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    })
 
-      expect(screen.queryByText("Conflict")).not.toBeInTheDocument()
-    },
-  )
+    expect(screen.queryByText("Conflict")).not.toBeInTheDocument()
+  })
 })
 
 describe("popover conflict resolution — Use Local", () => {
-  const cases = [
-    {
-      name: "DATA=CONFLICT, CONFIG=SYNC",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.SYNC,
-      expectedUploadTypes: [BackupFileType.DATA],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=SYNC, CONFIG=CONFLICT",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.CONFLICT,
-      expectedUploadTypes: [BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=CONFLICT",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.CONFLICT,
-      expectedUploadTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=OUTDATED",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.OUTDATED,
-      expectedUploadTypes: [BackupFileType.DATA],
-      followUpImportTypes: [BackupFileType.CONFIG],
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=PENDING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.PENDING,
-      expectedUploadTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=MISSING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.MISSING,
-      expectedUploadTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-  ]
+  it("DATA=CONFLICT", async () => {
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
+    mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
-  it.each(cases)(
-    "$name",
-    async ({ data, config, expectedUploadTypes, followUpImportTypes }) => {
-      const initialInfo = buildBackupsInfo(data, config)
-      mockGetBackupsInfo.mockResolvedValue(initialInfo)
+    mockUploadBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
 
-      mockUploadBackup.mockResolvedValue(
-        buildSyncResult(expectedUploadTypes, SyncStatus.SYNC),
-      )
-      if (followUpImportTypes) {
-        mockImportBackup.mockResolvedValue(
-          buildSyncResult(followUpImportTypes, SyncStatus.SYNC),
-        )
-      }
+    renderPopoverUI()
+    await openPopover()
 
-      renderPopoverUI()
-      await openPopover()
+    await waitFor(() => {
+      expect(screen.getByText("Conflict")).toBeInTheDocument()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByText("Conflict")).toBeInTheDocument()
+    expect(screen.getByText("Use local")).toBeInTheDocument()
+    expect(screen.getByText("Use remote")).toBeInTheDocument()
+
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    await act(async () => {
+      screen.getByText("Use local").click()
+    })
+
+    await waitFor(() => {
+      expect(mockUploadBackup).toHaveBeenCalledWith({
+        types: [BackupFileType.DATA],
+        force: true,
       })
+    })
 
-      expect(screen.getByText("Use local")).toBeInTheDocument()
-      expect(screen.getByText("Use remote")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText("Conflict")).not.toBeInTheDocument()
+    })
 
-      mockGetBackupsInfo.mockResolvedValue(
-        buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-      )
-
-      await act(async () => {
-        screen.getByText("Use local").click()
-      })
-
-      await waitFor(() => {
-        expect(mockUploadBackup).toHaveBeenCalledWith({
-          types: expectedUploadTypes,
-          force: true,
-        })
-      })
-
-      if (followUpImportTypes) {
-        await waitFor(() => {
-          expect(mockImportBackup).toHaveBeenCalledWith({
-            types: followUpImportTypes,
-          })
-        })
-      }
-
-      await waitFor(() => {
-        expect(screen.queryByText("Conflict")).not.toBeInTheDocument()
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText("Synced")).toBeInTheDocument()
-      })
-    },
-  )
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+  })
 })
 
 describe("popover conflict resolution — Use Remote", () => {
-  const cases = [
-    {
-      name: "DATA=CONFLICT, CONFIG=SYNC",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.SYNC,
-      expectedImportTypes: [BackupFileType.DATA],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=SYNC, CONFIG=CONFLICT",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.CONFLICT,
-      expectedImportTypes: [BackupFileType.CONFIG],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=CONFLICT",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.CONFLICT,
-      expectedImportTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=OUTDATED",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.OUTDATED,
-      expectedImportTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=PENDING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.PENDING,
-      expectedImportTypes: [BackupFileType.DATA],
-      followUpUploadTypes: [BackupFileType.CONFIG],
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=MISSING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.MISSING,
-      expectedImportTypes: [BackupFileType.DATA],
-      followUpUploadTypes: [BackupFileType.CONFIG],
-    },
-  ]
+  it("DATA=CONFLICT", async () => {
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
+    mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
-  it.each(cases)(
-    "$name",
-    async ({ data, config, expectedImportTypes, followUpUploadTypes }) => {
-      const initialInfo = buildBackupsInfo(data, config)
-      mockGetBackupsInfo.mockResolvedValue(initialInfo)
+    mockImportBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
 
-      mockImportBackup.mockResolvedValue(
-        buildSyncResult(expectedImportTypes, SyncStatus.SYNC),
-      )
-      if (followUpUploadTypes) {
-        mockUploadBackup.mockResolvedValue(
-          buildSyncResult(followUpUploadTypes, SyncStatus.SYNC),
-        )
-      }
+    renderPopoverUI()
+    await openPopover()
 
-      renderPopoverUI()
-      await openPopover()
+    await waitFor(() => {
+      expect(screen.getByText("Conflict")).toBeInTheDocument()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByText("Conflict")).toBeInTheDocument()
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    await act(async () => {
+      screen.getByText("Use remote").click()
+    })
+
+    await waitFor(() => {
+      expect(mockImportBackup).toHaveBeenCalledWith({
+        types: [BackupFileType.DATA],
+        force: true,
       })
+    })
 
-      mockGetBackupsInfo.mockResolvedValue(
-        buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-      )
+    await waitFor(() => {
+      expect(screen.queryByText("Conflict")).not.toBeInTheDocument()
+    })
 
-      await act(async () => {
-        screen.getByText("Use remote").click()
-      })
-
-      await waitFor(() => {
-        expect(mockImportBackup).toHaveBeenCalledWith({
-          types: expectedImportTypes,
-          force: true,
-        })
-      })
-
-      if (followUpUploadTypes) {
-        await waitFor(() => {
-          expect(mockUploadBackup).toHaveBeenCalledWith({
-            types: followUpUploadTypes,
-          })
-        })
-      }
-
-      await waitFor(() => {
-        expect(screen.queryByText("Conflict")).not.toBeInTheDocument()
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText("Synced")).toBeInTheDocument()
-      })
-    },
-  )
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+  })
 })
 
 describe("popover multi-instance state sync", () => {
   it("Use Local resolves conflict in popover with background instance", async () => {
-    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
     mockUploadBackup.mockResolvedValue(
@@ -285,9 +141,7 @@ describe("popover multi-instance state sync", () => {
       expect(screen.getByText("Conflict")).toBeInTheDocument()
     })
 
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
 
     await act(async () => {
       screen.getByText("Use local").click()
@@ -299,7 +153,7 @@ describe("popover multi-instance state sync", () => {
   })
 
   it("Use Remote resolves conflict in popover with background instance", async () => {
-    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
     mockImportBackup.mockResolvedValue(
@@ -313,9 +167,7 @@ describe("popover multi-instance state sync", () => {
       expect(screen.getByText("Conflict")).toBeInTheDocument()
     })
 
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
 
     await act(async () => {
       screen.getByText("Use remote").click()
@@ -330,30 +182,20 @@ describe("popover multi-instance state sync", () => {
 describe("popover manual sync", () => {
   const cases = [
     {
-      name: "PENDING + SYNC → uploads DATA",
+      name: "PENDING → uploads DATA",
       data: SyncStatus.PENDING,
-      config: SyncStatus.SYNC,
       expectedUploadTypes: [BackupFileType.DATA],
       expectedImportTypes: null,
     },
     {
-      name: "SYNC + OUTDATED → imports CONFIG",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.OUTDATED,
+      name: "OUTDATED → imports DATA",
+      data: SyncStatus.OUTDATED,
       expectedUploadTypes: null,
-      expectedImportTypes: [BackupFileType.CONFIG],
+      expectedImportTypes: [BackupFileType.DATA],
     },
     {
-      name: "PENDING + OUTDATED → uploads DATA, imports CONFIG",
-      data: SyncStatus.PENDING,
-      config: SyncStatus.OUTDATED,
-      expectedUploadTypes: [BackupFileType.DATA],
-      expectedImportTypes: [BackupFileType.CONFIG],
-    },
-    {
-      name: "MISSING + SYNC → uploads DATA",
+      name: "MISSING → uploads DATA",
       data: SyncStatus.MISSING,
-      config: SyncStatus.SYNC,
       expectedUploadTypes: [BackupFileType.DATA],
       expectedImportTypes: null,
     },
@@ -361,9 +203,9 @@ describe("popover manual sync", () => {
 
   it.each(cases)(
     "$name",
-    async ({ data, config, expectedUploadTypes, expectedImportTypes }) => {
+    async ({ data, expectedUploadTypes, expectedImportTypes }) => {
       setBackupMode(BackupMode.MANUAL)
-      const info = buildBackupsInfo(data, config)
+      const info = buildBackupsInfo(data)
       mockGetBackupsInfo.mockResolvedValue(info)
 
       if (expectedUploadTypes) {

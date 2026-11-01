@@ -203,6 +203,39 @@ from infrastructure.repository.db.versions.v0.v10.v0101_0_fetch_pointers import 
 from infrastructure.repository.db.versions.v0.v10.v0101_1_transaction_split_ratio import (
     V01011TransactionSplitRatio,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_0_account_tx_labeling import (
+    V01100AccountTxLabeling,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_1_openai_integration import (
+    V01101OpenAIIntegration,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_2_ignored_recurring_movements import (
+    V01102IgnoredRecurringMovements,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_3_periodic_flow_budget_label import (
+    V01103PeriodicFlowBudgetLabel,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_4_settings import (
+    V01104Settings,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_5_mcp_config import (
+    V01105McpConfig,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_6_local_ai_integrations import (
+    V01106LocalAIIntegrations,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_7_mcp_tool_categories import (
+    V01107McpToolCategories,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_8_custom_ai_integration_name import (
+    V01108CustomAIIntegrationName,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_9_split_cache_coverage import (
+    V01109SplitCacheCoverage,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_10_clear_unlinked_external_txs import (
+    V011010ClearUnlinkedExternalTxs,
+)
 
 versions = [
     V0Genesis(),
@@ -284,4 +317,15 @@ versions = [
     V01007Trading212(),
     V01010FetchPointers(),
     V01011TransactionSplitRatio(),
+    V01100AccountTxLabeling(),
+    V01101OpenAIIntegration(),
+    V01102IgnoredRecurringMovements(),
+    V01103PeriodicFlowBudgetLabel(),
+    V01104Settings(),
+    V01105McpConfig(),
+    V01106LocalAIIntegrations(),
+    V01107McpToolCategories(),
+    V01108CustomAIIntegrationName(),
+    V01109SplitCacheCoverage(),
+    V011010ClearUnlinkedExternalTxs(),
 ]

@@ -17,6 +17,7 @@ from domain.exception.exceptions import (
     ExecutionConflict,
     ExternalEntityLinkError,
     ProviderInstitutionNotFound,
+    ProviderPsuTypeNotSupported,
 )
 from domain.external_entity import (
     ConnectExternalEntityRequest,
@@ -71,6 +72,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             None,
         )
         update_entity = False
+        created_entity = False
         provider_id = None
         if request.external_entity_id:
             external_entity_id = request.external_entity_id
@@ -147,6 +149,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     icon_url=institution_details.icon,
                 )
                 await self._entity_port.insert(entity)
+                created_entity = True
 
             if not external_entity:
                 external_entity = ExternalEntity(
@@ -163,6 +166,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                 relink=request.relink,
                 user_language=request.user_language,
                 completion_url=request.completion_url,
+                psu_type=request.psu_type,
             )
 
             try:
@@ -170,6 +174,10 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             except ExternalEntityLinkError as e:
                 if e.orphan_external_entity and external_entity:
                     await self._external_entity_port.delete_by_id(external_entity.id)
+                raise
+            except ProviderPsuTypeNotSupported:
+                if created_entity:
+                    await self._entity_port.delete_by_id(entity.id)
                 raise
 
             if response.code == ExternalEntitySetupResponseCode.CONTINUE_WITH_LINK:

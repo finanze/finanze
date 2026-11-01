@@ -132,23 +132,66 @@ class InstrumentPriceHistorySQLRepository(InstrumentPriceHistoryPort):
                     ),
                 )
 
-    async def is_splits_checked(self, instrument_key: str) -> bool:
+    async def is_splits_checked(
+        self,
+        instrument_key: str,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> bool:
         sql = (
             "SELECT 1 FROM instrument_split_checked WHERE instrument_key = ? "
             "AND checked_at >= datetime('now', '-7 days')"
         )
+        params = [instrument_key]
+        if from_date is not None:
+            sql += " AND checked_from <= ?"
+            params.append(from_date.isoformat())
+        if to_date is not None:
+            sql += " AND checked_to >= ?"
+            params.append(to_date.isoformat())
         async with self._db_client.read() as cursor:
-            await cursor.execute(sql, (instrument_key,))
+            await cursor.execute(sql, tuple(params))
             return await cursor.fetchone() is not None
 
-    async def mark_splits_checked(self, instrument_key: str) -> None:
+    async def mark_splits_checked(
+        self,
+        instrument_key: str,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> None:
+        # past splits do not change, so a contiguous earlier check stays valid
+        contiguous = (
+            "excluded.checked_from IS NOT NULL AND excluded.checked_to IS NOT NULL "
+            "AND instrument_split_checked.checked_from IS NOT NULL "
+            "AND instrument_split_checked.checked_to IS NOT NULL "
+            "AND excluded.checked_from "
+            "<= date(instrument_split_checked.checked_to, '+1 day') "
+            "AND instrument_split_checked.checked_from "
+            "<= date(excluded.checked_to, '+1 day')"
+        )
         sql = (
-            "INSERT INTO instrument_split_checked (id, instrument_key, checked_at) "
-            "VALUES (?, ?, CURRENT_TIMESTAMP) "
-            "ON CONFLICT (instrument_key) DO UPDATE SET checked_at = CURRENT_TIMESTAMP"
+            "INSERT INTO instrument_split_checked "
+            "(id, instrument_key, checked_at, checked_from, checked_to) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?) "
+            "ON CONFLICT (instrument_key) DO UPDATE SET "
+            "checked_at = CURRENT_TIMESTAMP, "
+            f"checked_from = CASE WHEN {contiguous} "
+            "THEN MIN(instrument_split_checked.checked_from, excluded.checked_from) "
+            "ELSE excluded.checked_from END, "
+            f"checked_to = CASE WHEN {contiguous} "
+            "THEN MAX(instrument_split_checked.checked_to, excluded.checked_to) "
+            "ELSE excluded.checked_to END"
         )
         async with self._db_client.tx(skip_last_update=True) as cursor:
-            await cursor.execute(sql, (str(uuid4()), instrument_key))
+            await cursor.execute(
+                sql,
+                (
+                    str(uuid4()),
+                    instrument_key,
+                    from_date.isoformat() if from_date is not None else None,
+                    to_date.isoformat() if to_date is not None else None,
+                ),
+            )
 
     async def get_empty_gap_days(
         self, instrument_key: str, from_date: date, to_date: date

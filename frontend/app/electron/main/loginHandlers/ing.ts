@@ -6,6 +6,8 @@ import {
 } from "."
 
 export const ING_ID = "e0000000-0000-0000-0000-000000000010"
+const GENOMA_LOGIN_COOKIE_URL =
+  "https://ing.ingdirect.es/genoma_login/rest/getScaStatus"
 
 export async function promptLogin(
   request: ExternalLoginRequest,
@@ -38,6 +40,29 @@ export async function promptLogin(
     flow: request.flow,
   }
 
+  let completing = false
+
+  async function completeLogin() {
+    if (completing) return
+    completing = true
+    try {
+      const cookies = await ingSession.cookies.get({
+        url: GENOMA_LOGIN_COOKIE_URL,
+      })
+      const genomaLoginCookie = cookies
+        .map(cookie => `${cookie.name}=${cookie.value}`)
+        .join("; ")
+      if (genomaLoginCookie) {
+        result.credentials.genomaLoginCookie = genomaLoginCookie
+      }
+    } catch (error) {
+      console.warn("Failed to read ING genoma_login cookies:", error)
+    }
+    result.success = true
+    sendCompletion(result)
+    closeWindow()
+  }
+
   ingSession.webRequest.onSendHeaders(
     { types: ["xhr"], urls: ["<all_urls>"] },
     details => {
@@ -58,9 +83,7 @@ export async function promptLogin(
             result.credentials.apiAuth &&
             result.credentials.apiExtendedSessionCtx
           ) {
-            result.success = true
-            sendCompletion(result)
-            closeWindow()
+            void completeLogin()
           }
         }
       } else if (details.url.endsWith("/position-keeping")) {
@@ -77,9 +100,7 @@ export async function promptLogin(
             result.credentials.genomaCookie &&
             result.credentials.genomaSessionId
           ) {
-            result.success = true
-            sendCompletion(result)
-            closeWindow()
+            void completeLogin()
           }
         }
       }

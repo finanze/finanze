@@ -12,6 +12,11 @@ class Feature(str, Enum):
     HISTORIC = "HISTORIC"
 
 
+class TransactionKind(str, Enum):
+    ACCOUNT = "ACCOUNT"
+    INVESTMENT = "INVESTMENT"
+
+
 class EntityType(str, Enum):
     FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION"
     CRYPTO_WALLET = "CRYPTO_WALLET"

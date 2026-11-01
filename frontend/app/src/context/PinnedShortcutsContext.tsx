@@ -19,7 +19,7 @@ export type PinnedShortcutId =
   | "real-estate"
   | "management-recurring"
   | "management-pending"
-  | "management-auto-contributions"
+  | "management-cashflow"
 
 interface PinnedShortcutsContextType {
   pinnedShortcuts: PinnedShortcutId[]
@@ -30,7 +30,9 @@ interface PinnedShortcutsContextType {
 }
 
 const STORAGE_KEY = "finanze-pinned-assets"
-const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
+const CASHFLOW_PIN_MIGRATION_KEY = "finanze-pinned-assets-cashflow-default-v1"
+const DEFAULT_CASHFLOW_SHORTCUT: PinnedShortcutId = "management-cashflow"
+export const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "banking",
   "stocks-etfs",
   "funds",
@@ -43,9 +45,13 @@ const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "real-estate",
   "management-recurring",
   "management-pending",
-  "management-auto-contributions",
+  "management-cashflow",
 ]
-const DEFAULT_PINNED: PinnedShortcutId[] = ["banking"]
+const LEGACY_SHORTCUT_IDS: Record<string, PinnedShortcutId> = {
+  "management-auto-contributions": "management-recurring",
+  "management-labels": "management-cashflow",
+}
+const DEFAULT_PINNED: PinnedShortcutId[] = ["banking", "management-cashflow"]
 
 const PinnedShortcutsContext = createContext<
   PinnedShortcutsContextType | undefined
@@ -54,12 +60,31 @@ const PinnedShortcutsContext = createContext<
 function loadPinnedShortcuts(): PinnedShortcutId[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
+    const migrationComplete =
+      localStorage.getItem(CASHFLOW_PIN_MIGRATION_KEY) === "true"
     if (raw) {
       const parsed = JSON.parse(raw) as string[]
-      const valid = parsed.filter((id): id is PinnedShortcutId =>
-        KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId),
-      )
-      return valid.length ? valid : DEFAULT_PINNED
+      const valid = parsed
+        .map(id => LEGACY_SHORTCUT_IDS[id] ?? id)
+        .filter(
+          (id, index, ids): id is PinnedShortcutId =>
+            KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId) &&
+            ids.indexOf(id) === index,
+        )
+      const shortcuts = valid.length ? valid : DEFAULT_PINNED
+      if (migrationComplete) return shortcuts
+
+      const migrated = shortcuts.includes(DEFAULT_CASHFLOW_SHORTCUT)
+        ? shortcuts
+        : [...shortcuts, DEFAULT_CASHFLOW_SHORTCUT]
+      if (migrated !== shortcuts) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+      }
+      localStorage.setItem(CASHFLOW_PIN_MIGRATION_KEY, "true")
+      return migrated
+    }
+    if (!migrationComplete) {
+      localStorage.setItem(CASHFLOW_PIN_MIGRATION_KEY, "true")
     }
     return DEFAULT_PINNED
   } catch {

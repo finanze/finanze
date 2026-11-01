@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 
 import httpx
 import js
@@ -167,7 +168,7 @@ class ImpersonatedHttpSession:
         force_http1: bool = False,
         disable_http3: bool = False,
     ):
-        self._session_id = f"tls-{id(self)}"
+        self._session_id = f"tls-{uuid4()}"
         self._headers = {}
         self._cookies = _TlsCookieJar()
         self._profile = self._PROFILE_MAP.get(impersonate, impersonate)

@@ -25,6 +25,8 @@ class LastFetchesQueries(str, Enum):
         VALUES (?, ?, ?, ?, ?)
     """
 
+    DELETE_BY_ENTITY_ID = "DELETE FROM last_fetches WHERE entity_id = ?"
+
 
 class FetchPointersQueries(str, Enum):
     GET_BY_ENTITY_ACCOUNT_ID = """

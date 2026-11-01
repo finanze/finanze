@@ -43,8 +43,15 @@
         <false />
         <key>LSRequiresIPhoneOS</key>
         <true />
+        <key>NSAppTransportSecurity</key>
+        <dict>
+            <key>NSAllowsLocalNetworking</key>
+            <true />
+        </dict>
         <key>NSFaceIDUsageDescription</key>
         <string>For local database auth</string>
+        <key>NSLocalNetworkUsageDescription</key>
+        <string>To connect to AI models hosted on your local network</string>
         <key>UILaunchStoryboardName</key>
         <string>LaunchScreen</string>
         <key>UIMainStoryboardFile</key>

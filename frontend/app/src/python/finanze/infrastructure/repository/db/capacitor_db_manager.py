@@ -18,6 +18,10 @@ from infrastructure.repository.db.capacitor_client import (
     CapacitorDBClient,
     UnderlyingConnection,
 )
+from infrastructure.repository.db.settings_snapshot import (
+    read_settings_rows,
+    restore_settings_rows_if_empty,
+)
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
 
@@ -290,6 +294,8 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
 
         db_name = self._db_name_for_user(user)
 
+        settings_rows = await read_settings_rows(self._client)
+
         await self.lock()
 
         await js.jsBridge.sqlite.importDatabaseFromStaging(
@@ -297,6 +303,11 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         )
         await delete_staging_file("DECOMPILED_DATA")
         await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
+
+        try:
+            await restore_settings_rows_if_empty(self._client, settings_rows)
+        except Exception as e:
+            self._log.exception("Could not restore settings after import: %s", e)
 
     async def get_last_updated(self) -> datetime:
         if not self._unlocked:

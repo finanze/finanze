@@ -8,24 +8,34 @@ import {
 import { useI18n } from "@/i18n"
 import { isNativeMobile } from "@/lib/platform"
 import { Sparkles } from "lucide-react"
-import type { Feature } from "@/types"
+import type { Feature, TransactionKind } from "@/types"
 import { ProductType } from "@/types/position"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 
 interface FeaturesBadgeProps {
   features: Feature[]
+  transactionKinds?: TransactionKind[] | null
   nativelySupportedProducts?: ProductType[] | null
   className?: string
 }
 
 export function FeaturesBadge({
   features,
+  transactionKinds,
   nativelySupportedProducts,
   className = "",
 }: FeaturesBadgeProps) {
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const isNativeApp = isNativeMobile()
+  const getFeatureLabel = (feature: Feature) => {
+    if (feature === "TRANSACTIONS" && transactionKinds?.length === 1) {
+      return transactionKinds[0] === "ACCOUNT"
+        ? t.features.accountTransactions
+        : t.features.investmentTransactions
+    }
+    return t.features[feature]
+  }
 
   const handleMouseEnter = () => {
     if (isNativeApp) return
@@ -70,7 +80,7 @@ export function FeaturesBadge({
             <div className="flex flex-wrap gap-1">
               {features.map(feature => (
                 <Badge key={feature} variant="secondary" className="text-xs">
-                  {t.features[feature]}
+                  {getFeatureLabel(feature)}
                 </Badge>
               ))}
             </div>

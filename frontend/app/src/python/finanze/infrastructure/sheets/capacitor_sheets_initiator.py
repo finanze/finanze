@@ -2,7 +2,11 @@ import logging
 from typing import Optional
 
 from application.ports.sheets_initiator import SheetsInitiator
-from domain.external_integration import ExternalIntegrationPayload
+from domain.exception.exceptions import FeatureNotSupported
+from domain.external_integration import (
+    CompleteExternalIntegrationConnectionRequest,
+    ExternalIntegrationPayload,
+)
 from domain.user import User
 
 
@@ -14,6 +18,16 @@ class CapacitorSheetsInitiator(SheetsInitiator):
 
     async def setup(self, payload: ExternalIntegrationPayload):
         self._payload = payload
+
+    async def start_authorization(
+        self, payload: ExternalIntegrationPayload, completion_url: Optional[str]
+    ) -> str:
+        raise FeatureNotSupported()
+
+    async def complete_authorization(
+        self, request: CompleteExternalIntegrationConnectionRequest
+    ) -> ExternalIntegrationPayload:
+        raise FeatureNotSupported()
 
     def connect(self, user: User):
         self._user = user

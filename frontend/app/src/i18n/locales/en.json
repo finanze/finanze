@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Back",
+    "backTo": "Back to {page}",
     "backToTop": "Back to top",
     "submit": "Submit",
     "loading": "Loading...",
@@ -205,10 +206,12 @@
     "averageBuyPrice": "Avg. buy price",
     "perSharePrice": "per share",
     "isin": "ISIN",
+    "ticker": "Ticker",
     "portfolio": "Portfolio",
     "ofInvestmentType": "of {type}",
     "noPositionsFound": "No {type} positions found for selected entities",
     "noPositionsAvailable": "No {type} available",
+    "noInvestmentsRegistered": "No investments registered",
     "numberOfAssets": "Number of Assets",
     "asset": "asset",
     "assets": "assets",
@@ -482,6 +485,7 @@
     "invalidPasswordFormat": "Encryption key must be at least 8 characters",
     "inAppConfirmationTitle": "Confirm login in",
     "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
+    "inAppOldTxsConfirmationMessage": "Open the financial institution app on your phone and confirm the request to access older transactions.",
     "challengeTitle": "Security verification for",
     "challengeMessage": "Please complete the security verification to continue.",
     "cloudRestore": {
@@ -505,14 +509,22 @@
       "guestCreationFailed": "Failed to prepare account. Please try again.",
       "loginAfterRestoreFailed": "Data restored but login failed. Please try logging in manually.",
       "backToSignup": "Back to sign up"
+    },
+    "regionRestricted": {
+      "title": "Not available in your country",
+      "description": "Finanze cannot be used in your current country or region. We are sorry for the inconvenience."
     }
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
+    "authenticatorHint": "Enter the code from your authenticator app.",
     "codeDelayTip": "Info: Sometimes the 2FA code can take a bit to arrive",
+    "twoFactorOldTxsHint": "Main data is already fetched. Enter the extra code to also fetch older account transactions.",
+    "twoFactorOldTxsHintDestination": "Main data is already fetched. Enter the extra code sent to {destination} to also fetch older account transactions.",
     "cancelConfirmationTitle": "Cancel verification?",
     "cancelLoginDescription": "Do you want to leave the login process?",
     "cancelFetchDescription": "Do you want to leave the fetch process?",
+    "cancelOldTxsDescription": "Main data is already saved. Do you want to skip older account transactions?",
     "pendingRequests": "Other entities need a code",
     "switchToEntity": "{entity}",
     "otpInputLabel": "Verification code"
@@ -521,6 +533,12 @@
     "INVALID_CODE": "Invalid code provided",
     "INVALID_CREDENTIALS": "Invalid credentials for {entity}",
     "INVALID_PRIVATE_KEY": "The provided private key for {integration} is invalid.",
+    "INVALID_URL": "The URL for {integration} is not valid.",
+    "UNREACHABLE": "Could not reach {integration}. Check that the server is running and the URL is correct.",
+    "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom AI, or start llama-server without -m to manage models from Finanze.",
+    "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
+    "AUTHORIZATION_DENIED": "Access to {integration} was denied or the required permissions were not granted.",
+    "AUTHORIZATION_EXPIRED": "The {integration} authorization expired or is no longer valid. Please try again.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -535,6 +553,7 @@
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
     "PARTIALLY_COMPLETED_FEATURES": "Some features could not be loaded for {entity}: {features}.",
+    "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} did not allow fetching movements older than 3 months. Request them first in the {entity} app on your main device, approve the signature there and fetch again.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
@@ -562,6 +581,8 @@
   },
   "entities": {
     "title": "Integrations",
+    "tabEntities": "Entities",
+    "tabProviders": "Providers",
     "storeNotice": "This version does not support connections with financial entities. You can manage your data manually, import from files, visit {link} for more options.",
     "storeNoticeLink": "finanze.me",
     "connected": "Connected",
@@ -574,7 +595,7 @@
     "cannotConnect": "Cannot Connect",
     "requiresExternalIntegrations": "Requires integration setup",
     "setupIntegrationsMessage": "Setup required integrations to connect this entity:",
-    "goToSettings": "Go to Settings",
+    "goToProviders": "Set up providers",
     "userEntered": "User Entered",
     "importData": "Import",
     "runImport": "Import data",
@@ -626,8 +647,12 @@
     "enableBankingNoLinkedAccountsBefore": "You may not have linked this bank yet in the",
     "enableBankingNoLinkedAccountsLinkLabel": "Enable Banking dashboard",
     "enableBankingNoLinkedAccountsAfter": ". Link it there first, then try again.",
+    "psuTypeTitle": "Account type",
+    "psuTypePersonal": "Personal",
+    "psuTypeBusiness": "Business",
     "confirmConnection": "Complete Connection",
     "providerLinkInstructions": "Finish the process in the opened window then confirm the connection.",
+    "completingConnection": "Completing the connection, this may take a few seconds...",
     "openLink": "Open Link",
     "dismiss": "Dismiss",
     "continueLink": "Continue link",
@@ -642,6 +667,8 @@
     "POSITION": "Positions",
     "AUTO_CONTRIBUTIONS": "Auto Contributions",
     "TRANSACTIONS": "Transactions",
+    "accountTransactions": "Account TXs",
+    "investmentTransactions": "Investment TXs",
     "HISTORIC": "Historic Data",
     "selectFeatures": "Select features to fetch from",
     "selectAll": "Select all",
@@ -649,6 +676,12 @@
     "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "twoFactorOldTxs": "Include older account transactions",
+    "twoFactorOldTxsDescription": "Fetch account transactions beyond the usual 3-month limit. An extra verification code will be requested at the end.",
+    "twoFactorOldTxsEntityDescription": {
+      "e0000000-0000-0000-0000-000000000011": "Fetch account transactions beyond the usual 3-month limit. Before fetching, request movements older than 3 months in the Cajamar app on your main device and approve the signature there."
+    },
+    "twoFactorOldTxsSkipped": "Older account transactions from {entity} were skipped",
     "advancedOptions": "Advanced options",
     "availableFeatures": "Available Features",
     "supportedProducts": "Supported Products",
@@ -670,6 +703,22 @@
     "dataDisplayModeDescription": "Hide sensitive financial data by blurring amounts and percentages.",
     "dataDisplayModeNone": "Off",
     "dataDisplayModePrivate": "On",
+    "bottomNav": {
+      "title": "Bottom bar",
+      "inBar": "In the bar",
+      "inMenu": "In the More menu",
+      "slots": "{used}/{max}",
+      "fixedMenu": "More stays at the end",
+      "minimum": "At least 4 pages must stay in the bar.",
+      "maximum": "All 6 slots are taken. Move a page to the menu to free one.",
+      "moveToMenu": "Move {page} to menu",
+      "moveToBar": "Move {page} to bar",
+      "reorder": "Reorder {page}",
+      "remove": "Remove {page} shortcut",
+      "addShortcut": "Add shortcut",
+      "add": "Add {page} shortcut",
+      "reset": "Reset to default"
+    },
     "userTitle": "Account",
     "userDescription": "Manage your account.",
     "biometricCredentialsActionTitle": "Disable biometric login",
@@ -687,6 +736,14 @@
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
+    "currencyOptions": {
+      "EUR": "EUR - Euro",
+      "USD": "USD - US Dollar"
+    },
+    "currencyChangeTitle": "Change main currency?",
+    "currencyChangeMessage": "Are you sure you want to change the main currency to {currency}?",
+    "currencyChangeWarning": "All assets and data will be displayed in {currency}. New entries you add will also use {currency}.",
+    "currencyChangeConfirm": "Use {currency}",
     "editMode": "Manual edit mode",
     "editModeDescription": "Choose how you update your positions and contributions.",
     "editModeOptions": {
@@ -761,6 +818,68 @@
       "errorReportingLabel": "Send error reports",
       "errorReportingDescription": "Share pseudonymous crash and error reports identified only by an installation ID so bugs can be fixed. Amounts, account details and personal data are never sent.",
       "installId": "Installation ID"
+    },
+    "mcp": {
+      "toolCategories": {
+        "title": "Tool categories",
+        "category": "Category",
+        "read": "Read",
+        "write": "Write",
+        "essential": "Essential",
+        "essentialLocked": "Context and entities are always available",
+        "writesPaused": "Writes are paused by global read-only mode",
+        "activeCount": "{active}/{total} active",
+        "toolCount": "{count} tools",
+        "readAccess": "Read {category}",
+        "writeAccess": "Write {category}",
+        "readTools": "Read tools in {category}",
+        "writeTools": "Write tools in {category}",
+        "restoreDefaults": "Restore defaults",
+        "names": {
+          "positions": "Positions & Net Worth",
+          "transactions": "Transactions",
+          "activity_labels": "Activity & Labels",
+          "budget": "Budget & Contributions",
+          "crypto": "Crypto",
+          "real_estate": "Real Estate",
+          "market_data": "Market Data",
+          "calculators": "Calculators",
+          "connections": "Connections & Refresh"
+        }
+      },
+      "tabTitle": "MCP",
+      "title": "MCP server",
+      "description": "Let AI assistants and MCP-compatible clients query your Finanze data through the Model Context Protocol.",
+      "enableLabel": "Enable MCP server",
+      "enableDescription": "Clients authenticated with the access token can read your positions, transactions, flows and more.",
+      "readOnlyLabel": "Read only",
+      "readOnlyDescription": "When enabled, assistants can only read your data. Turn it off to let them create, edit and delete data, connect integrations and fetch entities.",
+      "readOnlyWarning": "Read-only mode is off. Assistants can modify and delete your data. Review what they do carefully.",
+      "connectionTitle": "Connection",
+      "serverUrl": "Server URL",
+      "token": "Access token",
+      "regenerateToken": "Regenerate",
+      "regenerateConfirmTitle": "Regenerate access token?",
+      "regenerateConfirmMessage": "Clients using the current token will stop working until you update their configuration.",
+      "tokenRegenerated": "Access token regenerated",
+      "runningNote": "Finanze must be running and unlocked for clients to connect. Reconnect your clients after changing access or tool categories so they refresh the available tools.",
+      "clientsTitle": "Client setup",
+      "clientsDescription": "Copy the configuration for your client. The copied text includes your access token.",
+      "clients": {
+        "vscode": "VS Code",
+        "claudeCode": "Claude Code",
+        "cursor": "Cursor",
+        "claudeDesktop": "Claude Desktop"
+      },
+      "clientHints": {
+        "vscode": "Add it to .vscode/mcp.json in your workspace or to your user mcp.json.",
+        "claudeCode": "Run it in a terminal.",
+        "cursor": "Add it to ~/.cursor/mcp.json or .cursor/mcp.json in your project.",
+        "claudeDesktop": "Add it to claude_desktop_config.json and restart Claude Desktop. Requires Node.js."
+      },
+      "loadError": "Could not load the MCP settings",
+      "updateError": "Could not update the MCP settings",
+      "regenerateError": "Could not regenerate the access token"
     },
     "cloud": {
       "tabTitle": "Cloud",
@@ -875,7 +994,6 @@
         "MANUAL": "You control when backups are checked and synced"
       },
       "data": "Data",
-      "config": "Config",
       "lastBackup": "Last Backup Date",
       "noBackupYet": "No backup yet",
       "pendingBackup": "Pending",
@@ -998,7 +1116,6 @@
       "clientIdRequired": "Client ID is required when configuring Google Sheets integration",
       "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
     },
-    "googleSheetsWebDisabled": "Use desktop app",
     "integrationHintButton": "View instructions",
     "privateKeyField": {
       "dropHint": "Drop your private key file here",
@@ -1012,7 +1129,61 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
-        "description": "Configure your Google Sheets API to enable data import and export."
+        "description": "Configure your Google Sheets API to enable data import and export.",
+        "help": "How to get the credentials",
+        "hint": {
+          "title": "Set up Google Sheets access",
+          "steps": [
+            [
+              "Open the ",
+              {
+                "type": "link",
+                "label": "Google Cloud Console",
+                "url": "https://console.cloud.google.com/"
+              },
+              ", create or select a project and enable the ",
+              {
+                "type": "link",
+                "label": "Google Sheets API",
+                "url": "https://console.cloud.google.com/apis/library/sheets.googleapis.com"
+              },
+              "."
+            ],
+            [
+              "Configure the ",
+              {
+                "type": "link",
+                "label": "OAuth consent screen",
+                "url": "https://console.cloud.google.com/auth/overview"
+              },
+              " and publish it **In production** (it can stay unverified), otherwise the access expires every 7 days."
+            ],
+            [
+              "Create an ",
+              {
+                "type": "link",
+                "label": "OAuth client",
+                "url": "https://console.cloud.google.com/auth/clients"
+              },
+              " of type **Web application** (Desktop app clients are no longer supported)."
+            ],
+            [
+              "Add this URL to the **Authorized redirect URIs** ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/oauth/v1/integration/callback/",
+                "url": "https://finanze.me/oauth/v1/integration/callback/"
+              },
+              ". This field is **so important**."
+            ],
+            [
+              "Paste the **Client ID** and **Client secret** below, press Setup and authorize access with your Google account."
+            ],
+            [
+              "*Google may warn that the app is not verified, as it is your own app you can continue through \"Advanced\".*"
+            ]
+          ]
+        }
       },
       "ETHERSCAN": {
         "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC (paid) nets (recommended only if standard fetch fails, or if using a paid API).",
@@ -1175,16 +1346,216 @@
             }
           ]
         }
+      },
+      "OPENROUTER": {
+        "description": "Connect OpenRouter to get automatic label suggestions for your account movements using the model you choose.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an OpenRouter API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Create an account at "
+            },
+            {
+              "type": "link",
+              "label": "openrouter.ai",
+              "url": "https://openrouter.ai/settings/keys"
+            },
+            {
+              "type": "text",
+              "value": ", generate a new API key and paste it below. Usage is billed by OpenRouter."
+            }
+          ]
+        }
+      },
+      "OPENAI": {
+        "description": "Connect OpenAI to get automatic label suggestions for your account movements using GPT models.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an OpenAI API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Sign in to the OpenAI platform at "
+            },
+            {
+              "type": "link",
+              "label": "platform.openai.com",
+              "url": "https://platform.openai.com/api-keys"
+            },
+            {
+              "type": "text",
+              "value": ", create a new secret key and paste it below. Usage is billed by OpenAI."
+            }
+          ]
+        }
+      },
+      "OPENAI_COMPATIBLE": {
+        "description": "Connect any OpenAI-compatible server, such as Ollama, LM Studio, vLLM or llama.cpp, to label your movements with models you host yourself.",
+        "help": "How to connect",
+        "hint": {
+          "title": "Connect an OpenAI-compatible server",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Enter the base URL of the server API, for example http://localhost:11434/v1 for Ollama or http://localhost:1234/v1 for LM Studio. The API key is only needed if your server requires one."
+            }
+          ]
+        }
+      },
+      "LOCAL_MODELS": {
+        "description": "Run small AI models privately, on this device or on your own llama.cpp server. Download them from here and use them to label your movements.",
+        "help": "How it works",
+        "hint": {
+          "title": "Local models",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Models run with "
+            },
+            {
+              "type": "link",
+              "label": "llama.cpp",
+              "url": "https://github.com/ggml-org/llama.cpp"
+            },
+            {
+              "type": "text",
+              "value": ". To use your own server, start llama-server in router mode (without -m) and enter its URL and API key. Ollama, LM Studio or a single-model llama-server go in Custom AI."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
+    "integrationAwaitingAuthorization": "Waiting for authorization in your browser...",
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
+    "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",
+    "localModels": {
+      "builtInMode": "Built-in engine",
+      "serverMode": "My llama.cpp server",
+      "builtInNotice": "Models run on this device with the built-in engine. It only starts when needed and stops after a while without use.",
+      "serverNotice": "Enter the URL of a llama.cpp server started in router mode (without -m). Ollama, LM Studio or a single-model llama-server go in Custom AI.",
+      "envUrlNotice": "The server environment already sets FINANZE_LLAMA_SERVER_URL = {url}{key}. Leave the fields blank to use it, values entered here override it.",
+      "envKeySuffix": " and an API key",
+      "precedence": "Priority: entered values, then environment, then built-in engine.",
+      "overridesEnvironment": "optional, overrides environment",
+      "envKeyPlaceholder": "Set by environment",
+      "using": {
+        "BUILT_IN": "Using the built-in engine",
+        "ENVIRONMENT": "Using the server from the environment ({url})",
+        "PAYLOAD": "Using {url}"
+      },
+      "unreachable": "Not available",
+      "manage": "Manage models",
+      "dialogTitle": "Local models",
+      "moreModels": "+{count} more",
+      "models": "Models",
+      "noModels": "No models yet. Download a recommended one or any GGUF model from Hugging Face.",
+      "externalHint": "Models in your server's models folder are also listed here. After adding files there, press Refresh.",
+      "import": "Import GGUF",
+      "importTitle": "Select a GGUF model file",
+      "importSuccess": "{model} imported",
+      "importHint": "Imported files are used from where they are, they are not copied. You can also drop GGUF files in the models folder and press Refresh.",
+      "openFolder": "Open folder",
+      "recommended": "Recommended",
+      "params": "{params} parameters",
+      "downloadSize": "{size} download",
+      "ram": "~{ram} RAM",
+      "ramWarning": "May not fit in this device's memory",
+      "languages": "Languages: {languages}",
+      "downloadStarted": "Downloading {model}",
+      "cancelDownload": "Cancel download",
+      "downloadFailed": "The download of {model} failed or was interrupted.",
+      "deleteTitle": "Delete model",
+      "deleteMessage": "{model} will be removed. You can download it again later.",
+      "deleteImportedMessage": "{model} will be removed from Finanze. The original file is kept.",
+      "deleted": "{model} deleted",
+      "huggingFace": "More models from Hugging Face",
+      "huggingFaceHint": "Enter a Hugging Face repository with GGUF files, for example unsloth/Qwen3.5-4B-GGUF. Small models (under 4B parameters) work best on most devices.",
+      "repoPlaceholder": "owner/repository",
+      "find": "Find",
+      "variant": "Variant",
+      "noQuants": "No compatible GGUF files found in this repository.",
+      "invalidRepo": "Enter the repository as owner/name.",
+      "unverifiedModel": "Could not check if this model is compatible. If it fails to start, delete it and try another one.",
+      "failedHint": "It could not be started. The engine may not support it or it may need more memory than available.",
+      "failedLogHint": "Details are in llama-server.log inside the models folder.",
+      "decisions": "Decision model",
+      "states": {
+        "UNLOADED": "Ready",
+        "LOADING": "Loading",
+        "LOADED": "Loaded",
+        "SLEEPING": "Idle",
+        "DOWNLOADING": "Downloading",
+        "FAILED": "Failed to start",
+        "MISSING": "File not found"
+      },
+      "sources": {
+        "CATALOG": "Recommended",
+        "HUGGING_FACE": "Hugging Face",
+        "IMPORTED": "Imported",
+        "SERVER": "Server"
+      },
+      "errors": {
+        "MISSING_SERVER_URL": "Enter the URL of your llama.cpp server.",
+        "INVALID_URL": "The server URL is not valid.",
+        "UNREACHABLE": "Could not reach the server. Check that it is running and the URL is correct.",
+        "UNAUTHORIZED": "The server rejected the API key.",
+        "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom AI, or start llama-server without -m to manage models from here.",
+        "SERVER_ERROR": "The server returned an error.",
+        "RUNTIME_FAILED": "The built-in engine could not be started.",
+        "MODEL_NOT_FOUND": "The model was not found.",
+        "INVALID_MODEL": "The model is not valid.",
+        "DOWNLOAD_FAILED": "The model could not be downloaded.",
+        "NOT_DELETABLE": "This model is managed by the server and cannot be deleted from here.",
+        "INSUFFICIENT_SPACE": "Not enough free disk space for this model.",
+        "IMPORT_UNSUPPORTED": "Importing files is only available with the built-in engine.",
+        "INVALID_FILE": "The file is not a valid GGUF model.",
+        "HUGGING_FACE_UNAVAILABLE": "Could not get the repository from Hugging Face.",
+        "HUGGING_FACE_REPO_NOT_FOUND": "Could not find this Hugging Face repository. It may be private or gated.",
+        "UNSUPPORTED_MODEL": "This is an encoder or embedding model, it can't label movements. Choose a chat or decision model."
+      }
+    },
+    "aiServer": {
+      "button": "Server details",
+      "title": "Server details",
+      "refresh": "Refresh",
+      "status": "Status",
+      "connected": "Connected",
+      "respondedWithError": "Responded with an error",
+      "unreachable": "Not reachable",
+      "latency": "{ms} ms",
+      "server": "Server",
+      "unknownServer": "OpenAI-compatible server",
+      "endpoint": "Endpoint",
+      "apiKey": "API key",
+      "apiKeySet": "Sent with each request",
+      "apiKeyNotSet": "Not set",
+      "models": "Models",
+      "modelCount": "{count} available",
+      "loadedCount": "{count} loaded",
+      "loaded": "Loaded",
+      "notLoaded": "Not loaded",
+      "context": "{context} context",
+      "decisions": "Decision model",
+      "noModels": "The server does not list any models.",
+      "unknownHint": "Version, loaded models and context size are shown for Ollama, LM Studio, llama.cpp and vLLM.",
+      "errors": {
+        "UNREACHABLE": "Could not connect. Check that the server is running, the URL is correct and it accepts connections from this device.",
+        "UNAUTHORIZED": "The server rejected the API key.",
+        "NOT_FOUND": "There is no model list at this URL. Check the path, it usually ends in /v1.",
+        "SERVER_ERROR": "The server returned an error when listing its models.",
+        "INVALID_RESPONSE": "The server answered, but not with an OpenAI-compatible model list."
+      }
+    },
     "integrationCategories": {
       "ENTITY_PROVIDER": "Banking providers",
       "CRYPTO_PROVIDER": "Crypto providers",
       "CRYPTO_MARKET_PROVIDER": "Crypto market data",
+      "AI_PROVIDER": "AI providers",
       "DATA_SOURCE": "Data sources"
     }
   },
@@ -1251,7 +1622,7 @@
     "includePendingMoneyInfo": "With this option enabled, pending (expenses or earnings) will be considered in the Pending Money section when calculating the net worth.",
     "includeLoans": "Include loans & credits",
     "includeLoansInfo": "This option means loans outstanding principal and credit lines drawn amount are considered when calculating net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
-    "includeCardExpenses": "Subtract card expenses",
+    "includeCardExpenses": "Subtract credit card usage",
     "includeRealEstateEquity": "Include real estate equity",
     "includeRealEstateEquityInfo": "Enabling this option means real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
     "includeResidences": "Include residences",
@@ -1740,6 +2111,12 @@
     "selectAccounts": "Select accounts...",
     "selectProductTypes": "Select product types...",
     "selectTransactionTypes": "Select transaction types...",
+    "scope": {
+      "label": "Show",
+      "all": "All",
+      "account": "Accounts",
+      "investment": "Investments"
+    },
     "form": {
       "createTitle": "Add transaction",
       "editTitle": "Edit transaction",
@@ -1813,6 +2190,384 @@
       "calendarView": "Calendar"
     }
   },
+  "labels": {
+    "title": "Labels",
+    "tabs": {
+      "labels": "Labels",
+      "rules": "Rules",
+      "automation": "Automation"
+    },
+    "base": {
+      "salary": "Salary",
+      "business_income": "Business income",
+      "rental_income": "Rental income",
+      "refunds": "Refunds",
+      "gifts_received": "Gifts received",
+      "interest": "Interest",
+      "other_income": "Other income",
+      "housing": "Housing",
+      "utilities": "Utilities",
+      "groceries": "Groceries",
+      "restaurants": "Restaurants",
+      "transport": "Transport",
+      "shopping": "Shopping",
+      "subscriptions": "Subscriptions",
+      "health": "Health",
+      "insurance": "Insurance",
+      "education": "Education",
+      "leisure": "Leisure",
+      "travel": "Travel",
+      "personal_care": "Personal care",
+      "pets": "Pets",
+      "family": "Family",
+      "gifts_donations": "Gifts & donations",
+      "taxes": "Taxes",
+      "bank_fees": "Bank fees",
+      "cash_withdrawal": "Cash withdrawal",
+      "debt_payments": "Debt payments",
+      "other_expense": "Other expenses",
+      "internal_transfer": "Internal transfer",
+      "savings_investment": "Savings & investment"
+    },
+    "origins": {
+      "MANUAL": "Manual",
+      "RULE": "Rules",
+      "EXTERNAL": "Suggestions"
+    },
+    "settlement": "Investment",
+    "settlementHint": "This movement is the cash side of an investment operation, so it is not counted as income or expense.",
+    "editTransactionLabels": "Edit labels",
+    "addLabel": "Label",
+    "searchLabels": "Search labels...",
+    "transactionLabelsSaved": "Labels updated",
+    "saveError": "Unable to save changes",
+    "deleteError": "Unable to delete",
+    "createRuleFromMovement": "Create rule",
+    "lockLabels": "Lock labels",
+    "lockLabelsHint": "Relabeling, rules and suggestions will never change the labels of this movement.",
+    "unlinkSettlement": "Unlink from investment operation",
+    "transferPair": "Transfer",
+    "transferPairOtherEntity": "another entity",
+    "transferPairHint": "Paired as a transfer with a movement of the same amount in {entity}.",
+    "unpairTransfer": "Unpair transfer",
+    "unpairTransferHint": "Labels are locked so this movement is not paired again.",
+    "newLabel": "New label",
+    "editLabel": "Edit label",
+    "labelName": "Name",
+    "labelDescription": "Description",
+    "labelDescriptionHint": "Optional. Helps suggestions understand what belongs to this label.",
+    "baseLabelNameHint": "Leave empty to keep the default name.",
+    "nameRequired": "Enter a name",
+    "color": "Color",
+    "customColor": "Custom color",
+    "category": "Type",
+    "advanced": "Advanced",
+    "subcategory": "Subcategory",
+    "protectedLabel": "Protected label",
+    "subcategories": {
+      "NEED": "Need",
+      "WANTS": "Wants",
+      "SAVINGS": "Savings",
+      "NONE": "None"
+    },
+    "categoryHints": {
+      "EXPENSE": "Grouped with your spending labels.",
+      "INCOME": "Grouped with your income labels.",
+      "EXCLUDED": "Movements with this label are not counted as income or expenses, e.g. transfers between your own accounts."
+    },
+    "excluded": "Excluded",
+    "labelSaved": "Label saved",
+    "labelDeleted": "Label deleted",
+    "usage": "{count} movements",
+    "noUsage": "Not used yet",
+    "changeIcon": "Change icon",
+    "categories": {
+      "EXPENSE": "Spending",
+      "INCOME": "Income",
+      "EXCLUDED": "Not counted in totals"
+    },
+    "deleteLabelTitle": "Delete label",
+    "deleteLabelMessage": "Delete the label \"{name}\"? It will be removed from every movement.",
+    "deleteLabelWarning": "Rules that only apply this label will also be deleted.",
+    "unlabeled": "Unlabeled",
+    "anyLabel": "Any label",
+    "includeLabel": "With this label",
+    "excludeLabel": "Without this label",
+    "counterparty": "Counterparty",
+    "searchTextPlaceholder": "Search by name",
+    "manualLabelsHint": "Labels chosen here are kept. Leave empty to let your rules decide.",
+    "rules": {
+      "newRule": "New rule",
+      "editRule": "Edit rule",
+      "name": "Name",
+      "namePlaceholder": "Optional",
+      "when": "When the movement matches",
+      "then": "Apply these labels",
+      "textField": "Field",
+      "textOperator": "Condition",
+      "textValue": "Text",
+      "textValuePlaceholder": "e.g. netflix",
+      "fields": {
+        "ANY": "All",
+        "NAME": "Name",
+        "COUNTERPARTY": "Counterparty"
+      },
+      "operators": {
+        "CONTAINS": "Contains",
+        "STARTS_WITH": "Starts with",
+        "EQUALS": "Is exactly",
+        "REGEX": "Matches pattern"
+      },
+      "anyType": "Any type",
+      "lookIn": "Look in",
+      "amount": "Amount",
+      "min": "Min",
+      "max": "Max",
+      "dateRange": "Dates",
+      "moreConditions": "More conditions",
+      "minAmount": "Minimum amount",
+      "maxAmount": "Maximum amount",
+      "anyCurrency": "Any currency",
+      "dayOfMonth": "Day of month",
+      "dayFrom": "From day",
+      "dayTo": "To day",
+      "dayOfMonthHint": "Ranges can wrap around the month end, e.g. 28 – 3.",
+      "applyToExisting": "Apply to existing movements",
+      "applyToExistingHint": "Labels already matching movements, except the ones with kept labels.",
+      "preview": "Preview",
+      "previewCount": "{count} movements match",
+      "conditionRequired": "Add at least one condition",
+      "labelRequired": "Choose at least one label",
+      "invalidRule": "The rule is not valid, review the conditions",
+      "saved": "Rule saved",
+      "savedApplied": "Rule saved and applied to {count} movements",
+      "deleted": "Rule deleted",
+      "emptyTitle": "No rules yet",
+      "empty": "Rules label your movements automatically. Create one here or use \"Create rule\" from any movement.",
+      "unnamed": "Unnamed rule",
+      "daysSummary": "Days {from} – {to}",
+      "kind": "Rule type",
+      "kinds": {
+        "MATCH": "Match conditions",
+        "TRANSFER": "Transfers between accounts"
+      },
+      "kindHints": {
+        "MATCH": "Labels each movement matching text, type, amount or dates.",
+        "TRANSFER": "Pairs money leaving one account with the same amount arriving at another."
+      },
+      "transferWhen": "When two movements look like a transfer",
+      "transferExplanation": "An outflow in one account and an inflow of the same amount and currency in another account, within the allowed days, are paired and both get labeled. Accounts of the same entity are only paired when their IBANs are known.",
+      "transferThen": "Label both movements with",
+      "transferApplyToExistingHint": "Pairs and labels existing movements too, except the ones with kept labels.",
+      "transferEntitiesHint": "Leave empty to pair movements across all your entities.",
+      "accounts": "Accounts",
+      "anyAccount": "Any account",
+      "accountsHint": "Only movements of these accounts. Movements without a known IBAN never match.",
+      "transferAccountsHint": "Both movements must belong to these accounts. Leave empty to use all accounts.",
+      "transferUnnamed": "Transfers between my accounts",
+      "maxDays": "Maximum days apart",
+      "maxDaysHint": "Days allowed between the outflow and the inflow. 0 means same day.",
+      "maxDaysSummary": "Up to {days} days apart",
+      "sameDay": "Same day",
+      "deleteTitle": "Delete rule",
+      "deleteMessage": "Delete this rule? Labels it applied will be removed from movements."
+    },
+    "relabel": {
+      "title": "Relabel movements",
+      "description": "Run your rules again over existing movements. Movements with kept labels and investment settlements are skipped.",
+      "open": "Relabel",
+      "count": "Count",
+      "run": "Relabel",
+      "withLabels": "With labels",
+      "withoutLabels": "Without labels",
+      "unlabeledOnly": "Only unlabeled movements",
+      "replace": "Replace labels from",
+      "lockedHint": "Movements with locked labels are never changed.",
+      "includeExternal": "Use {provider} as fallback when no rule matches",
+      "includeExternalHint": "Movements left without a label after your rules run are sent to {provider} for a suggestion. Uses your External suggestions setup.",
+      "retryUnmatched": "Retry movements {provider} could not label before",
+      "retryUnmatchedHint": "By default they are skipped to avoid paying for them again.",
+      "matched": "{count} movements selected",
+      "summary": "{rules} labeled by rules · {external} labeled by suggestions",
+      "done": "Movements relabeled",
+      "externalFailed": "Movements relabeled, but suggestions could not be retrieved"
+    },
+    "automation": {
+      "rulesTitle": "Rules",
+      "rulesAlwaysOn": "Apply rules to new movements",
+      "rulesAlwaysOnHint": "Every movement that is synced, imported or added manually is labeled by your enabled rules as soon as it is saved.",
+      "alwaysOn": "Always on",
+      "optional": "Optional"
+    },
+    "external": {
+      "title": "External suggestions",
+      "enable": "Use an external provider",
+      "description": "Label the movements that none of your rules match with an external model.",
+      "moreSettings": "More settings",
+      "noProviders": "No providers available.",
+      "provider": "Provider",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "unavailableHere": "Not available on this device",
+      "providerUnavailable": "{provider} is not available on this device, so suggestions are skipped here. They keep working on devices that support it. Choose another provider to also get suggestions here.",
+      "connectProvider": "Configure it in integrations",
+      "connectRequired": "Connect the provider or turn off external suggestions to save.",
+      "model": "Model",
+      "decisionModel": "Decision model",
+      "customModel": "Other model",
+      "customModelHint": "Use any other model ID offered by {provider}.",
+      "customModelUnlistedHint": "For a model your server can run but does not list above, for example one behind a proxy or an alias.",
+      "customModelPlaceholder": "openai/gpt-6-luna",
+      "customModelPlaceholders": {
+        "OPENAI": "gpt-6.1-sol",
+        "OPENAI_COMPATIBLE": "qwen3.5:9b"
+      },
+      "customModelNotice": "Some models can be slow and expensive when categorizing many movements. Faster and cheaper models are recommended.",
+      "validate": "Validate",
+      "modelValid": "Model supported",
+      "modelInvalid": "Model not found or not supported",
+      "upstreamProvider": "Provider",
+      "upstreamProviderPlaceholder": "Provider (optional)",
+      "upstreamProviderHint": "Optionally route requests to a specific provider, e.g. openai/flex. Requests will only go to that provider, without fallbacks.",
+      "minConfidence": "Minimum confidence (%)",
+      "minConfidenceHint": "Suggestions below this confidence are discarded.",
+      "minConfidenceNotApplicable": "This model does not report confidence, so every suggestion is applied.",
+      "maxPerRun": "Maximum movements per run",
+      "maxPerRunHint": "Limits usage on each sync or relabel.",
+      "autoRun": "Use as fallback when no rule matches",
+      "autoRunHint": "When new movements arrive (syncs, imports or manual entries), your rules are applied first and only the ones left without a label are sent to the provider for a suggestion. When off, the provider is only used when you run a relabel.",
+      "examples": "Feed with examples",
+      "examplesHint": "Include some of your already labeled movements with each request so the model learns how you label and suggests more accurately.",
+      "examplesCount": "Number of examples",
+      "examplesFrom": "Use labels set by",
+      "instructions": "Custom instructions",
+      "instructionsHint": "For advanced users. Extra guidance added to what is sent to the model, for example how to label specific payees.",
+      "instructionsPlaceholder": "e.g. Transfers from Ana are rent. Padel club payments are leisure.",
+      "privacyNotice": "Movement names, counterparties, amounts, currencies and dates are sent to the provider. Account numbers and balances are never shared.",
+      "providerAndModelRequired": "Choose a provider and a model",
+      "loadingModels": "Loading models...",
+      "noModelsAvailable": "No models available yet.",
+      "searchModels": "Search models",
+      "noModelsMatch": "No models match your search.",
+      "modelsError": "Could not load the models from the provider.",
+      "modelUnavailable": "The selected model ({model}) is no longer available. Choose another one.",
+      "manageModels": "Manage models",
+      "modelLoaded": "Loaded",
+      "modelFailed": "Failed to start",
+      "modelLoadFailed": "{model} failed to start the last time it was used. It may not be supported or need more memory. Choose another model or check Manage models.",
+      "smallModelWarning": "Small models may not handle this many labels well and can suggest the wrong ones. Larger models give better results."
+    }
+  },
+  "cashflow": {
+    "title": "Activity",
+    "tabs": {
+      "analysis": "Analysis"
+    },
+    "presets": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last3Months": "3 months",
+      "last6Months": "6 months",
+      "last12Months": "12 months",
+      "ytd": "Year to date",
+      "custom": "Custom"
+    },
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "savingsRate": "Savings rate",
+    "targetShort": "target",
+    "expensesToIncomeRatio": "Expenses as % of income",
+    "vsPrevious": "Change vs previous period",
+    "movementsCount": "{count} movements",
+    "excludedCount": "{count} excluded",
+    "excludedInfo": "Investment settlements and movements with labels excluded from totals are not counted.",
+    "evolution": "Evolution",
+    "evolutionViews": {
+      "bars": "Bar chart",
+      "composition": "Spending composition",
+      "heatmap": "Daily heatmap"
+    },
+    "evolutionViewLabels": {
+      "bars": "Spending",
+      "composition": "Expenses",
+      "heatmap": "Daily"
+    },
+    "composition": {
+      "modes": {
+        "labels": "Labels",
+        "budget": "Needs, wants & savings"
+      },
+      "otherLabels": "Other labels",
+      "remainder": "Remainder",
+      "spending": "Spending",
+      "savings": "Savings"
+    },
+    "heatmap": {
+      "hint": "Hover or tap a day to see its movements",
+      "noMovements": "No movements",
+      "view": "View"
+    },
+    "empty": {
+      "title": "Your cashflow chart will appear here",
+      "description": "Add earnings and expenses to see them displayed in this chart.",
+      "filteredTitle": "No data for the selected filters",
+      "filteredDescription": "Try adjusting the date range or selected entities.",
+      "goToTransactions": "Go to transactions",
+      "noExpenses": "No expenses in this period",
+      "noIncome": "No income in this period",
+      "noCounterparties": "No movements in this period"
+    },
+    "byLabel": "By label",
+    "overlapHint": "Movements with several labels count in each of them.",
+    "topCounterparties": "Main movements",
+    "budget": {
+      "title": "Budget performance",
+      "saved": "Saved",
+      "needs": "Needs",
+      "wants": "Wants",
+      "targetInfo": "Targets come from your current recurring budget, applied to every calendar month in the period. Target percentages are shares of your recurring earnings. Actual amounts cover the selected Activity dates. Needs and Wants follow expense label subcategories. Unlabeled expenses count as Needs; movements with both subcategories count once as Wants. Invested includes net SAVINGS-labeled movements plus purchases and investments minus sales and principal repayments. Linked investment cash movements are counted only through the investment transaction.",
+      "investedBreakdown": "Invested breakdown",
+      "savingsMovements": "Savings movements",
+      "investmentTransactions": "Investment transactions",
+      "actual": "Actual",
+      "notSet": "Not set",
+      "noTarget": "No target",
+      "noLabelTargets": "No label targets",
+      "incompleteTarget": "Incomplete",
+      "incomplete": "Some budget amounts have no exchange rate. Comparisons are incomplete.",
+      "unlinked": "Not linked",
+      "empty": "No budget entries for these months",
+      "openBudget": "Open budget",
+      "difference": "Difference",
+      "available": "Available",
+      "exceeded": "Exceeded",
+      "remaining": "Remaining",
+      "extra": "Extra"
+    },
+    "recurring": {
+      "title": "Historic recurring movements",
+      "description": "Recurring movements detected across all available history, regardless of the selected date range.",
+      "empty": "No recurring movements detected yet",
+      "emptyHint": "Regular payments and income show up here after a few repetitions.",
+      "next": "Next {date}",
+      "occurrences": "{count} times",
+      "upTo": "up to {amount}",
+      "track": "Add",
+      "tracked": "Added to budget",
+      "trackedBadge": "Budgeted",
+      "trackedAs": "Budget entry",
+      "openRecurring": "Open budget",
+      "budgetLabel": "Budget label",
+      "noLabel": "No label",
+      "showMore": "Show more",
+      "ignore": "Ignore",
+      "ignoredToast": "Movement ignored",
+      "ignoredSection": "Ignored ({count})",
+      "restore": "Restore",
+      "restoredToast": "Movement restored"
+    }
+  },
   "time": {
     "justNow": "just now",
     "minuteAgo": "1 minute ago",
@@ -1864,7 +2619,9 @@
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",
       "FEE": "Fee",
-      "SPLIT": "Split"
+      "SPLIT": "Split",
+      "INFLOW": "Inflow",
+      "OUTFLOW": "Outflow"
     },
     "productType": {
       "ACCOUNT": "Account",
@@ -2143,7 +2900,7 @@
     "showNumbers": "Show details",
     "hideNumbers": "Hide details",
     "totalBalance": "Total Balance",
-    "totalCardUsed": "Total Card Usage",
+    "totalCreditCardUsed": "Credit card used",
     "totalDebt": "Outstanding Debt",
     "monthlyPayments": "Monthly Payments",
     "avgInterest": "avg. interest",
@@ -2162,7 +2919,9 @@
     "limit": "Limit",
     "utilization": "Utilization",
     "inactive": "Inactive",
-    "principalOutstanding": "Principal Outstanding",
+    "principalOutstanding": "Outstanding",
+    "installment": "Installment",
+    "next": "Next",
     "monthlyInstallment": "Monthly Installment",
     "installmentByFrequency": {
       "WEEKLY": "Weekly Installment",
@@ -2208,24 +2967,59 @@
     "FUND_PORTFOLIO": "Fund Portfolio"
   },
   "management": {
-    "title": "Management",
-    "recurring": "Recurring",
+    "title": "My Money",
+    "recurring": "Budget",
     "pending": "Pending",
-    "recurringMoney": "Recurring Money",
-    "recurringMoneyDescription": "Manage your recurring income and expenses",
-    "pendingMoney": "Pending Money",
+    "recurringMoney": "Budget",
+    "recurringMoneyDescription": "Your recurring earnings, expenses and investments",
+    "pendingMoney": "Pending",
     "pendingMoneyDescription": "Manage your one-time income and expenses",
     "autoContributions": "Contributions",
     "autoContributionsDescription": "Review your periodic investment contributions",
+    "cashflow": "Activity",
+    "cashflowDescription": "Analyze your income and spending, organize movements with labels and rules",
+    "labels": "Labels & Rules",
+    "labelsDescription": "Organize your account movements with labels",
+    "tabs": {
+      "overview": "Overview",
+      "earnings": "Earnings",
+      "expenses": "Expenses",
+      "investments": "Investments"
+    },
+    "overview": {
+      "suggestionsHint": "{count} suggested recurring expenses from your loans",
+      "review": "Review"
+    },
+    "upcoming": {
+      "title": "Upcoming",
+      "agenda": "Agenda",
+      "month": "Month",
+      "empty": "Nothing scheduled in the next {days} days",
+      "showAll": "Show all",
+      "showLess": "Show less"
+    },
     "earnings": "Earnings",
     "expenses": "Expenses",
-    "addNew": "Add new",
+    "addNew": "Add",
     "name": "Name",
     "namePlaceholder": "Enter name",
     "amount": "Amount",
     "amountPlaceholder": "Enter amount",
     "category": "Category",
+    "categoryFilter": {
+      "title": "Categories",
+      "include": "Include category",
+      "exclude": "Exclude category"
+    },
+    "categoryLegend": {
+      "showMore": "Show +{count}"
+    },
     "categoryPlaceholder": "Enter category",
+    "budgetLabel": {
+      "title": "Label",
+      "help": "Link a label to compare this budget with spending and income in Activity.",
+      "unassigned": "Unassigned"
+    },
     "iconLabel": "Icon",
     "frequencyLabel": "Frequency",
     "flowSubtype": "Type",
@@ -2251,6 +3045,7 @@
     "deleteError": "Error deleting item",
     "loadError": "Error loading data",
     "optional": "Optional",
+    "recommended": "Recommended",
     "flowType": {
       "EARNING": "Earning",
       "EXPENSE": "Expense"
@@ -2293,10 +3088,10 @@
     },
     "unsavedChanges": "You have unsaved changes",
     "requiredFields": "Required fields",
-    "sortBy": "Sort by",
+    "sortBy": "Sort",
     "sortByAmount": "Amount",
     "sortByDate": "Date",
-    "groupBy": "Group by",
+    "groupBy": "Group",
     "groupByCategory": "Category",
     "uncategorized": "Uncategorized",
     "nextPayment": "Next",
@@ -2304,10 +3099,14 @@
     "today": "Today",
     "tomorrow": "Tomorrow",
     "inDays": "In {days} days",
-    "monthlyRecurringEarnings": "Monthly recurring earnings",
-    "monthlyRecurringExpenses": "Monthly recurring expenses",
-    "savableAmount": "Savable amount",
-    "monthlyInvestedAmount": "Monthly invested",
+    "monthlyRecurringEarnings": "Monthly earnings",
+    "monthlyRecurringExpenses": "Monthly expenses",
+    "flowDistributionEmptyTitle": "Your monthly distribution will appear here",
+    "flowDistributionEmptyDescription": "Add recurring earnings and expenses to see their distribution here.",
+    "savableAmount": "Savings",
+    "remainingCash": "Remaining cash",
+    "remainingCashDescription": "Monthly earnings left after recurring expenses and investments ({percentage}% of earnings).",
+    "monthlyInvestedAmount": "Invested",
     "savingsRate": "Savings rate",
     "investedRate": "Invested rate",
     "ofEarnings": "of earnings",
@@ -2351,9 +3150,7 @@
     "goToIntegrations": "Go to Integrations",
     "contributionsDistribution": "Contribution distribution",
     "other": "Other",
-    "monthlyPerTarget": "Monthly by target",
-    "activeContributions": "Active contributions",
-    "monthlyAverageContribution": "Monthly avg. contribution",
+    "monthlyAverageContribution": "Monthly",
     "source": "Source",
     "manualContributions": {
       "unnamed": "Manual contribution",
@@ -2362,8 +3159,9 @@
       "editTitle": "Edit contribution",
       "entity": "Entity",
       "targetName": "Target name",
-      "targetNameHelper": "Optional friendly name shown in the list",
-      "targetHelper": "ISIN, IBAN or identifier",
+      "targetNameHelper": "Leave empty to use the name",
+      "optionalFields": "Optional fields",
+      "cryptoTargetIdentifier": "Symbol or contract address",
       "currency": "Currency",
       "suggestions": "Suggestions",
       "noSuggestions": "No suggestions available",
@@ -3397,6 +4195,7 @@
     "dataDirPlaceholder": "Default location",
     "logDir": "Log directory",
     "logDirPlaceholder": "Default location",
+    "openFolder": "Open folder",
     "logLevel": "Console log level",
     "logFileLevel": "File log level",
     "inheritLogLevel": "Same as console log level",

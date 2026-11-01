@@ -45,6 +45,10 @@ _FX_IN_COMMENT = re.compile(
     r"Currency exchange of trade \(([A-Z]{3})\) to a currency exchange of the service plan \(([A-Z]{3})\) is ([0-9]+(?:\.[0-9]+)?)"
 )
 _CCY_PAIR_TICKER = re.compile(r"^[A-Z]{3}/[A-Z]{3}(?:\.[A-Z]+)?$")
+_CASHFLOW_SECURITY_TICKER = re.compile(
+    r"security\s*\((?:[^()]*\()?\s*([A-Z0-9][A-Z0-9._-]*)\s*\)", re.IGNORECASE
+)
+_CASHFLOW_RECORD_DATE = re.compile(r"record date\s+(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
 
 _log = logging.getLogger(__name__)
 
@@ -387,6 +391,21 @@ def _get_ref(tx_id: str, tx_type: TxType) -> str:
     return sha1(f"{tx_id}-{tx_type}".encode("UTF-8")).hexdigest()
 
 
+def _cashflow_security_key(cashflow: dict) -> tuple[str, str, str, str] | None:
+    comment = str(cashflow.get("comment") or "")
+    ticker_match = _CASHFLOW_SECURITY_TICKER.search(comment)
+    if ticker_match is None:
+        return None
+
+    record_date_match = _CASHFLOW_RECORD_DATE.search(comment)
+    return (
+        ticker_match.group(1).upper(),
+        str(cashflow.get("currency") or ""),
+        str(cashflow.get("date") or ""),
+        record_date_match.group(1) if record_date_match else "",
+    )
+
+
 def _map_deposit_tx(
     tx_id, tx_type, name, amount, tx_date, currency, registered_txs
 ) -> Optional[DepositTx]:
@@ -523,7 +542,11 @@ class F24Fetcher(FinancialEntityFetcher):
             investment_txs = await self._map_investment_txs(raw_trades, registered_txs)
 
             deposit_txs = await self._get_deposit_interest_txs(registered_txs)
-            investment_txs = investment_txs + deposit_txs
+            raw_cashflows = await self._client.get_cash_flows()
+            dividend_txs = await self._map_dividend_txs(
+                raw_cashflows.get("cashflow", []), registered_txs
+            )
+            investment_txs = investment_txs + deposit_txs + dividend_txs
 
         return Transactions(investment=investment_txs, account=account_txs)
 
@@ -610,6 +633,96 @@ class F24Fetcher(FinancialEntityFetcher):
                 txs.append(tx)
 
         return txs
+
+    async def _map_dividend_txs(
+        self, raw_cashflows: list[dict], registered_txs: set[str]
+    ) -> list[StockTx]:
+        withholding_by_security = {}
+        for cashflow in raw_cashflows:
+            if (cashflow.get("type_code") or "").strip().lower() != "tax":
+                continue
+            key = _cashflow_security_key(cashflow)
+            if key is None:
+                continue
+            try:
+                withholding = abs(round(Dezimal(cashflow.get("sum") or 0), 2))
+            except (TypeError, ValueError):
+                _log.warning("Skipping invalid F24 dividend tax cashflow")
+                continue
+            withholding_by_security[key] = (
+                withholding_by_security.get(key, Dezimal(0)) + withholding
+            )
+
+        dividend_txs = []
+        for cashflow in raw_cashflows:
+            if (cashflow.get("type_code") or "").strip().lower() != "dividend":
+                continue
+
+            try:
+                tx_ref = _get_ref(str(cashflow["id"]), TxType.DIVIDEND)
+                if tx_ref in registered_txs:
+                    continue
+
+                key = _cashflow_security_key(cashflow)
+                if key is None:
+                    raise ValueError("Missing security ticker in comment")
+                ticker = key[0]
+                ticker_info = _as_ticker_info(await self._client.find_by_ticker(ticker))
+                instrument_type = _parse_int(
+                    ticker_info.get("type", ticker_info.get("t"))
+                )
+                equity_type = _equity_type(
+                    ticker_info.get("kind", ticker_info.get("k"))
+                )
+                if instrument_type not in (None, 1) or equity_type is None:
+                    _log.warning(
+                        "Skipping F24 dividend %s: unsupported type t=%s kind k=%s",
+                        ticker,
+                        instrument_type,
+                        ticker_info.get("kind", ticker_info.get("k")),
+                    )
+                    continue
+
+                currency = cashflow.get("currency")
+                raw_date = cashflow.get("datetime") or cashflow.get("date")
+                if not currency or not raw_date:
+                    raise ValueError("Missing currency or date")
+
+                amount = round(Dezimal(cashflow["sum"]), 2)
+                retentions = withholding_by_security.get(key, Dezimal(0))
+                tx_date = datetime.fromisoformat(str(raw_date)).astimezone(tzlocal())
+                dividend_txs.append(
+                    StockTx(
+                        id=uuid4(),
+                        ref=tx_ref,
+                        name=ticker_info.get("nm") or ticker,
+                        amount=amount,
+                        currency=currency,
+                        type=TxType.DIVIDEND,
+                        date=tx_date,
+                        entity=F24,
+                        net_amount=round(amount - retentions, 2),
+                        isin=ticker_info.get("isin") or ticker,
+                        ticker=ticker,
+                        shares=None,
+                        price=Dezimal(0),
+                        market=ticker_info.get("mkt"),
+                        fees=Dezimal(0),
+                        retentions=retentions,
+                        order_date=None,
+                        product_type=ProductType.STOCK_ETF,
+                        equity_type=equity_type,
+                        linked_tx=None,
+                        source=DataSource.REAL,
+                    )
+                )
+            except (KeyError, TypeError, ValueError, AttributeError) as error:
+                _log.warning(
+                    "Skipping F24 dividend cashflow due to invalid or missing fields: %s",
+                    error,
+                )
+
+        return dividend_txs
 
     async def _map_investment_txs(self, raw_trades, registered_txs):
         currency_pairs = _currency_pair_tickers(

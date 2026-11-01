@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Switch } from "@/components/ui/Switch"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { motion } from "framer-motion"
 import {
   PlusCircle,
@@ -88,6 +89,7 @@ const normalizeStablecoinSymbol = (value: string) =>
   value.toUpperCase().replace(STABLECOIN_ALLOWED_CHARS, "")
 
 const AUTO_SAVE_DEBOUNCE_MS = 500
+const CURRENCY_OPTIONS = ["EUR", "USD"] as const
 
 export function GeneralTab() {
   const { t } = useI18n()
@@ -113,6 +115,9 @@ export function GeneralTab() {
   })
 
   const [newStablecoin, setNewStablecoin] = useState("")
+  const [pendingCurrency, setPendingCurrency] = useState<
+    (typeof CURRENCY_OPTIONS)[number] | null
+  >(null)
   const [editingStablecoinIndex, setEditingStablecoinIndex] = useState<
     number | null
   >(null)
@@ -122,6 +127,9 @@ export function GeneralTab() {
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
   const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
   const editMode = settings.general?.editMode ?? EditMode.QUICK
+  const selectedCurrency = settings.general?.defaultCurrency || "EUR"
+  const selectedCommodityWeightUnit =
+    settings.general?.defaultCommodityWeightUnit || WeightUnit.GRAM
 
   const autoRefreshEnabled =
     settings.data?.autoRefresh?.mode === AutoRefreshMode.NO_2FA
@@ -153,8 +161,9 @@ export function GeneralTab() {
           ),
         ).filter(Boolean)
 
-        const settingsForSave: AppSettings = {
-          ...nextSettings,
+        const settingsForSave: Partial<AppSettings> = {
+          general: nextSettings.general,
+          data: nextSettings.data,
           assets: {
             ...nextSettings.assets,
             crypto: {
@@ -164,7 +173,7 @@ export function GeneralTab() {
           },
         }
 
-        const cleanedSettings = cleanObject(settingsForSave)
+        const cleanedSettings = cleanObject(settingsForSave) ?? {}
 
         if (!cleanedSettings.assets) {
           cleanedSettings.assets = {
@@ -419,6 +428,19 @@ export function GeneralTab() {
     }))
   }
 
+  const requestCurrencyChange = (
+    currency: (typeof CURRENCY_OPTIONS)[number],
+  ) => {
+    if (currency === selectedCurrency) return
+    setPendingCurrency(currency)
+  }
+
+  const confirmCurrencyChange = () => {
+    if (!pendingCurrency) return
+    handleCurrencyChange(pendingCurrency)
+    setPendingCurrency(null)
+  }
+
   const handleCommodityWeightUnitChange = (unit: string) => {
     setSettings(prev => ({
       ...prev,
@@ -441,6 +463,25 @@ export function GeneralTab() {
 
   return (
     <>
+      <ConfirmationDialog
+        isOpen={pendingCurrency !== null}
+        title={t.settings.currencyChangeTitle}
+        message={t.settings.currencyChangeMessage.replace(
+          /\{currency\}/g,
+          pendingCurrency ?? "",
+        )}
+        warning={t.settings.currencyChangeWarning.replace(
+          /\{currency\}/g,
+          pendingCurrency ?? "",
+        )}
+        confirmText={t.settings.currencyChangeConfirm.replace(
+          /\{currency\}/g,
+          pendingCurrency ?? "",
+        )}
+        cancelText={t.common.cancel}
+        onConfirm={confirmCurrencyChange}
+        onCancel={() => setPendingCurrency(null)}
+      />
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -457,45 +498,78 @@ export function GeneralTab() {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="default-currency">
+                <Label id="default-currency-label">
                   {t.settings.defaultCurrency}
                 </Label>
-                <div className="relative">
-                  <select
-                    id="default-currency"
-                    value={settings.general?.defaultCurrency || "EUR"}
-                    onChange={e => handleCurrencyChange(e.target.value)}
-                    className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                  >
-                    <option value="EUR">EUR - Euro</option>
-                    <option value="USD">USD - US Dollar</option>
-                  </select>
+                <div
+                  role="group"
+                  aria-labelledby="default-currency-label"
+                  className="flex flex-wrap gap-1.5"
+                >
+                  {CURRENCY_OPTIONS.map(currency => (
+                    <button
+                      key={currency}
+                      type="button"
+                      data-testid={`currency-option-${currency.toLowerCase()}`}
+                      aria-pressed={selectedCurrency === currency}
+                      onClick={() => requestCurrencyChange(currency)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border pl-1 pr-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                        selectedCurrency === currency
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex h-5 w-5 shrink-0 overflow-hidden rounded-full border border-border"
+                      >
+                        <img
+                          src={`icons/forex/${currency}.png`}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      </span>
+                      {t.settings.currencyOptions[currency]}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="default-commodity-weight-unit">
+                <Label id="default-commodity-weight-unit-label">
                   {t.settings.defaultCommodityWeightUnit}
                 </Label>
-                <div className="relative">
-                  <select
-                    id="default-commodity-weight-unit"
-                    value={
-                      settings.general?.defaultCommodityWeightUnit ||
-                      WeightUnit.GRAM
-                    }
-                    onChange={e =>
-                      handleCommodityWeightUnitChange(e.target.value)
-                    }
-                    className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                  >
-                    <option value={WeightUnit.GRAM}>
-                      {t.enums.weightUnit.GRAM} - {t.enums.weightUnitName.GRAM}
-                    </option>
-                    <option value={WeightUnit.TROY_OUNCE}>
-                      {t.enums.weightUnit.TROY_OUNCE} -{" "}
-                      {t.enums.weightUnitName.TROY_OUNCE}
-                    </option>
-                  </select>
+                <div
+                  role="group"
+                  aria-labelledby="default-commodity-weight-unit-label"
+                  className="flex flex-wrap gap-1.5"
+                >
+                  {[
+                    {
+                      value: WeightUnit.GRAM,
+                      label: `${t.enums.weightUnit.GRAM} - ${t.enums.weightUnitName.GRAM}`,
+                    },
+                    {
+                      value: WeightUnit.TROY_OUNCE,
+                      label: `${t.enums.weightUnit.TROY_OUNCE} - ${t.enums.weightUnitName.TROY_OUNCE}`,
+                    },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      data-testid={`commodity-weight-unit-${value.toLowerCase()}`}
+                      aria-pressed={selectedCommodityWeightUnit === value}
+                      onClick={() => handleCommodityWeightUnitChange(value)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                        selectedCommodityWeightUnit === value
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
               <fieldset data-testid="edit-mode" className="space-y-3">

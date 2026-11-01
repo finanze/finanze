@@ -31,7 +31,7 @@ from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 
 _DEBT_TYPES = {ProductType.CARD, ProductType.LOAN, ProductType.CREDIT}
 
-_CALC_VERSION = "2"
+_CALC_VERSION = "3"
 
 _HistoricRates = dict[CommodityType, Optional[HistoricMetalRates]]
 

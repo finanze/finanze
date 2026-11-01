@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
+import { Slider } from "@/components/ui/Slider"
 import { Switch } from "@/components/ui/Switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
@@ -41,6 +42,7 @@ import { formatCurrency } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { calculateSavings } from "@/services/api"
+import { parseNumberInput } from "@/utils/manualData"
 import {
   SavingsPeriodicity,
   SavingsCalculationRequest,
@@ -156,6 +158,36 @@ export function SavingsCalculator() {
   const removeScenario = useCallback((id: string) => {
     setScenarios(prev => prev.filter(s => s.id !== id))
   }, [])
+
+  const handleYearsChange = (value: string) => {
+    setYears(value)
+    if (fieldErrors.years) {
+      setFieldErrors(prev => ({ ...prev, years: false }))
+    }
+  }
+
+  const handleAnnualReturnChange = (id: string, value: string) => {
+    updateScenario(id, "annualReturn", value)
+    if (fieldErrors.scenarios?.[id]?.annualReturn) {
+      setFieldErrors(prev => ({
+        ...prev,
+        scenarios: {
+          ...prev.scenarios,
+          [id]: { ...prev.scenarios?.[id], annualReturn: false },
+        },
+      }))
+    }
+  }
+
+  const handleWithdrawalYearsChange = (value: string) => {
+    setWithdrawalYears(value)
+    if (fieldErrors.retirement?.withdrawalYears) {
+      setFieldErrors(prev => ({
+        ...prev,
+        retirement: { ...prev.retirement, withdrawalYears: false },
+      }))
+    }
+  }
 
   const updateScenario = useCallback(
     (id: string, field: keyof ScenarioFormData, value: string) => {
@@ -1087,6 +1119,16 @@ export function SavingsCalculator() {
                     className="pl-8"
                   />
                 </div>
+                <Slider
+                  value={parseNumberInput(baseAmount)}
+                  onValueChange={value => setBaseAmount(String(value))}
+                  min={0}
+                  max={1000000}
+                  step={1000}
+                  scale="exponential"
+                  showValue={false}
+                  aria-label={t.calculations.savings.baseAmount}
+                />
               </div>
 
               {mode !== "years" && (
@@ -1097,17 +1139,20 @@ export function SavingsCalculator() {
                     type="text"
                     inputMode="numeric"
                     value={years}
-                    onChange={e => {
-                      setYears(e.target.value)
-                      if (fieldErrors.years) {
-                        setFieldErrors(prev => ({ ...prev, years: false }))
-                      }
-                    }}
+                    onChange={e => handleYearsChange(e.target.value)}
                     placeholder={t.calculations.savings.yearsPlaceholder}
                     className={cn(
                       fieldErrors.years &&
                         "border-red-500 focus-visible:ring-red-500",
                     )}
+                  />
+                  <Slider
+                    value={parseNumberInput(years)}
+                    onValueChange={value => handleYearsChange(String(value))}
+                    min={1}
+                    max={50}
+                    showValue={false}
+                    aria-label={t.calculations.savings.years}
                   />
                 </div>
               )}
@@ -1254,23 +1299,9 @@ export function SavingsCalculator() {
                         <DecimalInput
                           allowNegative
                           value={scenario.annualReturn}
-                          onStringChange={value => {
-                            updateScenario(scenario.id, "annualReturn", value)
-                            if (
-                              fieldErrors.scenarios?.[scenario.id]?.annualReturn
-                            ) {
-                              setFieldErrors(prev => ({
-                                ...prev,
-                                scenarios: {
-                                  ...prev.scenarios,
-                                  [scenario.id]: {
-                                    ...prev.scenarios?.[scenario.id],
-                                    annualReturn: false,
-                                  },
-                                },
-                              }))
-                            }
-                          }}
+                          onStringChange={value =>
+                            handleAnnualReturnChange(scenario.id, value)
+                          }
                           placeholder={
                             t.calculations.savings.annualReturnPlaceholder
                           }
@@ -1285,6 +1316,17 @@ export function SavingsCalculator() {
                           %
                         </span>
                       </div>
+                      <Slider
+                        value={parseNumberInput(scenario.annualReturn)}
+                        onValueChange={value =>
+                          handleAnnualReturnChange(scenario.id, String(value))
+                        }
+                        min={0}
+                        max={15}
+                        step={0.1}
+                        showValue={false}
+                        aria-label={t.calculations.savings.annualReturn}
+                      />
                     </div>
 
                     {(mode === "contribution" || mode === "years") && (
@@ -1439,18 +1481,7 @@ export function SavingsCalculator() {
                     type="text"
                     inputMode="numeric"
                     value={withdrawalYears}
-                    onChange={e => {
-                      setWithdrawalYears(e.target.value)
-                      if (fieldErrors.retirement?.withdrawalYears) {
-                        setFieldErrors(prev => ({
-                          ...prev,
-                          retirement: {
-                            ...prev.retirement,
-                            withdrawalYears: false,
-                          },
-                        }))
-                      }
-                    }}
+                    onChange={e => handleWithdrawalYearsChange(e.target.value)}
                     placeholder={
                       t.calculations.savings.withdrawalYearsPlaceholder
                     }
@@ -1458,6 +1489,16 @@ export function SavingsCalculator() {
                       fieldErrors.retirement?.withdrawalYears &&
                         "border-red-500 focus-visible:ring-red-500",
                     )}
+                  />
+                  <Slider
+                    value={parseNumberInput(withdrawalYears)}
+                    onValueChange={value =>
+                      handleWithdrawalYearsChange(String(value))
+                    }
+                    min={1}
+                    max={50}
+                    showValue={false}
+                    aria-label={t.calculations.savings.withdrawalYears}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">

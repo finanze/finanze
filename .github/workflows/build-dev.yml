@@ -94,7 +94,7 @@ jobs:
       matrix:
         os: [ macos-15, macos-15-intel, ubuntu-latest, windows-latest ]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
 
     steps:
       - name: Checkout Code
@@ -152,17 +152,17 @@ jobs:
           echo "$PYENV_ROOT/shims" >> $GITHUB_PATH
           echo "$PYENV_ROOT/versions/finanze/bin" >> $GITHUB_PATH
 
-      - name: Install CD, packaging & runtime deps
-        shell: bash
-        run: |
-          pip install -r requirements-packaging.txt -r requirements.txt -r requirements-cd.txt
-
       - name: Setup virtual env (non-Windows)
         if: ${{ matrix.os == 'ubuntu-latest' }}
         shell: bash
         run: |
           python3 -m venv $HOME/venv
           echo "$HOME/venv/bin" >> $GITHUB_PATH
+
+      - name: Install CD, packaging & runtime deps
+        shell: bash
+        run: |
+          pip install -r requirements-packaging.txt -r requirements.txt -r requirements-cd.txt
 
       - name: Compute Dev Version
         id: dev_version
@@ -380,7 +380,7 @@ jobs:
   build-android:
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build'))) }}
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code

@@ -19,6 +19,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import {
   MultiSelect,
   type MultiSelectOption,
@@ -26,7 +27,8 @@ import {
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
   Ban,
   Banknote,
   BanknoteArrowDown,
@@ -997,9 +999,9 @@ export default function PendingMoneyPage() {
             }
           >
             {sortOrder === SortOrder.ASC ? (
-              <ArrowRight size={16} className="rotate-[-90deg]" />
+              <ArrowUpNarrowWide size={16} />
             ) : (
-              <ArrowRight size={16} className="rotate-90" />
+              <ArrowDownWideNarrow size={16} />
             )}
           </button>
         </div>
@@ -1068,13 +1070,13 @@ export default function PendingMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className="flex flex-row items-center justify-between gap-3"
+          className="flex flex-row items-center gap-3"
         >
           <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
               size="sm"
-              className="p-1 h-8 w-8 shrink-0"
+              className="p-1 h-8 w-8 shrink-0 md:hidden"
               onClick={() => navigate("/management")}
             >
               <ArrowLeft size={20} />
@@ -1092,13 +1094,6 @@ export default function PendingMoneyPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => navigate("/management/recurring")}
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
-          >
-            {t.management.recurring}
-            <ArrowRight size={16} />
-          </button>
         </motion.div>
 
         {/* KPI Cards */}
@@ -1300,17 +1295,40 @@ export default function PendingMoneyPage() {
           className="space-y-2"
         >
           {entries.length === 0 && !isLoading ? (
-            <div className="text-center py-12 text-gray-500">
-              <div className="flex justify-center mb-4">
-                {activeTab === FlowType.EARNING ? (
-                  <BanknoteArrowUp className="text-green-400" size={48} />
-                ) : (
-                  <BanknoteArrowDown className="text-red-400" size={48} />
-                )}
-              </div>
-              <p className="text-lg font-medium mb-2">{emptyMessage}</p>
-              <p className="text-sm">{addMessage}</p>
-            </div>
+            <>
+              <Card className="hidden overflow-hidden md:block">
+                <EmptyState
+                  icon={
+                    activeTab === FlowType.EARNING
+                      ? BanknoteArrowUp
+                      : BanknoteArrowDown
+                  }
+                  title={emptyMessage}
+                  description={addMessage}
+                  iconClassName={
+                    activeTab === FlowType.EARNING
+                      ? "text-green-400"
+                      : "text-red-400"
+                  }
+                  className="py-16"
+                />
+              </Card>
+              <EmptyState
+                icon={
+                  activeTab === FlowType.EARNING
+                    ? BanknoteArrowUp
+                    : BanknoteArrowDown
+                }
+                title={emptyMessage}
+                description={addMessage}
+                iconClassName={
+                  activeTab === FlowType.EARNING
+                    ? "text-green-400"
+                    : "text-red-400"
+                }
+                className="py-16 md:hidden"
+              />
+            </>
           ) : groupByCategory ? (
             renderGroupedList()
           ) : (

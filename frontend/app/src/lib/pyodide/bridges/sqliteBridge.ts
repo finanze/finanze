@@ -123,58 +123,72 @@ function stripLeadingSqlComments(sql: string): string {
   }
 }
 
-async function ensureEncryptionSecret(passphrase: string): Promise<void> {
+async function ensureEncryptionSecret(
+  passphrase: string,
+  dbName: string,
+): Promise<void> {
   if (!passphrase) return
   if (isWebPlatform(Capacitor.getPlatform())) return
 
-  const sqlite = await initSQLite()
+  try {
+    const sqlite = await initSQLite()
 
-  const hasIsSecretStored = typeof (sqlite as any).isSecretStored === "function"
-  const hasCheck = typeof (sqlite as any).checkEncryptionSecret === "function"
-  const hasClear = typeof (sqlite as any).clearEncryptionSecret === "function"
+    const hasIsSecretStored =
+      typeof (sqlite as any).isSecretStored === "function"
+    const hasCheck = typeof (sqlite as any).checkEncryptionSecret === "function"
+    const hasClear = typeof (sqlite as any).clearEncryptionSecret === "function"
 
-  if (!hasIsSecretStored || !hasCheck) {
-    await withTimeout(
-      "setEncryptionSecret",
-      sqlite.setEncryptionSecret(passphrase),
-      10_000,
-    )
-    return
-  }
-
-  const stored = await withTimeout(
-    "isSecretStored",
-    sqlite.isSecretStored(),
-    10_000,
-  )
-  if (!stored?.result) {
-    await withTimeout(
-      "setEncryptionSecret",
-      sqlite.setEncryptionSecret(passphrase),
-      10_000,
-    )
-    return
-  }
-
-  const check = await withTimeout(
-    "checkEncryptionSecret",
-    sqlite.checkEncryptionSecret(passphrase),
-    10_000,
-  )
-
-  if (!check?.result) {
-    if (hasClear) {
+    if (!hasIsSecretStored || !hasCheck) {
       await withTimeout(
-        "clearEncryptionSecret",
-        sqlite.clearEncryptionSecret(),
+        "setEncryptionSecret",
+        sqlite.setEncryptionSecret(passphrase),
+        10_000,
+      )
+      return
+    }
+
+    const stored = await withTimeout(
+      "isSecretStored",
+      sqlite.isSecretStored(),
+      10_000,
+    )
+    if (!stored?.result) {
+      await withTimeout(
+        "setEncryptionSecret",
+        sqlite.setEncryptionSecret(passphrase),
+        10_000,
+      )
+      return
+    }
+
+    const check = await withTimeout(
+      "checkEncryptionSecret",
+      sqlite.checkEncryptionSecret(passphrase),
+      10_000,
+    )
+
+    if (!check?.result) {
+      if (hasClear) {
+        await withTimeout(
+          "clearEncryptionSecret",
+          sqlite.clearEncryptionSecret(),
+          10_000,
+        )
+      }
+      await withTimeout(
+        "setEncryptionSecret",
+        sqlite.setEncryptionSecret(passphrase),
         10_000,
       )
     }
-    await withTimeout(
-      "setEncryptionSecret",
-      sqlite.setEncryptionSecret(passphrase),
-      10_000,
-    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes(`State for: ${dbName}SQLite.db not correct`)) {
+      throw new Error(`[Bridge][sqlite] wrong key for ${dbName}`, {
+        cause: error,
+      })
+    }
+    throw error
   }
 }
 
@@ -273,7 +287,7 @@ async function openDatabase(
     // Even if a connection exists in the plugin, it may not be open (e.g. after
     // calling close() we can still see isConnection=true). Ensure secret + open.
     if (encrypted && passphrase) {
-      await ensureEncryptionSecret(passphrase)
+      await ensureEncryptionSecret(passphrase, effectiveDbName)
     }
 
     try {
@@ -316,7 +330,7 @@ async function openDatabase(
 
   try {
     if (encrypted && passphrase) {
-      await ensureEncryptionSecret(passphrase)
+      await ensureEncryptionSecret(passphrase, effectiveDbName)
     }
 
     appConsole.debug("[Bridge][sqlite] createConnection", {

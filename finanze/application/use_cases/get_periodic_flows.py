@@ -95,6 +95,7 @@ class GetPeriodicFlowsImpl(GetPeriodicFlows):
                 real_estate_flow=flow.real_estate_flow,
                 next_date=get_next_date(flow),
                 max_amount=flow.max_amount,
+                label_id=flow.label_id,
             )
             for flow in flows
         ]

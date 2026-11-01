@@ -1,6 +1,8 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import Mock
 from uuid import uuid4
 
 import jwt
@@ -11,6 +13,7 @@ from domain.backup import BackupFileType, BackupInfo, BackupMode, BackupSettings
 from domain.cloud_auth import CloudAuthToken, CloudUserRole
 from domain.exception.exceptions import InvalidToken, NoUserLogged
 from domain.user import User
+from infrastructure.cloud import cloud_data_register
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
 
 
@@ -96,6 +99,164 @@ class TestConnect:
         with open(cloud_file, "r") as f:
             data = json.load(f)
         assert data == existing_data
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("operation", ["fsync", "replace"])
+    async def test_creation_failure_leaves_no_partial_file(
+        self, register, tmp_path, monkeypatch, operation
+    ):
+        def fail(*args, **kwargs):
+            raise OSError("Simulated storage failure")
+
+        monkeypatch.setattr(cloud_data_register.os, operation, fail)
+
+        with pytest.raises(OSError, match="Simulated storage failure"):
+            await register.connect(_make_user(tmp_path))
+
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("content", ["", "invalid json"])
+    async def test_corrupt_existing_file_is_not_overwritten(
+        self, register, tmp_path, content
+    ):
+        cloud_file = tmp_path / "cloud.json"
+        cloud_file.write_text(content, encoding="utf-8")
+
+        await register.connect(_make_user(tmp_path))
+
+        with pytest.raises(json.JSONDecodeError):
+            await register.get_auth()
+
+        assert cloud_file.read_text(encoding="utf-8") == content
+        assert list(tmp_path.iterdir()) == [cloud_file]
+
+
+class TestSaveCloudData:
+    @pytest.mark.asyncio
+    async def test_serialization_failure_preserves_existing_file(
+        self, register, tmp_path
+    ):
+        await register.connect(_make_user(tmp_path))
+        cloud_file = tmp_path / "cloud.json"
+        original = cloud_file.read_bytes()
+
+        with pytest.raises(TypeError):
+            await register._save_cloud_data({"auth": {"invalid"}})
+
+        assert cloud_file.read_bytes() == original
+        assert list(tmp_path.iterdir()) == [cloud_file]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation", ["create", "write", "flush", "fsync", "replace"]
+    )
+    async def test_storage_failure_preserves_existing_file_and_cache(
+        self, register, tmp_path, monkeypatch, operation
+    ):
+        await register.connect(_make_user(tmp_path))
+        cloud_file = tmp_path / "cloud.json"
+        original = cloud_file.read_bytes()
+        cached_data = await register._load_cloud_data()
+        original_temporary_file = cloud_data_register.tempfile.NamedTemporaryFile
+
+        def fail(*args, **kwargs):
+            raise OSError("Simulated storage failure")
+
+        def create_temporary_file(*args, **kwargs):
+            temporary_file = original_temporary_file(*args, **kwargs)
+            if operation == "write":
+                original_write = temporary_file.write
+
+                def fail_write(content):
+                    original_write(content[:8])
+                    fail()
+
+                monkeypatch.setattr(temporary_file, "write", fail_write)
+            else:
+                monkeypatch.setattr(temporary_file, "flush", fail)
+            return temporary_file
+
+        if operation == "create":
+            monkeypatch.setattr(
+                cloud_data_register.tempfile, "NamedTemporaryFile", fail
+            )
+        elif operation in {"write", "flush"}:
+            monkeypatch.setattr(
+                cloud_data_register.tempfile,
+                "NamedTemporaryFile",
+                create_temporary_file,
+            )
+        else:
+            monkeypatch.setattr(cloud_data_register.os, operation, fail)
+
+        with pytest.raises(OSError, match="Simulated storage failure"):
+            await register._save_cloud_data({"backup": {}, "auth": {"new": True}})
+
+        assert cloud_file.read_bytes() == original
+        assert list(tmp_path.iterdir()) == [cloud_file]
+        assert (
+            await register._load_cloud_data.cache.get(f"cloud_data:{cloud_file}")
+            == cached_data
+        )
+
+    @pytest.mark.asyncio
+    async def test_replaces_with_closed_private_file_and_invalidates_cache(
+        self, register, tmp_path, monkeypatch
+    ):
+        await register.connect(_make_user(tmp_path))
+        cloud_file = tmp_path / "cloud.json"
+        original = cloud_file.read_bytes()
+        await register._load_cloud_data()
+        new_data = {"backup": {"settings": {"mode": "AUTO"}}, "auth": None}
+        original_temporary_file = cloud_data_register.tempfile.NamedTemporaryFile
+        original_replace = cloud_data_register.os.replace
+        temporary_files = []
+        sync = Mock(wraps=cloud_data_register.os.fsync)
+
+        def create_temporary_file(*args, **kwargs):
+            temporary_file = original_temporary_file(*args, **kwargs)
+            temporary_files.append(temporary_file)
+            return temporary_file
+
+        def replace(source, destination):
+            assert source.parent == cloud_file.parent
+            assert destination == cloud_file
+            assert temporary_files[0].closed
+            assert json.loads(source.read_text(encoding="utf-8")) == new_data
+            assert cloud_file.read_bytes() == original
+            sync.assert_called_once()
+            if os.name == "posix":
+                assert source.stat().st_mode & 0o077 == 0
+            original_replace(source, destination)
+
+        monkeypatch.setattr(
+            cloud_data_register.tempfile, "NamedTemporaryFile", create_temporary_file
+        )
+        monkeypatch.setattr(cloud_data_register.os, "replace", replace)
+        monkeypatch.setattr(cloud_data_register.os, "fsync", sync)
+
+        await register._save_cloud_data(new_data)
+
+        assert json.loads(cloud_file.read_text(encoding="utf-8")) == new_data
+        assert await register._load_cloud_data() == new_data
+        assert list(tmp_path.iterdir()) == [cloud_file]
+
+    @pytest.mark.asyncio
+    async def test_pyodide_writes_without_native_fsync(
+        self, register, tmp_path, monkeypatch
+    ):
+        sync = Mock(side_effect=AssertionError("Native fsync is unavailable"))
+        monkeypatch.setattr(cloud_data_register.sys, "platform", "emscripten")
+        monkeypatch.setattr(cloud_data_register.os, "fsync", sync)
+
+        await register.connect(_make_user(tmp_path))
+        await register.save_auth(_make_token())
+        await register._load_cloud_data.cache.clear()
+
+        assert await register.get_auth_token() == _make_token()
+        sync.assert_not_called()
+        assert list(tmp_path.iterdir()) == [tmp_path / "cloud.json"]
 
 
 class TestGetInfo:

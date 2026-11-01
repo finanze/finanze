@@ -9,6 +9,7 @@ from application.ports.position_port import PositionPort
 from application.ports.template_parser_port import TemplateParserPort
 from application.ports.template_port import TemplatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
@@ -25,6 +26,9 @@ from domain.importing import (
     ImportResultCode,
     TemplatedDataParserParams,
 )
+from domain.labeling import LabelingTrigger
+from domain.settlement import settlement_window
+from domain.transactions import AccountTxSelection
 from domain.use_cases.import_file import ImportFile
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
@@ -40,6 +44,7 @@ class ImportFileImpl(ImportFile):
         template_port: TemplatePort,
         template_parser: TemplateParserPort,
         transaction_handler_port: TransactionHandlerPort,
+        transaction_labeler: TransactionLabeler,
     ):
         self._position_port = position_port
         self._transaction_port = transaction_port
@@ -49,6 +54,7 @@ class ImportFileImpl(ImportFile):
         self._template_port = template_port
         self._template_parser = template_parser
         self._transaction_handler_port = transaction_handler_port
+        self._transaction_labeler = transaction_labeler
         self._lock = Lock()
         self._log = logging.getLogger(__name__)
 
@@ -99,9 +105,17 @@ class ImportFileImpl(ImportFile):
             }
 
             async with self._transaction_handler_port.start():
-                return await self._process_candidate(
+                result = await self._process_candidate(
                     request, candidate, existing_entities_by_name
                 )
+
+            imported_txs = result.data.transactions if result.data else None
+            if not request.preview and imported_txs and imported_txs.account:
+                await self._transaction_labeler.classify_external(
+                    AccountTxSelection(ids=[tx.id for tx in imported_txs.account]),
+                    LabelingTrigger.AUTO,
+                )
+            return result
 
     async def _process_candidate(
         self,
@@ -173,6 +187,16 @@ class ImportFileImpl(ImportFile):
 
                 if transactions:
                     await self._transaction_port.save(transactions)
+                    if transactions.account:
+                        await self._transaction_labeler.classify(
+                            AccountTxSelection(
+                                ids=[tx.id for tx in transactions.account]
+                            )
+                        )
+                    if transactions.investment:
+                        await self._transaction_labeler.link_settlements(
+                            settlement_window(transactions.investment)
+                        )
                     tx_entities = {
                         tx.entity.id
                         for tx in (transactions.investment or [])

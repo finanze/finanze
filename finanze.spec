@@ -13,12 +13,17 @@ numpy_binaries = collect_dynamic_libs("numpy")
 
 sentry_submodules = collect_submodules("sentry_sdk")
 
+mcp_submodules = collect_submodules(
+    "mcp",
+    filter=lambda name: name != "mcp.cli" and not name.startswith("mcp.cli."),
+) + collect_submodules("mcp_types")
+
 a = Analysis(
     ['finanze/__main__.py'],
     pathex=[],
     binaries=numpy_binaries,
     datas=numpy_datas + [('finanze/infrastructure/client/instrument/local_etf_client/etfs.pkl', 'infrastructure/client/instrument/local_etf_client/')],
-    hiddenimports=numpy_submodules + sentry_submodules,
+    hiddenimports=numpy_submodules + sentry_submodules + mcp_submodules,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

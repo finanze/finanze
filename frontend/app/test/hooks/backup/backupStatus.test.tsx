@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { screen, waitFor, act, cleanup } from "@testing-library/react"
 import { BackupFileType, BackupMode, SyncStatus } from "@/types"
-import { buildBackupsInfo, buildSyncResult } from "./builders"
+import { buildBackupsInfo, buildPiece, buildSyncResult } from "./builders"
 import {
   mockGetBackupsInfo,
   mockUploadBackup,
@@ -19,242 +19,106 @@ beforeEach(() => {
 
 describe("backup status display", () => {
   it.each([
-    { data: SyncStatus.SYNC, config: SyncStatus.SYNC, label: "Synced" },
-    { data: SyncStatus.PENDING, config: SyncStatus.PENDING, label: "Pending" },
-    {
-      data: SyncStatus.OUTDATED,
-      config: SyncStatus.OUTDATED,
-      label: "Outdated",
-    },
-    { data: SyncStatus.MISSING, config: SyncStatus.MISSING, label: "Missing" },
-    { data: SyncStatus.PENDING, config: SyncStatus.SYNC, label: "Pending" },
-    { data: SyncStatus.SYNC, config: SyncStatus.OUTDATED, label: "Outdated" },
-    { data: SyncStatus.PENDING, config: SyncStatus.OUTDATED, label: "Pending" },
-  ])(
-    "shows '$label' when DATA=$data and CONFIG=$config",
-    async ({ data, config, label }) => {
-      const info = buildBackupsInfo(data, config)
-      mockGetBackupsInfo.mockResolvedValue(info)
+    { data: SyncStatus.SYNC, label: "Synced" },
+    { data: SyncStatus.PENDING, label: "Pending" },
+    { data: SyncStatus.OUTDATED, label: "Outdated" },
+    { data: SyncStatus.MISSING, label: "Missing" },
+  ])("shows '$label' when DATA=$data", async ({ data, label }) => {
+    const info = buildBackupsInfo(data)
+    mockGetBackupsInfo.mockResolvedValue(info)
 
-      renderBackupUI()
+    renderBackupUI()
 
-      await waitFor(() => {
-        expect(screen.getByText(label)).toBeInTheDocument()
-      })
+    await waitFor(() => {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    })
 
-      expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
-    },
-  )
+    expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
+  })
 })
 
 describe("conflict resolution — Use Local", () => {
-  const cases = [
-    {
-      name: "DATA=CONFLICT, CONFIG=SYNC",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.SYNC,
-      expectedUploadTypes: [BackupFileType.DATA],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=SYNC, CONFIG=CONFLICT",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.CONFLICT,
-      expectedUploadTypes: [BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=CONFLICT",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.CONFLICT,
-      expectedUploadTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=OUTDATED",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.OUTDATED,
-      expectedUploadTypes: [BackupFileType.DATA],
-      followUpImportTypes: [BackupFileType.CONFIG],
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=PENDING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.PENDING,
-      expectedUploadTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=MISSING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.MISSING,
-      expectedUploadTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpImportTypes: null,
-    },
-  ]
+  it("DATA=CONFLICT", async () => {
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
+    mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
-  it.each(cases)(
-    "$name",
-    async ({ data, config, expectedUploadTypes, followUpImportTypes }) => {
-      const initialInfo = buildBackupsInfo(data, config)
-      mockGetBackupsInfo.mockResolvedValue(initialInfo)
+    mockUploadBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
 
-      mockUploadBackup.mockResolvedValue(
-        buildSyncResult(expectedUploadTypes, SyncStatus.SYNC),
-      )
-      if (followUpImportTypes) {
-        mockImportBackup.mockResolvedValue(
-          buildSyncResult(followUpImportTypes, SyncStatus.SYNC),
-        )
-      }
+    renderBackupUI()
 
-      renderBackupUI()
+    await waitFor(() => {
+      expect(screen.getByText("Conflict detected")).toBeInTheDocument()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByText("Conflict detected")).toBeInTheDocument()
+    expect(screen.getByText("Use local")).toBeInTheDocument()
+    expect(screen.getByText("Use remote")).toBeInTheDocument()
+
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    await act(async () => {
+      screen.getByText("Use local").click()
+    })
+
+    await waitFor(() => {
+      expect(mockUploadBackup).toHaveBeenCalledWith({
+        types: [BackupFileType.DATA],
+        force: true,
       })
+    })
 
-      expect(screen.getByText("Use local")).toBeInTheDocument()
-      expect(screen.getByText("Use remote")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
+    })
 
-      mockGetBackupsInfo.mockResolvedValue(
-        buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-      )
-
-      await act(async () => {
-        screen.getByText("Use local").click()
-      })
-
-      await waitFor(() => {
-        expect(mockUploadBackup).toHaveBeenCalledWith({
-          types: expectedUploadTypes,
-          force: true,
-        })
-      })
-
-      if (followUpImportTypes) {
-        await waitFor(() => {
-          expect(mockImportBackup).toHaveBeenCalledWith({
-            types: followUpImportTypes,
-          })
-        })
-      }
-
-      await waitFor(() => {
-        expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText("Synced")).toBeInTheDocument()
-      })
-    },
-  )
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+  })
 })
 
 describe("conflict resolution — Use Remote", () => {
-  const cases = [
-    {
-      name: "DATA=CONFLICT, CONFIG=SYNC",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.SYNC,
-      expectedImportTypes: [BackupFileType.DATA],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=SYNC, CONFIG=CONFLICT",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.CONFLICT,
-      expectedImportTypes: [BackupFileType.CONFIG],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=CONFLICT",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.CONFLICT,
-      expectedImportTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=OUTDATED",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.OUTDATED,
-      expectedImportTypes: [BackupFileType.DATA, BackupFileType.CONFIG],
-      followUpUploadTypes: null,
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=PENDING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.PENDING,
-      expectedImportTypes: [BackupFileType.DATA],
-      followUpUploadTypes: [BackupFileType.CONFIG],
-    },
-    {
-      name: "DATA=CONFLICT, CONFIG=MISSING",
-      data: SyncStatus.CONFLICT,
-      config: SyncStatus.MISSING,
-      expectedImportTypes: [BackupFileType.DATA],
-      followUpUploadTypes: [BackupFileType.CONFIG],
-    },
-  ]
+  it("DATA=CONFLICT", async () => {
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
+    mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
-  it.each(cases)(
-    "$name",
-    async ({ data, config, expectedImportTypes, followUpUploadTypes }) => {
-      const initialInfo = buildBackupsInfo(data, config)
-      mockGetBackupsInfo.mockResolvedValue(initialInfo)
+    mockImportBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
 
-      mockImportBackup.mockResolvedValue(
-        buildSyncResult(expectedImportTypes, SyncStatus.SYNC),
-      )
-      if (followUpUploadTypes) {
-        mockUploadBackup.mockResolvedValue(
-          buildSyncResult(followUpUploadTypes, SyncStatus.SYNC),
-        )
-      }
+    renderBackupUI()
 
-      renderBackupUI()
+    await waitFor(() => {
+      expect(screen.getByText("Conflict detected")).toBeInTheDocument()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByText("Conflict detected")).toBeInTheDocument()
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    await act(async () => {
+      screen.getByText("Use remote").click()
+    })
+
+    await waitFor(() => {
+      expect(mockImportBackup).toHaveBeenCalledWith({
+        types: [BackupFileType.DATA],
+        force: true,
       })
+    })
 
-      mockGetBackupsInfo.mockResolvedValue(
-        buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-      )
+    await waitFor(() => {
+      expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
+    })
 
-      await act(async () => {
-        screen.getByText("Use remote").click()
-      })
-
-      await waitFor(() => {
-        expect(mockImportBackup).toHaveBeenCalledWith({
-          types: expectedImportTypes,
-          force: true,
-        })
-      })
-
-      if (followUpUploadTypes) {
-        await waitFor(() => {
-          expect(mockUploadBackup).toHaveBeenCalledWith({
-            types: followUpUploadTypes,
-          })
-        })
-      }
-
-      await waitFor(() => {
-        expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText("Synced")).toBeInTheDocument()
-      })
-    },
-  )
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+  })
 })
 
 describe("multi-instance state sync (bug fix)", () => {
   it("Use Local resolves conflict in both instances", async () => {
-    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
     mockUploadBackup.mockResolvedValue(
@@ -267,9 +131,7 @@ describe("multi-instance state sync (bug fix)", () => {
       expect(screen.getByText("Conflict detected")).toBeInTheDocument()
     })
 
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
 
     await act(async () => {
       screen.getByText("Use local").click()
@@ -281,7 +143,7 @@ describe("multi-instance state sync (bug fix)", () => {
   })
 
   it("Use Remote resolves conflict in both instances", async () => {
-    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const initialInfo = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(initialInfo)
 
     mockImportBackup.mockResolvedValue(
@@ -294,9 +156,7 @@ describe("multi-instance state sync (bug fix)", () => {
       expect(screen.getByText("Conflict detected")).toBeInTheDocument()
     })
 
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
 
     await act(async () => {
       screen.getByText("Use remote").click()
@@ -311,30 +171,20 @@ describe("multi-instance state sync (bug fix)", () => {
 describe("manual sync", () => {
   const cases = [
     {
-      name: "PENDING + SYNC → uploads DATA",
+      name: "PENDING → uploads DATA",
       data: SyncStatus.PENDING,
-      config: SyncStatus.SYNC,
       expectedUploadTypes: [BackupFileType.DATA],
       expectedImportTypes: null,
     },
     {
-      name: "SYNC + OUTDATED → imports CONFIG",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.OUTDATED,
+      name: "OUTDATED → imports DATA",
+      data: SyncStatus.OUTDATED,
       expectedUploadTypes: null,
-      expectedImportTypes: [BackupFileType.CONFIG],
+      expectedImportTypes: [BackupFileType.DATA],
     },
     {
-      name: "PENDING + OUTDATED → uploads DATA, imports CONFIG",
-      data: SyncStatus.PENDING,
-      config: SyncStatus.OUTDATED,
-      expectedUploadTypes: [BackupFileType.DATA],
-      expectedImportTypes: [BackupFileType.CONFIG],
-    },
-    {
-      name: "MISSING + SYNC → uploads DATA",
+      name: "MISSING → uploads DATA",
       data: SyncStatus.MISSING,
-      config: SyncStatus.SYNC,
       expectedUploadTypes: [BackupFileType.DATA],
       expectedImportTypes: null,
     },
@@ -342,9 +192,9 @@ describe("manual sync", () => {
 
   it.each(cases)(
     "$name",
-    async ({ data, config, expectedUploadTypes, expectedImportTypes }) => {
+    async ({ data, expectedUploadTypes, expectedImportTypes }) => {
       setBackupMode(BackupMode.MANUAL)
-      const info = buildBackupsInfo(data, config)
+      const info = buildBackupsInfo(data)
       mockGetBackupsInfo.mockResolvedValue(info)
 
       if (expectedUploadTypes) {
@@ -398,7 +248,7 @@ const TRANSFER_FAILED_MSG =
 
 describe("transfer failed error handling", () => {
   it("shows transfer failed message on upload failure (Use Local)", async () => {
-    const info = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockUploadBackup.mockRejectedValue(backupTransferError())
 
@@ -418,7 +268,7 @@ describe("transfer failed error handling", () => {
   })
 
   it("shows transfer failed message on import failure (Use Remote)", async () => {
-    const info = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockImportBackup.mockRejectedValue(backupTransferError())
 
@@ -439,7 +289,7 @@ describe("transfer failed error handling", () => {
 
   it("shows transfer failed message on manual sync upload failure", async () => {
     setBackupMode(BackupMode.MANUAL)
-    const info = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockUploadBackup.mockRejectedValue(backupTransferError())
 
@@ -460,7 +310,7 @@ describe("transfer failed error handling", () => {
 
   it("shows transfer failed message on manual sync import failure", async () => {
     setBackupMode(BackupMode.MANUAL)
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.OUTDATED)
+    const info = buildBackupsInfo(SyncStatus.OUTDATED)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockImportBackup.mockRejectedValue(backupTransferError())
 
@@ -477,5 +327,37 @@ describe("transfer failed error handling", () => {
     await waitFor(() => {
       expect(screen.getByText(TRANSFER_FAILED_MSG)).toBeInTheDocument()
     })
+  })
+})
+
+describe("legacy persisted state", () => {
+  it("ignores a stale persisted CONFIG piece", async () => {
+    localStorage.setItem(
+      "backup_data",
+      JSON.stringify({
+        pieces: {
+          [BackupFileType.DATA]: buildPiece(SyncStatus.SYNC),
+          CONFIG: buildPiece(SyncStatus.CONFLICT),
+        },
+      }),
+    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    renderBackupUI()
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText("Conflict detected")).not.toBeInTheDocument()
+    expect(mockUploadBackup).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        types: expect.arrayContaining(["CONFIG"]),
+      }),
+    )
   })
 })

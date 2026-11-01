@@ -26,17 +26,19 @@ def _build_use_case(unlocked: bool = False, user: User = None):
     source_initiator.change_password = AsyncMock()
     data_manager = AsyncMock()
     data_manager.get_user.return_value = user
+    config_port = AsyncMock()
     use_case = ChangeUserPasswordImpl(
         source_initiator=source_initiator,
         data_manager=data_manager,
+        config_port=config_port,
     )
-    return use_case, source_initiator, data_manager
+    return use_case, source_initiator, data_manager, config_port
 
 
 class TestChangePasswordRaisesWhenLoggedIn:
     @pytest.mark.asyncio
     async def test_raises_user_already_logged_in_when_unlocked(self):
-        use_case, _, _ = _build_use_case(unlocked=True)
+        use_case, *_ = _build_use_case(unlocked=True)
         request = ChangePasswordRequest(
             username="testuser",
             old_password="oldpass!1",
@@ -50,7 +52,7 @@ class TestChangePasswordRaisesWhenLoggedIn:
 class TestChangePasswordRaisesOnSamePassword:
     @pytest.mark.asyncio
     async def test_raises_value_error_when_passwords_match(self):
-        use_case, _, _ = _build_use_case(unlocked=False)
+        use_case, *_ = _build_use_case(unlocked=False)
         request = ChangePasswordRequest(
             username="testuser",
             old_password="samepass1",
@@ -64,7 +66,7 @@ class TestChangePasswordRaisesOnSamePassword:
 class TestChangePasswordRaisesWhenUserNotFound:
     @pytest.mark.asyncio
     async def test_raises_user_not_found_when_user_does_not_exist(self):
-        use_case, _, _ = _build_use_case(unlocked=False, user=None)
+        use_case, _, _, config_port = _build_use_case(unlocked=False, user=None)
         request = ChangePasswordRequest(
             username="nonexistent",
             old_password="oldpass!1",
@@ -73,13 +75,16 @@ class TestChangePasswordRaisesWhenUserNotFound:
 
         with pytest.raises(UserNotFound):
             await use_case.execute(request)
+        config_port.connect.assert_not_called()
 
 
 class TestChangePasswordSuccess:
     @pytest.mark.asyncio
     async def test_calls_change_password_with_correct_params(self):
         user = _make_user("testuser")
-        use_case, source_initiator, _ = _build_use_case(unlocked=False, user=user)
+        use_case, source_initiator, _, config_port = _build_use_case(
+            unlocked=False, user=user
+        )
         request = ChangePasswordRequest(
             username="testuser",
             old_password="oldpass!1",
@@ -95,3 +100,25 @@ class TestChangePasswordSuccess:
         assert params.user is user
         assert params.password == "oldpass!1"
         assert new_password == "newpass!1"
+        assert params.context.config is config_port
+        config_port.connect.assert_awaited_once_with(user)
+        config_port.disconnect.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_disconnects_config_when_change_password_fails(self):
+        user = _make_user("testuser")
+        use_case, source_initiator, _, config_port = _build_use_case(
+            unlocked=False, user=user
+        )
+        source_initiator.change_password.side_effect = RuntimeError("boom")
+        request = ChangePasswordRequest(
+            username="testuser",
+            old_password="oldpass!1",
+            new_password="newpass!1",
+        )
+
+        with pytest.raises(RuntimeError):
+            await use_case.execute(request)
+
+        config_port.connect.assert_awaited_once_with(user)
+        config_port.disconnect.assert_awaited_once()

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { Input } from "./Input"
+import { AnimatedPopup } from "./AnimatedPopup"
 
 interface CategorySelectorProps {
   value: string
@@ -81,23 +82,24 @@ export const CategorySelector = ({
         className={className}
         disabled={disabled}
       />
-      {isOpen && categoriesToShow.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-black border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto">
-          {categoriesToShow.map(category => (
-            <button
-              key={category}
-              type="button"
-              className="w-full text-left px-3 py-2 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 text-sm transition-colors"
-              onMouseDown={e => {
-                e.preventDefault() // Prevent input blur
-                handleSelect(category)
-              }}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnimatedPopup
+        open={isOpen && categoriesToShow.length > 0}
+        className="absolute z-50 w-full mt-1 bg-white dark:bg-black border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto"
+      >
+        {categoriesToShow.map(category => (
+          <button
+            key={category}
+            type="button"
+            className="w-full text-left px-3 py-2 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 text-sm transition-colors"
+            onMouseDown={e => {
+              e.preventDefault() // Prevent input blur
+              handleSelect(category)
+            }}
+          >
+            {category}
+          </button>
+        ))}
+      </AnimatedPopup>
     </div>
   )
 }

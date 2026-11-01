@@ -57,6 +57,16 @@ export const formatNumber = (value: number, locale: string): string => {
   }).format(value)
 }
 
+export const formatIban = (iban?: string | null, reveal?: boolean) => {
+  if (!iban) return null
+  if (reveal) {
+    return iban.replace(/(.{4})/g, "$1 ").trim()
+  }
+  return `•••• •••• •••• ${iban.slice(-4)}`
+}
+
+export const shortIban = (iban: string) => `•• ${iban.slice(-4)}`
+
 export const formatDate = (
   dateInput: string | null | undefined,
   locale: string,

@@ -40,7 +40,7 @@ _SCHEMA = """
     );
     CREATE TABLE derivative_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
     CREATE TABLE market_forecast_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
-    CREATE TABLE card_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), used TEXT);
+    CREATE TABLE card_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), used TEXT, type VARCHAR(32));
     CREATE TABLE loan_positions (
         id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3),
         principal_outstanding TEXT, hash VARCHAR(64), creation DATE
@@ -167,6 +167,86 @@ def _use_case(repository, *, rates=None, real_estate=None, metal_rates=None):
 
 
 class TestNetworthTimelineRepositoryIntegration:
+    @pytest.mark.asyncio
+    async def test_only_credit_card_usage_reduces_networth(self, setup):
+        repository, conn = setup
+        gp = _insert_gp(conn, uuid4(), "2025-01-01")
+        _insert(conn, "account_positions", gp, "total", "1000")
+        _insert(conn, "card_positions", gp, "used", "100", type="CREDIT")
+        _insert(
+            conn, "card_positions", gp, "used", "125", currency="USD", type="CREDIT"
+        )
+        _insert(conn, "card_positions", gp, "used", "200", type="DEBIT")
+        _insert(conn, "card_positions", gp, "used", "250", currency="USD", type="DEBIT")
+        conn.commit()
+
+        result = await _use_case(
+            repository, rates={"EUR": {"USD": Dezimal("1.25")}}
+        ).execute(NetworthTimelineQuery())
+
+        assert result.points[0].breakdown == {
+            "ACCOUNT": Dezimal(1000),
+            "CARD": Dezimal(-200),
+        }
+        assert result.points[0].total == Dezimal(800)
+
+    @pytest.mark.asyncio
+    async def test_debit_only_cards_do_not_reduce_networth(self, setup):
+        repository, conn = setup
+        gp = _insert_gp(conn, uuid4(), "2025-01-01")
+        _insert(conn, "account_positions", gp, "total", "1000")
+        _insert(conn, "card_positions", gp, "used", "200", type="DEBIT")
+        conn.commit()
+
+        result = await _use_case(repository).execute(NetworthTimelineQuery())
+
+        assert result.points[0].breakdown == {"ACCOUNT": Dezimal(1000)}
+        assert result.points[0].total == Dezimal(1000)
+
+    @pytest.mark.asyncio
+    async def test_old_card_calculation_cache_rebuilds_without_new_snapshots(
+        self, setup, monkeypatch
+    ):
+        repository, conn = setup
+        gp = _insert_gp(conn, uuid4(), "2025-01-01")
+        _insert(conn, "account_positions", gp, "total", "1000")
+        _insert(conn, "card_positions", gp, "used", "100", type="CREDIT")
+        _insert(conn, "card_positions", gp, "used", "200", type="DEBIT")
+        conn.commit()
+
+        use_case = _use_case(repository)
+        await use_case.execute(NetworthTimelineQuery())
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                "application.use_cases.get_networth_timeline._CALC_VERSION", "2"
+            )
+            old_signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
+
+        conn.execute(
+            "UPDATE networth_timeline_meta SET inputs_signature = ? WHERE id = 1",
+            (old_signature,),
+        )
+        conn.execute(
+            "UPDATE networth_timeline_points SET total = ?, breakdown = ?",
+            ("700", '{"ACCOUNT": "1000", "CARD": "-300"}'),
+        )
+        conn.commit()
+
+        result = await use_case.execute(NetworthTimelineQuery())
+
+        assert result.points[0].total == Dezimal(900)
+        assert result.points[0].breakdown["CARD"] == Dezimal(-100)
+        state = await repository.get_state()
+        assert state.inputs_signature != old_signature
+        assert state.last_computed_date == date(2025, 1, 1)
+        assert (
+            conn.execute("SELECT total FROM networth_timeline_points").fetchone()[
+                "total"
+            ]
+            == "900.00"
+        )
+
     @pytest.mark.asyncio
     async def test_end_to_end_compute_persist_and_read(self, setup):
         repository, conn = setup

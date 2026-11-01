@@ -20,7 +20,11 @@ from domain.available_sources import (
     FinancialEntityStatus,
 )
 from domain.entity import EntityOrigin, EntityType, Feature, Entity
-from domain.external_entity import EXTERNAL_ENTITY_FEATURES, ExternalEntityStatus
+from domain.external_entity import (
+    EXTERNAL_ENTITY_FEATURES,
+    EXTERNAL_ENTITY_TRANSACTION_KINDS,
+    ExternalEntityStatus,
+)
 from domain.external_integration import ExternalIntegrationType
 from domain.global_position import ProductType
 from domain.native_entities import NATIVE_ENTITIES
@@ -125,6 +129,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
             if entity.origin == EntityOrigin.EXTERNALLY_PROVIDED:
                 products = self.EXTERNAL_ENTITY_PRODUCTS
+                dict_entity["transaction_kinds"] = EXTERNAL_ENTITY_TRANSACTION_KINDS
                 external_entity = await self._external_entity_port.get_by_entity_id(
                     entity.id
                 )

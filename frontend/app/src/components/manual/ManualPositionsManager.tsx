@@ -1298,6 +1298,7 @@ export function ManualPositionsManager({
     if (isQuickMode) {
       queueQuickSave()
     } else {
+      setIsEditMode(true)
       setHasLocalChanges(true)
     }
     setDeleteTarget(null)

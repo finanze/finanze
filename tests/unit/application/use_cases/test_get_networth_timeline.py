@@ -477,6 +477,34 @@ class TestControlFlow:
         assert _persisted(port)["wipe"] is True
 
     @pytest.mark.asyncio
+    async def test_calculation_version_change_rebuilds_existing_snapshots(
+        self, monkeypatch
+    ):
+        snapshots = [
+            _snapshot(
+                "e1||REAL",
+                date(2025, 1, 1),
+                [_holding("ACCOUNT", "100"), _holding("CARD", "20")],
+            )
+        ]
+        with monkeypatch.context() as context:
+            context.setattr(
+                "application.use_cases.get_networth_timeline._CALC_VERSION", "2"
+            )
+            old_signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
+        state = NetworthTimelineState(
+            inputs_signature=old_signature, last_computed_date=date(2025, 1, 1)
+        )
+        use_case, port = _build(snapshots=snapshots, state=state)
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        persisted = _persisted(port)
+        assert persisted["wipe"] is True
+        assert persisted["state"].inputs_signature != old_signature
+        assert persisted["points"][0].total == Dezimal(80)
+
+    @pytest.mark.asyncio
     async def test_persistently_missing_rate_does_not_rebuild(self):
         snapshots = [
             _snapshot(

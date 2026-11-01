@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, type ReactNode } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { isNativeMobile, isIOS } from "@/lib/platform"
+import { isNativeMobile } from "@/lib/platform"
+import { triggerLightHaptic } from "@/lib/capacitor/haptics"
 import { canNavigateBack } from "@/lib/mobile/backNavigation"
 import { useModalRegistry } from "@/context/ModalRegistryContext"
 
@@ -8,27 +9,6 @@ const EDGE_ZONE = 30
 const THRESHOLD_RATIO = 0.3
 const MIN_VELOCITY = 0.3
 const DAMPEN_MAX = 0.25
-
-let hapticsModule: typeof import("@capacitor/haptics") | null = null
-let hapticsLoading = false
-
-function triggerHaptic() {
-  if (!isIOS()) return
-  if (hapticsModule) {
-    hapticsModule.Haptics.impact({
-      style: hapticsModule.ImpactStyle.Light,
-    }).catch(() => {})
-    return
-  }
-  if (hapticsLoading) return
-  hapticsLoading = true
-  import("@capacitor/haptics")
-    .then(mod => {
-      hapticsModule = mod
-      mod.Haptics.impact({ style: mod.ImpactStyle.Light }).catch(() => {})
-    })
-    .catch(() => {})
-}
 
 function rubberBand(raw: number, maxOffset: number): number {
   if (raw <= 0) return 0
@@ -68,7 +48,8 @@ export function SwipeBackGesture({ children }: SwipeBackGestureProps) {
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
-  const enabled = isNativeMobile() && canNavigateBack(location.pathname)
+  const enabled =
+    isNativeMobile() && canNavigateBack(location.pathname, location.state)
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
   const hasOpenRef = useRef(hasOpen)
@@ -113,7 +94,7 @@ export function SwipeBackGesture({ children }: SwipeBackGestureProps) {
       const wouldPass = dx > window.innerWidth * THRESHOLD_RATIO
       if (wouldPass && !hapticFired.current) {
         hapticFired.current = true
-        triggerHaptic()
+        triggerLightHaptic()
       } else if (!wouldPass && hapticFired.current) {
         hapticFired.current = false
       }
@@ -135,7 +116,7 @@ export function SwipeBackGesture({ children }: SwipeBackGestureProps) {
 
       if (passedThreshold && dx > 0) {
         navigating.current = true
-        triggerHaptic()
+        triggerLightHaptic()
         setOffsetX(window.innerWidth)
         setTimeout(() => {
           navigateRef.current(-1)
@@ -161,7 +142,7 @@ export function SwipeBackGesture({ children }: SwipeBackGestureProps) {
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="relative min-h-full"
       style={{ touchAction: "pan-y" }}
     >
       {enabled && offsetX > 0 && (

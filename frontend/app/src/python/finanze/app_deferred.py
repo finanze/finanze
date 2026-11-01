@@ -44,8 +44,8 @@ class DeferredComponents:
         from infrastructure.cloud.capacitor_cloud_data_register import (
             CapacitorCloudDataRegister,
         )
-        from infrastructure.config.capacitor_config_adapter import (
-            CapacitorConfigAdapter,
+        from infrastructure.config.capacitor_legacy_config_source import (
+            CapacitorLegacyConfigSource,
         )
         from infrastructure.file_storage.preference_exchange_storage import (
             PreferenceExchangeRateStorage,
@@ -116,6 +116,9 @@ class DeferredComponents:
         from infrastructure.repository.real_estate.real_estate_repository import (
             RealEstateRepository,
         )
+        from infrastructure.repository.settings.settings_repository import (
+            SettingsRepository,
+        )
         from infrastructure.repository.virtual.virtual_import_repository import (
             VirtualImportRepository,
         )
@@ -150,14 +153,16 @@ class DeferredComponents:
 
         apply_httpx_patch()
 
-        self.config_loader = CapacitorConfigAdapter()
+        self.settings_repository = SettingsRepository(
+            core.db_client, CapacitorLegacyConfigSource()
+        )
         self.sheets_initiator = CapacitorSheetsInitiator()
         self.cloud_register = CapacitorCloudDataRegister()
 
         self.login = UserLoginImpl(
             core.db_manager,
             core.data_manager,
-            self.config_loader,
+            self.settings_repository,
             self.sheets_initiator,
             self.cloud_register,
             core.error_reporter,
@@ -165,19 +170,21 @@ class DeferredComponents:
         self.register = RegisterUserImpl(
             core.db_manager,
             core.data_manager,
-            self.config_loader,
+            self.settings_repository,
             self.sheets_initiator,
             self.cloud_register,
             core.error_reporter,
         )
-        self.get_settings = GetSettingsImpl(self.config_loader)
+        self.get_settings = GetSettingsImpl(self.settings_repository)
 
         db_client = core.db_client
 
-        self.change_pw = ChangeUserPasswordImpl(core.db_manager, core.data_manager)
+        self.change_pw = ChangeUserPasswordImpl(
+            core.db_manager, core.data_manager, self.settings_repository
+        )
         self.logout = UserLogoutImpl(
             core.db_manager,
-            self.config_loader,
+            self.settings_repository,
             self.sheets_initiator,
             self.cloud_register,
             core.error_reporter,
@@ -227,6 +234,9 @@ class DeferredComponents:
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
+            ExternalIntegrationId.OPENROUTER: True,
+            ExternalIntegrationId.OPENAI: True,
+            ExternalIntegrationId.OPENAI_COMPATIBLE: True,
         }
         if INCLUDE_CONNECTIONS:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True
@@ -314,7 +324,6 @@ class DeferredComponents:
 
         backupable_ports = {
             BackupFileType.DATA: core.db_manager,
-            BackupFileType.CONFIG: self.config_loader,
         }
         self.backupable_ports = backupable_ports
         self.get_backups = GetBackupsImpl(

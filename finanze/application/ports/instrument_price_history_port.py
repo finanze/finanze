@@ -45,11 +45,21 @@ class InstrumentPriceHistoryPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def is_splits_checked(self, instrument_key: str) -> bool:
+    async def is_splits_checked(
+        self,
+        instrument_key: str,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> bool:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def mark_splits_checked(self, instrument_key: str) -> None:
+    async def mark_splits_checked(
+        self,
+        instrument_key: str,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod

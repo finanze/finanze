@@ -43,6 +43,7 @@ class CreateRealEstateImpl(AtomicUCMixin, CreateRealEstate):
                     raise FlowNotFound(
                         f"Periodic flow with ID {re_flow.periodic_flow.id} does not exist."
                     )
+                re_flow.periodic_flow.label_id = existing_pending_flow.label_id
                 await self._periodic_flow_port.update(re_flow.periodic_flow)
 
         if request.photo and request.photo.filename:

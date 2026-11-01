@@ -14,6 +14,7 @@ async def get_periodic_flows(get_periodic_flows_uc: GetPeriodicFlows):
                 "flow_type": flow.flow_type.value,
                 "frequency": flow.frequency.value,
                 "category": flow.category,
+                "label_id": str(flow.label_id) if flow.label_id else None,
                 "enabled": flow.enabled,
                 "since": flow.since.isoformat() if flow.since else None,
                 "until": flow.until.isoformat() if flow.until else None,
