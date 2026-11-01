@@ -25,3 +25,7 @@ class TransactionLabeler(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def apply_rule(self, rule: LabelingRule) -> int:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def external_model_unavailable(self) -> bool:
+        raise NotImplementedError

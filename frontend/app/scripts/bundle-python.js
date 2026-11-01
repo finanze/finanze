@@ -29,6 +29,8 @@ const EXCLUDED_DIRS = [
   "infrastructure/mcp",
   "infrastructure/repository/mcp",
   "infrastructure/local_models",
+  "infrastructure/agent_runtime",
+  "infrastructure/client/ai/github_copilot",
 ]
 
 const EXCLUDED_PATHS = [
@@ -72,6 +74,9 @@ const EXCLUDED_PATHS = [
   "domain/use_cases/complete_external_integration_connection.py",
   "application/use_cases/complete_external_integration_connection.py",
   "infrastructure/controller/routes/complete_external_integration_connection.py",
+  "domain/use_cases/poll_external_integration_connection.py",
+  "application/use_cases/poll_external_integration_connection.py",
+  "infrastructure/controller/routes/poll_external_integration_connection.py",
 ]
 
 const EXCLUDED_FILES = [

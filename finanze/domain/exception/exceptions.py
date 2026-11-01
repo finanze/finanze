@@ -95,6 +95,8 @@ class IntegrationSetupErrorCode(str, Enum):
     MISSING_SERVER_URL = "MISSING_SERVER_URL"
     AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
     AUTHORIZATION_EXPIRED = "AUTHORIZATION_EXPIRED"
+    NOT_ENTITLED = "NOT_ENTITLED"
+    RUNTIME_FAILED = "RUNTIME_FAILED"
 
 
 INTEGRATION_SETUP_UNAUTHORIZED_CODES = (
@@ -107,6 +109,7 @@ INTEGRATION_SETUP_BAD_REQUEST_CODES = (
     IntegrationSetupErrorCode.MISSING_SERVER_URL,
     IntegrationSetupErrorCode.AUTHORIZATION_DENIED,
     IntegrationSetupErrorCode.AUTHORIZATION_EXPIRED,
+    IntegrationSetupErrorCode.NOT_ENTITLED,
 )
 
 
@@ -257,8 +260,9 @@ class InvalidLabelingRule(Exception):
 
 
 class ExternalLabelingUnavailable(Exception):
-    def __init__(self, details: str):
+    def __init__(self, details: str, code: Optional[str] = None):
         self.details = details
+        self.code = code
         super().__init__(details)
 
 

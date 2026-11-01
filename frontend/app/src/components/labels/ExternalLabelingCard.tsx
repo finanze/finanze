@@ -13,6 +13,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Coins,
   ExternalLink,
   HardDrive,
   Info,
@@ -43,6 +44,7 @@ import {
   validateAIModel,
 } from "@/services/api"
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/formatters"
 import { formatFileSize } from "@/utils/releaseUtils"
 import { AITask } from "@/types/ai"
 import { LabelOrigin } from "@/types/transactions"
@@ -65,6 +67,12 @@ const EXAMPLE_ORIGINS = [LabelOrigin.MANUAL, LabelOrigin.RULE]
 
 const SELECT_CLASS =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+
+const formatTokenPrice = (value: number, currency: string, locale: string) =>
+  formatCurrency(value, locale, currency, undefined, {
+    narrowSymbol: true,
+    maximumFractionDigits: 3,
+  })
 
 const clampInt = (
   value: string,
@@ -130,13 +138,16 @@ function RadioMark({ checked }: { checked: boolean }) {
 
 function ModelChip({
   className,
+  title,
   children,
 }: {
   className: string
+  title?: string
   children: ReactNode
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none",
         className,
@@ -148,7 +159,7 @@ function ModelChip({
 }
 
 export function ExternalLabelingCard({ className }: { className?: string }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const navigate = useNavigate()
   const {
     settings,
@@ -643,7 +654,8 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                                 {(model.probabilistic ||
                                   model.loaded ||
                                   model.load_failed ||
-                                  !!model.size) && (
+                                  !!model.size ||
+                                  !!model.pricing) && (
                                   <span className="flex flex-wrap gap-1 pt-0.5">
                                     {model.probabilistic && (
                                       <ModelChip className="border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300">
@@ -667,6 +679,31 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                                       <ModelChip className="border-border bg-muted/60 text-muted-foreground">
                                         <HardDrive className="h-2.5 w-2.5" />
                                         {formatFileSize(model.size)}
+                                      </ModelChip>
+                                    )}
+                                    {model.pricing && (
+                                      <ModelChip
+                                        className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                        title={t.labels.external.tokenPriceHint}
+                                      >
+                                        <Coins className="h-2.5 w-2.5" />
+                                        {t.labels.external.tokenPrice
+                                          .replace(
+                                            "{input}",
+                                            formatTokenPrice(
+                                              model.pricing.input_per_million,
+                                              model.pricing.currency,
+                                              locale,
+                                            ),
+                                          )
+                                          .replace(
+                                            "{output}",
+                                            formatTokenPrice(
+                                              model.pricing.output_per_million,
+                                              model.pricing.currency,
+                                              locale,
+                                            ),
+                                          )}
                                       </ModelChip>
                                     )}
                                   </span>

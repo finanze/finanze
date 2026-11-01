@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+from application.ports.agent_runtime_port import AgentRuntimePort
 from application.ports.cloud_register import CloudRegister
 from application.ports.config_port import ConfigPort
 from application.ports.datasource_initiator import DatasourceInitiator
@@ -17,18 +18,22 @@ class UserLogoutImpl(UserLogout):
         sheets_initiator: SheetsInitiator,
         cloud_register: CloudRegister,
         error_reporter: Optional[ErrorReporterPort] = None,
+        agent_runtime_port: Optional[AgentRuntimePort] = None,
     ):
         self._source_initiator = source_initiator
         self._config_port = config_port
         self._sheets_initiator = sheets_initiator
         self._cloud_register = cloud_register
         self._error_reporter = error_reporter
+        self._agent_runtime_port = agent_runtime_port
         self._log = logging.getLogger(__name__)
 
     async def execute(self):
         await self._config_port.disconnect()
         self._sheets_initiator.disconnect()
         await self._cloud_register.disconnect()
+        if self._agent_runtime_port:
+            await self._agent_runtime_port.release_all()
         await self._source_initiator.lock()
 
         if self._error_reporter:

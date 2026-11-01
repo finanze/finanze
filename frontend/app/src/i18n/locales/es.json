@@ -555,7 +555,9 @@
     "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
     "DISABLED": "Importación de datos deshabilitada en configuración.",
     "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",
-    "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra."
+    "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra.",
+    "NOT_ENTITLED": "Tu cuenta no tiene acceso a {integration}. Comprueba que tu plan está activo y que tu organización lo permite.",
+    "RUNTIME_FAILED": "No se pudo iniciar {integration} en este dispositivo. Comprueba tu conexión e inténtalo de nuevo."
   },
   "errorBoundary": {
     "title": "Algo ha salido mal",
@@ -1423,6 +1425,9 @@
             }
           ]
         }
+      },
+      "GITHUB_COPILOT": {
+        "description": "Etiqueta tus movimientos con los modelos incluidos en tu plan de GitHub Copilot. GitHub factura el uso en créditos de IA según el precio por token de cada modelo, y los movimientos los procesan GitHub y el proveedor del modelo. Solo en escritorio y autoalojado."
       }
     },
     "disableIntegration": "Desactivar integración",
@@ -1431,6 +1436,12 @@
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
     "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes.",
     "integrationInsecureKeyWarning": "Esta conexión no está cifrada (http), así que la clave API se envía en texto plano. Usa https o solo una red de confianza.",
+    "deviceAuthorization": {
+      "intro": "Recibirás un código de un solo uso para iniciar sesión con tu cuenta de {integration}. Puedes revocar el acceso cuando quieras desde los ajustes de tu cuenta.",
+      "instructions": "Introduce este código en {site} para autorizar a Finanze:",
+      "copyAndOpen": "Copiar código y abrir {site}",
+      "waiting": "Esperando autorización, el código caduca en {time}"
+    },
     "localModels": {
       "builtInMode": "Motor integrado",
       "serverMode": "Mi servidor llama.cpp",
@@ -2389,7 +2400,8 @@
       "matched": "{count} movimientos seleccionados",
       "summary": "{rules} etiquetados por reglas · {external} etiquetados por sugerencias",
       "done": "Movimientos reetiquetados",
-      "externalFailed": "Movimientos reetiquetados, pero no se pudieron obtener sugerencias"
+      "externalFailed": "Movimientos reetiquetados, pero no se pudieron obtener sugerencias",
+      "externalModelUnavailable": "el modelo seleccionado ya no está disponible, se han mantenido tus sugerencias actuales. Elige otro modelo en los ajustes de sugerencias."
     },
     "automation": {
       "rulesTitle": "Reglas",
@@ -2450,6 +2462,8 @@
       "noModelsMatch": "Ningún modelo coincide con la búsqueda.",
       "modelsError": "No se han podido cargar los modelos del proveedor.",
       "modelUnavailable": "El modelo seleccionado ({model}) ya no está disponible. Elige otro.",
+      "tokenPrice": "{input} / {output} por 1M",
+      "tokenPriceHint": "Precio por 1M de tokens de entrada / salida",
       "manageModels": "Gestionar modelos",
       "modelLoaded": "Cargado",
       "modelFailed": "Error al iniciar",

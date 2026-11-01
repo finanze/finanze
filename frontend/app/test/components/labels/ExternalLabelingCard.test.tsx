@@ -89,6 +89,15 @@ const COMPATIBLE_PROVIDER: ExternalLabelingProviderDetails = {
   dynamic_models: true,
 }
 
+const COPILOT_PROVIDER: ExternalLabelingProviderDetails = {
+  id: "GITHUB_COPILOT",
+  connected: true,
+  recommended_models: [],
+  custom_models: false,
+  upstream_providers: false,
+  dynamic_models: true,
+}
+
 const settings = (provider: string, model: string | null = null) => {
   const externalSettings: ExternalLabelingSettings = {
     enabled: true,
@@ -273,6 +282,52 @@ describe("ExternalLabelingCard models", () => {
         external.modelUnavailable.replace("{model}", "proxy/unlisted"),
       ),
     ).not.toBeInTheDocument()
+  })
+
+  it("shows token prices and keeps a delisted Copilot model selected", async () => {
+    getExternalLabelingModels.mockResolvedValue({
+      models: [
+        {
+          id: "gpt-6-luna",
+          name: "GPT-6 Luna",
+          probabilistic: false,
+          pricing: {
+            input_per_million: 0.1,
+            output_per_million: 0.5,
+            currency: "USD",
+          },
+        },
+        {
+          id: "claude-haiku",
+          name: "Claude Haiku",
+          probabilistic: false,
+          pricing: {
+            input_per_million: 0.125,
+            output_per_million: 14,
+            currency: "USD",
+          },
+        },
+        { id: "auto", name: "Auto", probabilistic: false },
+      ],
+    })
+    renderCard(COPILOT_PROVIDER, "retired-model")
+
+    const options = await screen.findByTestId("external-model-options")
+    expect(within(options).getByText("$0.10 / $0.50 per 1M")).toHaveAttribute(
+      "title",
+      external.tokenPriceHint,
+    )
+    expect(
+      within(options).getByText("$0.125 / $14.00 per 1M"),
+    ).toBeInTheDocument()
+    expect(within(options).getAllByText(/per 1M/)).toHaveLength(2)
+    expect(
+      screen.getByText(
+        external.modelUnavailable.replace("{model}", "retired-model"),
+      ),
+    ).toBeInTheDocument()
+    expect(within(options).getAllByRole("radio")).toHaveLength(3)
+    expect(screen.queryByText(external.customModel)).not.toBeInTheDocument()
   })
 
   it("filters long model lists", async () => {

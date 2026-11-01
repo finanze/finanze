@@ -21,6 +21,7 @@ import {
 } from "./ExternalSuggestionsSurface"
 
 const DEFAULT_ORIGINS = [LabelOrigin.EXTERNAL]
+const MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
 
 export interface RelabelInitialFilters {
   from_date?: string
@@ -145,8 +146,10 @@ export function RelabelDialog({
       setMatched(response.matched)
       setResult(response)
       const externalError =
-        response.external?.external_error_details ||
-        response.external?.external_error
+        response.external?.external_error_code === MODEL_NOT_FOUND
+          ? t.labels.relabel.externalModelUnavailable
+          : response.external?.external_error_details ||
+            response.external?.external_error
       if (externalError) {
         showToast(
           `${t.labels.relabel.externalFailed}: ${externalError}`,

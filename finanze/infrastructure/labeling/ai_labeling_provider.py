@@ -67,7 +67,7 @@ class AILabelingProvider(ExternalTxLabelingProvider):
         try:
             models = await self._client.list_models(credentials)
         except AIProviderError as e:
-            raise ExternalLabelingUnavailable(e.details) from e
+            raise ExternalLabelingUnavailable(e.details, e.code.value) from e
         return [
             ExternalLabelingModel(
                 id=model.id,
@@ -76,9 +76,21 @@ class AILabelingProvider(ExternalTxLabelingProvider):
                 size=model.size,
                 loaded=model.loaded,
                 load_failed=model.load_failed,
+                pricing=model.pricing,
             )
             for model in models
         ]
+
+    async def is_model_available(
+        self, model: str, credentials: ExternalIntegrationPayload
+    ) -> Optional[bool]:
+        if not self.dynamic_models() or self.custom_models():
+            return None
+        try:
+            return await self._client.get_model(model, credentials) is not None
+        except Exception:
+            self._log.warning(f"Could not check AI model availability for {model}")
+            return None
 
     async def label(
         self,
@@ -140,7 +152,7 @@ class AILabelingProvider(ExternalTxLabelingProvider):
                         credentials,
                     )
         except AIProviderError as e:
-            raise ExternalLabelingUnavailable(e.details) from e
+            raise ExternalLabelingUnavailable(e.details, e.code.value) from e
         return suggestions
 
     async def _generate(

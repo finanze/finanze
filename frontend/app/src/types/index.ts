@@ -819,8 +819,27 @@ export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
 }
 
+export interface ExternalIntegrationDeviceAuthorization {
+  flow_id: string
+  user_code: string
+  verification_uri: string
+  expires_in: number
+  interval: number
+}
+
 export interface ExternalIntegrationConnectionResult {
   link?: string | null
+  device?: ExternalIntegrationDeviceAuthorization | null
+}
+
+export enum ExternalIntegrationConnectionStatus {
+  PENDING = "PENDING",
+  CONNECTED = "CONNECTED",
+}
+
+export interface ExternalIntegrationConnectionPoll {
+  status: ExternalIntegrationConnectionStatus
+  interval?: number | null
 }
 
 export interface CompleteIntegrationOAuthRequest {

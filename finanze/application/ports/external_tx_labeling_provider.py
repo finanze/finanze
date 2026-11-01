@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 
 from domain.external_integration import ExternalIntegrationPayload
 from domain.external_labeling import (
@@ -34,3 +35,8 @@ class ExternalTxLabelingProvider(metaclass=abc.ABCMeta):
         self, credentials: ExternalIntegrationPayload
     ) -> list[ExternalLabelingModel]:
         return []
+
+    async def is_model_available(
+        self, model: str, credentials: ExternalIntegrationPayload
+    ) -> Optional[bool]:
+        return None

@@ -42,6 +42,22 @@ export async function closeExternalAuthBrowser() {
   }
 }
 
+export async function openExternalAuthPage(link: string) {
+  if (isNativeMobile()) {
+    try {
+      await openInAppBrowser(link)
+    } catch {
+      // ignore in-app browser open errors
+    }
+    return
+  }
+  try {
+    window.open(link, "_blank", "noopener,noreferrer")
+  } catch {
+    // ignore window open errors
+  }
+}
+
 export function buildIntegrationCompletionUrl(integrationId: string): string {
   const query = `${INTEGRATION_OAUTH_PARAM}=${encodeURIComponent(integrationId)}`
   if (isWeb()) {

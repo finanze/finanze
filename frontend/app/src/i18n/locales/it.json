@@ -556,7 +556,9 @@
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
-    "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro."
+    "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro.",
+    "NOT_ENTITLED": "Il tuo account non ha accesso a {integration}. Verifica che il tuo piano sia attivo e che la tua organizzazione lo consenta.",
+    "RUNTIME_FAILED": "Impossibile avviare {integration} su questo dispositivo. Controlla la connessione e riprova."
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",
@@ -1424,6 +1426,9 @@
             }
           ]
         }
+      },
+      "GITHUB_COPILOT": {
+        "description": "Etichetta i tuoi movimenti con i modelli inclusi nel tuo piano GitHub Copilot. GitHub addebita l'utilizzo in crediti IA in base al prezzo per token di ogni modello e i movimenti vengono elaborati da GitHub e dal fornitore del modello. Solo desktop e self-hosted."
       }
     },
     "disableIntegration": "Disabilita integrazione",
@@ -1432,6 +1437,12 @@
     "integrationDisabledSuccess": "Integrazione {integration} disabilitata con successo",
     "integrationRequiredMessage": "Abilita l'integrazione Google Sheets in Integrazioni per configurare queste impostazioni.",
     "integrationInsecureKeyWarning": "Questa connessione non è cifrata (http), quindi la chiave API viene inviata in chiaro. Usa https o solo una rete di cui ti fidi.",
+    "deviceAuthorization": {
+      "intro": "Riceverai un codice monouso per accedere con il tuo account {integration}. Puoi revocare l'accesso in qualsiasi momento dalle impostazioni del tuo account.",
+      "instructions": "Inserisci questo codice su {site} per autorizzare Finanze:",
+      "copyAndOpen": "Copia il codice e apri {site}",
+      "waiting": "In attesa di autorizzazione, il codice scade tra {time}"
+    },
     "localModels": {
       "builtInMode": "Motore integrato",
       "serverMode": "Il mio server llama.cpp",
@@ -2385,7 +2396,8 @@
       "matched": "{count} movimenti selezionati",
       "summary": "{rules} etichettati dalle regole · {external} etichettati dai suggerimenti",
       "done": "Movimenti rietichettati",
-      "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti"
+      "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti",
+      "externalModelUnavailable": "il modello selezionato non è più disponibile, i tuoi suggerimenti attuali sono stati mantenuti. Scegli un altro modello nelle impostazioni dei suggerimenti."
     },
     "automation": {
       "rulesTitle": "Regole",
@@ -2446,6 +2458,8 @@
       "noModelsMatch": "Nessun modello corrisponde alla ricerca.",
       "modelsError": "Impossibile caricare i modelli dal provider.",
       "modelUnavailable": "Il modello selezionato ({model}) non è più disponibile. Scegline un altro.",
+      "tokenPrice": "{input} / {output} per 1M",
+      "tokenPriceHint": "Prezzo per 1M di token di input / output",
       "manageModels": "Gestisci modelli",
       "modelLoaded": "Caricato",
       "modelFailed": "Avvio non riuscito",

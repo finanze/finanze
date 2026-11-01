@@ -2,8 +2,10 @@ from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_label_port import TransactionLabelPort
 from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
+from domain.exception.exceptions import AIProviderErrorCode, ExternalLabelingUnavailable
 from domain.labeling import (
     LABELABLE_TX_TYPES,
+    LabelingResult,
     LabelingTrigger,
     RelabelRequest,
     RelabelResult,
@@ -58,14 +60,28 @@ class RelabelTransactionsImpl(RelabelTransactions):
             return RelabelResult(matched=0)
 
         origins = request.origins or DEFAULT_RELABEL_ORIGINS
+        include_external = request.include_external
+        external = None
+        if (
+            include_external
+            and LabelOrigin.EXTERNAL in origins
+            and await self._transaction_labeler.external_model_unavailable()
+        ):
+            origins = [origin for origin in origins if origin != LabelOrigin.EXTERNAL]
+            include_external = False
+            external = LabelingResult(
+                external_error=ExternalLabelingUnavailable.__name__,
+                external_error_details="The selected model is no longer available",
+                external_error_code=AIProviderErrorCode.MODEL_NOT_FOUND.value,
+            )
+
         async with self._transaction_handler_port.start():
             await self._transaction_label_port.delete(ids, origins)
             result = await self._transaction_labeler.classify(
                 AccountTxSelection(ids=ids)
             )
 
-        external = None
-        if request.include_external:
+        if include_external:
             external = await self._transaction_labeler.classify_external(
                 AccountTxSelection(ids=ids),
                 LabelingTrigger.MANUAL,

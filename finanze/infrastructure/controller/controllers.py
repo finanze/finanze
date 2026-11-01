@@ -27,6 +27,9 @@ from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegration,
 )
+from domain.use_cases.poll_external_integration_connection import (
+    PollExternalIntegrationConnection,
+)
 from domain.use_cases.export_file import ExportFile
 from domain.use_cases.export_sheets import ExportSheets
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
@@ -283,6 +286,9 @@ from infrastructure.controller.routes.market_forecast_closed_positions import (
 )
 from infrastructure.controller.routes.market_forecast_pnl import market_forecast_pnl
 from infrastructure.controller.routes.oauth_callback import oauth_callback
+from infrastructure.controller.routes.poll_external_integration_connection import (
+    poll_external_integration_connection,
+)
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
 from infrastructure.controller.routes.save_backup_settings import save_backup_settings
@@ -431,6 +437,7 @@ async def register_routes(
     delete_local_model_uc: DeleteLocalModel,
     list_hugging_face_quants_uc: ListHuggingFaceQuants,
     import_local_model_uc: ImportLocalModel,
+    poll_external_integration_connection_uc: PollExternalIntegrationConnection,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -702,6 +709,12 @@ async def register_routes(
     async def complete_external_integration_connection_route(integration_id: str):
         return await complete_external_integration_connection(
             complete_external_integration_connection_uc, integration_id
+        )
+
+    @app.route("/api/v1/integrations/<integration_id>/device/poll", methods=["POST"])
+    async def poll_external_integration_connection_route(integration_id: str):
+        return await poll_external_integration_connection(
+            poll_external_integration_connection_uc, integration_id
         )
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])

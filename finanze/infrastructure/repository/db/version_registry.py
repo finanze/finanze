@@ -236,6 +236,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_9_split_cache_coverage i
 from infrastructure.repository.db.versions.v0.v11.v0110_10_clear_unlinked_external_txs import (
     V011010ClearUnlinkedExternalTxs,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_11_github_copilot_integration import (
+    V011011GitHubCopilotIntegration,
+)
 
 versions = [
     V0Genesis(),
@@ -328,4 +331,5 @@ versions = [
     V01108CustomAIIntegrationName(),
     V01109SplitCacheCoverage(),
     V011010ClearUnlinkedExternalTxs(),
+    V011011GitHubCopilotIntegration(),
 ]

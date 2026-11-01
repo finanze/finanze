@@ -194,6 +194,23 @@ class TransactionLabelerAdapter(TransactionLabeler):
                 applied += 1
         return applied
 
+    async def external_model_unavailable(self) -> bool:
+        settings = await self._config_port.load_sections({SettingsSection.LABELING})
+        config = settings.labeling.external
+        if not config.enabled or not config.provider or not config.model:
+            return False
+        try:
+            provider_id = ExternalIntegrationId(config.provider)
+        except ValueError:
+            return False
+        provider = self._providers.get(provider_id)
+        if provider is None:
+            return False
+        credentials = await self._external_integration_port.get_payload(provider_id)
+        if credentials is None:
+            return False
+        return await provider.is_model_available(config.model, credentials) is False
+
     async def classify_external(
         self,
         selection: AccountTxSelection,
@@ -306,6 +323,7 @@ class TransactionLabelerAdapter(TransactionLabeler):
             self._log.warning(f"External transaction labeling unavailable: {e.details}")
             result.external_error = type(e).__name__
             result.external_error_details = e.details or None
+            result.external_error_code = e.code
         except Exception as e:
             self._log.exception("External transaction labeling failed")
             result.external_error = type(e).__name__

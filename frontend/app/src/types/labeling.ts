@@ -1,3 +1,4 @@
+import type { AIModelPricing } from "./ai"
 import type { AccountTx, LabelOrigin, TxType } from "./transactions"
 
 export enum LabelCategory {
@@ -140,6 +141,7 @@ export interface LabelingResult {
   skipped_linked: number
   external_error?: string | null
   external_error_details?: string | null
+  external_error_code?: string | null
 }
 
 export interface RelabelResult {
@@ -156,6 +158,7 @@ export interface ExternalLabelingModel {
   size?: number | null
   loaded?: boolean
   load_failed?: boolean
+  pricing?: AIModelPricing | null
 }
 
 export interface ExternalLabelingProviderDetails {

@@ -557,7 +557,9 @@
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
-    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
+    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one.",
+    "NOT_ENTITLED": "Your account does not have access to {integration}. Check that your plan is active and that your organization allows it.",
+    "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again."
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -1425,6 +1427,9 @@
             }
           ]
         }
+      },
+      "GITHUB_COPILOT": {
+        "description": "Label your movements with the models included in your GitHub Copilot plan. GitHub bills usage in AI credits according to each model's token prices, and the movements are processed by GitHub and the model provider. Desktop and self-hosted only."
       }
     },
     "disableIntegration": "Disable integration",
@@ -1433,6 +1438,12 @@
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
     "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",
+    "deviceAuthorization": {
+      "intro": "You will get a one-time code to sign in with your {integration} account. You can revoke access at any time from your account settings.",
+      "instructions": "Enter this code at {site} to authorize Finanze:",
+      "copyAndOpen": "Copy code and open {site}",
+      "waiting": "Waiting for authorization, code expires in {time}"
+    },
     "localModels": {
       "builtInMode": "Built-in engine",
       "serverMode": "My llama.cpp server",
@@ -2390,7 +2401,8 @@
       "matched": "{count} movements selected",
       "summary": "{rules} labeled by rules · {external} labeled by suggestions",
       "done": "Movements relabeled",
-      "externalFailed": "Movements relabeled, but suggestions could not be retrieved"
+      "externalFailed": "Movements relabeled, but suggestions could not be retrieved",
+      "externalModelUnavailable": "the selected model is no longer available, your existing suggestions were kept. Choose another model in the suggestions settings."
     },
     "automation": {
       "rulesTitle": "Rules",
@@ -2451,6 +2463,8 @@
       "noModelsMatch": "No models match your search.",
       "modelsError": "Could not load the models from the provider.",
       "modelUnavailable": "The selected model ({model}) is no longer available. Choose another one.",
+      "tokenPrice": "{input} / {output} per 1M",
+      "tokenPriceHint": "Price per 1M input / output tokens",
       "manageModels": "Manage models",
       "modelLoaded": "Loaded",
       "modelFailed": "Failed to start",

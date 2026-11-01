@@ -59,6 +59,13 @@ def supports_task(capabilities: set[AIModelCapability], task: AITask) -> bool:
 
 
 @dataclass
+class AIModelPricing:
+    input_per_million: Dezimal
+    output_per_million: Dezimal
+    currency: str = "USD"
+
+
+@dataclass
 class AIModel:
     id: str
     name: str
@@ -66,6 +73,7 @@ class AIModel:
     size: Optional[int] = None
     loaded: bool = False
     load_failed: bool = False
+    pricing: Optional[AIModelPricing] = None
 
 
 @dataclass
