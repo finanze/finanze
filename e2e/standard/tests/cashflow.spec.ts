@@ -511,7 +511,7 @@ test.describe('Cashflow', () => {
             page,
             transactionName,
             amount,
-            daysAgo(1),
+            daysAgo(0),
             'Outflow',
         )
 

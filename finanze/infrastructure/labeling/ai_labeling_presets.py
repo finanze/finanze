@@ -37,6 +37,7 @@ LABELING_PRESETS: dict[ExternalIntegrationId, list[AILabelingPreset]] = {
     ExternalIntegrationId.OPENAI_COMPATIBLE: [],
     ExternalIntegrationId.LOCAL_MODELS: [],
     ExternalIntegrationId.GITHUB_COPILOT: [],
+    ExternalIntegrationId.CLAUDE_AGENT: [],
 }
 
 LABELING_BATCH_SIZES: dict[ExternalIntegrationId, int] = {

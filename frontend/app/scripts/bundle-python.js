@@ -31,6 +31,7 @@ const EXCLUDED_DIRS = [
   "infrastructure/local_models",
   "infrastructure/agent_runtime",
   "infrastructure/client/ai/github_copilot",
+  "infrastructure/client/ai/claude_agent",
 ]
 
 const EXCLUDED_PATHS = [

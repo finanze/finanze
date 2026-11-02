@@ -169,6 +169,7 @@ from application.use_cases.restore_recurring_movement import (
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
+from domain.platform import Distribution
 from domain.telemetry import TelemetryContext
 from domain.user_login import LoginRequest
 from infrastructure.client.cloud.backup.backup_client import BackupClient
@@ -193,6 +194,16 @@ from infrastructure.client.ai.github_copilot.github_copilot_client import (
 )
 from infrastructure.client.ai.github_copilot.github_device_flow import (
     GitHubDeviceFlow,
+)
+from infrastructure.client.ai.claude_agent.claude_agent_client import (
+    ClaudeAgentClient,
+)
+from infrastructure.client.ai.claude_agent.claude_cli_locator import (
+    CLI_PATH_ENV as CLAUDE_CLI_PATH_ENV,
+    ClaudeCliLocator,
+)
+from infrastructure.client.ai.claude_agent.claude_model_discovery import (
+    ClaudeModelDiscovery,
 )
 from infrastructure.local_models.huggingface_catalog_client import (
     HuggingFaceCatalogClient,
@@ -539,6 +550,16 @@ class FinanzeServer:
             agent_runtime_sandbox,
             external_integration_repository,
         )
+        if detect_distribution() != Distribution.DOCKER or os.getenv(
+            CLAUDE_CLI_PATH_ENV
+        ):
+            ai_clients[ExternalIntegrationId.CLAUDE_AGENT] = ClaudeAgentClient(
+                ClaudeCliLocator(),
+                ClaudeModelDiscovery(),
+                agent_runtime_pool,
+                agent_runtime_sandbox,
+                client_app=f"finanze/{resolve_version()}",
+            )
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),

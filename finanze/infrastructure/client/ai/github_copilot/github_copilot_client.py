@@ -19,7 +19,6 @@ from domain.ai import (
     AIGenerationStatus,
     AIModel,
     AIModelCapability,
-    AIReasoningEffort,
 )
 from domain.exception.exceptions import (
     AIProviderError,
@@ -52,6 +51,7 @@ from infrastructure.client.ai.github_copilot.copilot_runtime_types import (
 from infrastructure.client.ai.github_copilot.github_device_flow import (
     GitHubDeviceFlow,
 )
+from infrastructure.client.ai.reasoning_levels import pick_reasoning_level
 
 # Public client ID of the Finanze GitHub OAuth App; device flow uses no client secret.
 GITHUB_COPILOT_CLIENT_ID = "Ov23liccSTjDfKjDuH22"
@@ -61,14 +61,6 @@ PROVIDER = "github_copilot"
 CATALOG_TTL_SECONDS = 120
 GENERATION_TIMEOUT_SECONDS = 120
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
-REASONING_EFFORT_ORDER = ("low", "medium", "high", "xhigh", "max")
-REASONING_EFFORTS = {
-    AIReasoningEffort.NONE: "low",
-    AIReasoningEffort.LOW: "low",
-    AIReasoningEffort.MEDIUM: "medium",
-    AIReasoningEffort.HIGH: "high",
-    AIReasoningEffort.EXTRA_HIGH: "xhigh",
-}
 
 RuntimeFactory = Callable[
     [str, str, AgentRuntimeInstanceDirs], Awaitable[CopilotRuntimeHandle]
@@ -93,24 +85,6 @@ async def _start_copilot_runtime(
     from infrastructure.client.ai.github_copilot.copilot_runtime import CopilotRuntime
 
     return await CopilotRuntime.start(executable, token, dirs)
-
-
-def _reasoning_effort(
-    entry: CopilotModelEntry, requested: Optional[AIReasoningEffort]
-) -> Optional[str]:
-    if not entry.reasoning_efforts:
-        return None
-    preferred = REASONING_EFFORTS.get(requested) if requested else None
-    if preferred in entry.reasoning_efforts:
-        return preferred
-    return next(
-        (
-            effort
-            for effort in REASONING_EFFORT_ORDER
-            if effort in entry.reasoning_efforts
-        ),
-        None,
-    )
 
 
 def _to_model(entry: CopilotModelEntry) -> AIModel:
@@ -244,7 +218,9 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
                 schema=request.response_schema.schema
                 if request.response_schema
                 else None,
-                reasoning_effort=_reasoning_effort(entry, request.reasoning_effort),
+                reasoning_effort=pick_reasoning_level(
+                    entry.reasoning_efforts, request.reasoning_effort
+                ),
                 timeout=GENERATION_TIMEOUT_SECONDS,
             )
 

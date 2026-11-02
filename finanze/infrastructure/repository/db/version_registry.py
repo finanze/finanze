@@ -239,6 +239,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_10_clear_unlinked_extern
 from infrastructure.repository.db.versions.v0.v12.v0120_0_github_copilot_integration import (
     V01200GitHubCopilotIntegration,
 )
+from infrastructure.repository.db.versions.v0.v12.v0120_1_claude_agent_integration import (
+    V01201ClaudeAgentIntegration,
+)
 
 versions = [
     V0Genesis(),
@@ -332,4 +335,5 @@ versions = [
     V01109SplitCacheCoverage(),
     V011010ClearUnlinkedExternalTxs(),
     V01200GitHubCopilotIntegration(),
+    V01201ClaudeAgentIntegration(),
 ]

@@ -558,7 +558,10 @@
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
     "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro.",
     "NOT_ENTITLED": "Il tuo account non ha accesso a {integration}. Verifica che il tuo piano sia attivo e che la tua organizzazione lo consenta.",
-    "RUNTIME_FAILED": "Impossibile avviare {integration} su questo dispositivo. Controlla la connessione e riprova."
+    "RUNTIME_FAILED": "Impossibile avviare {integration} su questo dispositivo. Controlla la connessione e riprova.",
+    "RUNTIME_NOT_FOUND": "Il programma richiesto da {integration} non è stato trovato su questo computer. Installalo o inserisci il percorso completo del suo eseguibile.",
+    "RUNTIME_OUTDATED": "Il programma richiesto da {integration} non è aggiornato. Aggiornalo e riprova.",
+    "RUNTIME_NOT_AUTHENTICATED": "Il programma richiesto da {integration} non ha effettuato l'accesso. Accedi su questo computer e riprova."
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",
@@ -1349,7 +1352,7 @@
         }
       },
       "OPENROUTER": {
-        "description": "Collega OpenRouter per ottenere suggerimenti automatici di etichette per i tuoi movimenti con il modello che preferisci.",
+        "description": "Collega OpenRouter per accedere ai modelli di diversi fornitori tramite un'unica API. L'utilizzo viene fatturato da OpenRouter.",
         "help": "Come ottenere una chiave API",
         "hint": {
           "title": "Ottieni una chiave API OpenRouter",
@@ -1371,7 +1374,7 @@
         }
       },
       "OPENAI": {
-        "description": "Collega OpenAI per ottenere suggerimenti automatici di etichette per i tuoi movimenti con i modelli GPT.",
+        "description": "Collega OpenAI per usare i modelli GPT tramite la sua API. L'utilizzo viene fatturato da OpenAI.",
         "help": "Come ottenere una chiave API",
         "hint": {
           "title": "Ottieni una chiave API OpenAI",
@@ -1393,7 +1396,7 @@
         }
       },
       "OPENAI_COMPATIBLE": {
-        "description": "Collega qualsiasi server compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, per etichettare i tuoi movimenti con modelli ospitati da te.",
+        "description": "Collega un'API compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, eseguita localmente o su un server gestito da te.",
         "help": "Come collegarlo",
         "hint": {
           "title": "Collegare un server compatibile con OpenAI",
@@ -1406,7 +1409,7 @@
         }
       },
       "LOCAL_MODELS": {
-        "description": "Esegui piccoli modelli di IA in modo privato, su questo dispositivo o sul tuo server llama.cpp. Scaricali da qui e usali per etichettare i tuoi movimenti.",
+        "description": "Esegui modelli di IA in modo privato su questo dispositivo o sul tuo server llama.cpp. Scarica qui i modelli supportati.",
         "help": "Come funziona",
         "hint": {
           "title": "Modelli locali",
@@ -1428,7 +1431,29 @@
         }
       },
       "GITHUB_COPILOT": {
-        "description": "Etichetta i tuoi movimenti con i modelli inclusi nel tuo piano GitHub Copilot. GitHub addebita l'utilizzo in crediti IA in base al prezzo per token di ogni modello e i movimenti vengono elaborati da GitHub e dal fornitore del modello. Solo desktop e self-hosted."
+        "description": "Usa i modelli inclusi nel tuo piano GitHub Copilot. GitHub addebita l'utilizzo in crediti IA in base al prezzo per token di ogni modello e le richieste vengono elaborate da GitHub e dal fornitore del modello. Solo desktop e self-hosted."
+      },
+      "CLAUDE_AGENT": {
+        "description": "Usa Claude tramite Claude Code installato e con l'accesso effettuato su questo computer. L'utilizzo conta per i limiti del tuo piano Claude e le richieste vengono elaborate da Anthropic. Solo desktop e self-hosted.",
+        "help": "Come configurarlo",
+        "hint": {
+          "title": "Configura Claude Agent",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Installa "
+            },
+            {
+              "type": "link",
+              "label": "Claude Code",
+              "url": "https://code.claude.com/docs/en/setup"
+            },
+            {
+              "type": "text",
+              "value": " su questo computer, esegui claude in un terminale e accedi con il tuo account Claude. Finanze riutilizza quell'accesso e non ti chiede mai le tue credenziali né una chiave API. Inserisci il percorso solo se Claude Code non viene trovato automaticamente."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",

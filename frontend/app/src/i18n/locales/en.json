@@ -559,7 +559,10 @@
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
     "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one.",
     "NOT_ENTITLED": "Your account does not have access to {integration}. Check that your plan is active and that your organization allows it.",
-    "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again."
+    "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again.",
+    "RUNTIME_NOT_FOUND": "The program required by {integration} was not found on this computer. Install it or enter the full path to its executable.",
+    "RUNTIME_OUTDATED": "The program required by {integration} is too old. Update it and try again.",
+    "RUNTIME_NOT_AUTHENTICATED": "The program required by {integration} is not signed in. Sign in to it on this computer and try again."
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -1350,7 +1353,7 @@
         }
       },
       "OPENROUTER": {
-        "description": "Connect OpenRouter to get automatic label suggestions for your account movements using the model you choose.",
+        "description": "Connect to OpenRouter to access models from multiple providers through one API. Usage is billed by OpenRouter.",
         "help": "How to get an API key",
         "hint": {
           "title": "Get an OpenRouter API key",
@@ -1372,7 +1375,7 @@
         }
       },
       "OPENAI": {
-        "description": "Connect OpenAI to get automatic label suggestions for your account movements using GPT models.",
+        "description": "Connect to OpenAI to use GPT models through the OpenAI API. Usage is billed by OpenAI.",
         "help": "How to get an API key",
         "hint": {
           "title": "Get an OpenAI API key",
@@ -1394,7 +1397,7 @@
         }
       },
       "OPENAI_COMPATIBLE": {
-        "description": "Connect any OpenAI-compatible server, such as Ollama, LM Studio, vLLM or llama.cpp, to label your movements with models you host yourself.",
+        "description": "Connect to an OpenAI-compatible API, such as Ollama, LM Studio, vLLM or llama.cpp, running locally or on a server you host.",
         "help": "How to connect",
         "hint": {
           "title": "Connect an OpenAI-compatible server",
@@ -1407,7 +1410,7 @@
         }
       },
       "LOCAL_MODELS": {
-        "description": "Run small AI models privately, on this device or on your own llama.cpp server. Download them from here and use them to label your movements.",
+        "description": "Run AI models privately on this device or on your own llama.cpp server. Download supported models here.",
         "help": "How it works",
         "hint": {
           "title": "Local models",
@@ -1429,7 +1432,29 @@
         }
       },
       "GITHUB_COPILOT": {
-        "description": "Label your movements with the models included in your GitHub Copilot plan. GitHub bills usage in AI credits according to each model's token prices, and the movements are processed by GitHub and the model provider. Desktop and self-hosted only."
+        "description": "Use models included in your GitHub Copilot plan. GitHub bills usage in AI credits according to each model's token prices, and requests are processed by GitHub and the model provider. Desktop and self-hosted only."
+      },
+      "CLAUDE_AGENT": {
+        "description": "Use Claude through Claude Code installed and signed in on this computer. Usage counts toward your Claude plan limits, and requests are processed by Anthropic. Desktop and self-hosted only.",
+        "help": "How to set it up",
+        "hint": {
+          "title": "Set up Claude Agent",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Install "
+            },
+            {
+              "type": "link",
+              "label": "Claude Code",
+              "url": "https://code.claude.com/docs/en/setup"
+            },
+            {
+              "type": "text",
+              "value": " on this computer, run claude in a terminal and sign in with your Claude account. Finanze reuses that sign-in and never asks for your credentials or an API key. Fill in the path only if Claude Code is not found automatically."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",

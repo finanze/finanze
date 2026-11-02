@@ -56,6 +56,16 @@ from domain.transactions import (
 )
 from infrastructure.agent_runtime.runtime_pool import AgentRuntimePool
 from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeSandbox
+from infrastructure.client.ai.claude_agent.claude_agent_client import (
+    CATALOG_TTL_SECONDS as CLAUDE_CATALOG_TTL_SECONDS,
+    ClaudeAgentClient,
+)
+from infrastructure.client.ai.claude_agent.claude_agent_types import (
+    ClaudeCompletion,
+    ClaudeModelEntry,
+    ClaudeOutcome,
+)
+from infrastructure.client.ai.claude_agent.claude_cli_locator import ClaudeCli
 from infrastructure.client.ai.github_copilot.copilot_runtime_types import (
     CopilotModelEntry,
 )
@@ -1004,6 +1014,116 @@ async def test_github_copilot_labels_and_relabel_keeps_them_after_delisting(
 
     assert delisted.external.external_error_code == "MODEL_NOT_FOUND"
     assert runtime.requests == ["gpt-5-mini"]
+    assert [label.label_id for label in await env.labels_of(tx.id)] == [restaurants]
+    await pool.release_all()
+
+
+class _ClaudeLocator:
+    async def locate(self, cli_path=None):
+        return ClaudeCli(executable="/usr/local/bin/claude", version="2.1.300")
+
+    def invalidate(self):
+        pass
+
+
+class _ClaudeDiscovery:
+    def __init__(self, models: list[ClaudeModelEntry]):
+        self.models = models
+
+    async def discover(self, executable, cwd):
+        return list(self.models)
+
+
+class _ClaudeRuntime:
+    def __init__(self, category: str):
+        self.category = category
+        self.requests = []
+
+    async def stop(self):
+        pass
+
+    async def complete(self, model, instructions, prompt, schema, effort, timeout):
+        self.requests.append((model, effort))
+        results = [
+            {"id": movement_id, "category": self.category, "confidence": 0.95}
+            for movement_id in json.loads(prompt)
+        ]
+        return ClaudeCompletion(
+            ClaudeOutcome.COMPLETED,
+            text=json.dumps({"results": results}),
+            input_tokens=100,
+            output_tokens=20,
+        )
+
+
+@pytest.mark.asyncio
+async def test_claude_agent_labels_and_relabel_keeps_them_after_retirement(
+    env, tmp_path
+):
+    restaurants = await env.label_id("restaurants")
+    runtime = _ClaudeRuntime("restaurants")
+    models = _ClaudeDiscovery(
+        [
+            ClaudeModelEntry(
+                id="claude-haiku-5-5",
+                name="Haiku",
+                effort_levels=("low", "medium", "high"),
+            )
+        ]
+    )
+    clock = _Clock()
+    pool = AgentRuntimePool()
+    client = ClaudeAgentClient(
+        _ClaudeLocator(),
+        models,
+        pool,
+        AgentRuntimeSandbox(tmp_path),
+        runtime_factory=lambda executable, dirs: runtime,
+        clock=clock,
+    )
+    labeler = TransactionLabelerAdapter(
+        transaction_port=env.tx_repo,
+        transaction_label_port=env.tx_label_repo,
+        labeling_rule_port=env.rule_repo,
+        label_port=env.label_repo,
+        config_port=env.config_port,
+        external_integration_port=env.integration_port,
+        providers={
+            ExternalIntegrationId.CLAUDE_AGENT: AILabelingProvider(
+                client, LABELING_PRESETS[ExternalIntegrationId.CLAUDE_AGENT]
+            )
+        },
+        transaction_handler_port=env.handler,
+    )
+    env.integration_port.get_payload = AsyncMock(return_value={})
+    env.config_port.load_sections = AsyncMock(
+        return_value=_settings(
+            ExternalLabelingConfig(
+                enabled=True, provider="CLAUDE_AGENT", model="claude-haiku-5-5"
+            )
+        )
+    )
+    tx = env.account_tx("Burger place", "15")
+    await env.save(tx)
+    uc = RelabelTransactionsImpl(env.tx_repo, env.tx_label_repo, labeler, env.handler)
+
+    labeled = await uc.execute(RelabelRequest(include_external=True))
+
+    assert labeled.external.external_labeled == 1
+    assert runtime.requests == [("claude-haiku-5-5", "low")]
+    stored = await env.labels_of(tx.id)
+    assert (stored[0].label_id, stored[0].origin, stored[0].provider) == (
+        restaurants,
+        LabelOrigin.EXTERNAL,
+        "CLAUDE_AGENT:claude-haiku-5-5",
+    )
+
+    models.models = [ClaudeModelEntry(id="claude-sonnet-5-5", name="Sonnet")]
+    clock.now = CLAUDE_CATALOG_TTL_SECONDS
+    retired = await uc.execute(RelabelRequest(include_external=True))
+
+    assert retired.external.external_error_code == "MODEL_NOT_FOUND"
+    assert runtime.requests == [("claude-haiku-5-5", "low")]
     assert [label.label_id for label in await env.labels_of(tx.id)] == [restaurants]
     await pool.release_all()
 

@@ -33,6 +33,7 @@ class ExternalIntegrationId(str, Enum):
     OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE"
     LOCAL_MODELS = "LOCAL_MODELS"
     GITHUB_COPILOT = "GITHUB_COPILOT"
+    CLAUDE_AGENT = "CLAUDE_AGENT"
 
 
 @dataclass
@@ -158,9 +159,13 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
         "api_key": "API Key",
     },
     ExternalIntegrationId.GITHUB_COPILOT: {},
+    ExternalIntegrationId.CLAUDE_AGENT: {
+        "cli_path": "Claude Code path",
+    },
 }
 
 EXTERNAL_INTEGRATION_OPTIONAL_FIELDS: dict[ExternalIntegrationId, set[str]] = {
     ExternalIntegrationId.OPENAI_COMPATIBLE: {"api_key"},
     ExternalIntegrationId.LOCAL_MODELS: {"server_url", "api_key"},
+    ExternalIntegrationId.CLAUDE_AGENT: {"cli_path"},
 }
