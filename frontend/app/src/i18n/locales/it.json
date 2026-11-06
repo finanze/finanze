@@ -538,6 +538,7 @@
     "MISSING_SERVER_URL": "Inserisci l'URL del server per {integration}.",
     "AUTHORIZATION_DENIED": "L'accesso a {integration} è stato negato o non sono stati concessi i permessi necessari.",
     "AUTHORIZATION_EXPIRED": "L'autorizzazione di {integration} è scaduta o non è più valida. Riprova.",
+    "AUTHORIZATION_RETRY_REQUIRED": "{integration} non ha accettato l'accesso. Riprova.",
     "NO_CREDENTIALS_AVAILABLE": "Nessuna credenziale disponibile per {entity}",
     "UNEXPECTED_ERROR": "Si è verificato un errore imprevisto con {entity}",
     "UNAUTHORIZED": "Credenziali non valide o scadute per {entity}",
@@ -561,7 +562,8 @@
     "RUNTIME_FAILED": "Impossibile avviare {integration} su questo dispositivo. Controlla la connessione e riprova.",
     "RUNTIME_NOT_FOUND": "Il programma richiesto da {integration} non è stato trovato su questo computer. Installalo o inserisci il percorso completo del suo eseguibile.",
     "RUNTIME_OUTDATED": "Il programma richiesto da {integration} non è aggiornato. Aggiornalo e riprova.",
-    "RUNTIME_NOT_AUTHENTICATED": "Il programma richiesto da {integration} non ha effettuato l'accesso. Accedi su questo computer e riprova."
+    "RUNTIME_NOT_AUTHENTICATED": "Il programma richiesto da {integration} non ha effettuato l'accesso. Accedi su questo computer e riprova.",
+    "REAUTHENTICATION_REQUIRED": "Il tuo accesso a {integration} è scaduto. Accedi di nuovo in Integrazioni."
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",
@@ -1454,11 +1456,26 @@
             }
           ]
         }
+      },
+      "CHATGPT": {
+        "description": "Accedi con il tuo account ChatGPT per usare i modelli inclusi nel tuo piano ChatGPT. Richiede ChatGPT Plus o Pro, l'utilizzo conta per i limiti del tuo piano e le richieste vengono elaborate da OpenAI."
       }
     },
     "disableIntegration": "Disabilita integrazione",
     "integrationEnabledSuccess": "Integrazione {integration} abilitata con successo",
     "integrationAwaitingAuthorization": "In attesa dell'autorizzazione nel browser...",
+    "integrationExpired": "Accesso scaduto",
+    "integrationBeta": "Beta",
+    "chatgpt": {
+      "continue": "Continua con ChatGPT",
+      "usingPlan": "Stai usando il tuo piano ChatGPT",
+      "manageUsage": "Gestisci utilizzo",
+      "expired": "Il tuo accesso a ChatGPT è scaduto. Continua con ChatGPT per accedere di nuovo.",
+      "pasteLabel": "Non sei tornato su Finanze? Incolla l'indirizzo mostrato dal browser dopo l'accesso.",
+      "pastePlaceholder": "http://127.0.0.1:…/auth/callback?code=…",
+      "finish": "Completa",
+      "invalidAddress": "Quell'indirizzo non contiene una risposta di accesso. Copia l'indirizzo completo dal browser."
+    },
     "integrationDisabledSuccess": "Integrazione {integration} disabilitata con successo",
     "integrationRequiredMessage": "Abilita l'integrazione Google Sheets in Integrazioni per configurare queste impostazioni.",
     "integrationInsecureKeyWarning": "Questa connessione non è cifrata (http), quindi la chiave API viene inviata in chiaro. Usa https o solo una rete di cui ti fidi.",
@@ -2422,7 +2439,8 @@
       "summary": "{rules} etichettati dalle regole · {external} etichettati dai suggerimenti",
       "done": "Movimenti rietichettati",
       "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti",
-      "externalModelUnavailable": "il modello selezionato non è più disponibile, i tuoi suggerimenti attuali sono stati mantenuti. Scegli un altro modello nelle impostazioni dei suggerimenti."
+      "externalModelUnavailable": "il modello selezionato non è più disponibile, i tuoi suggerimenti attuali sono stati mantenuti. Scegli un altro modello nelle impostazioni dei suggerimenti.",
+      "externalReauthRequired": "l'accesso al fornitore dei suggerimenti è scaduto. Accedi di nuovo in Integrazioni."
     },
     "automation": {
       "rulesTitle": "Regole",

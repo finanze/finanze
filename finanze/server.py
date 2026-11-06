@@ -61,6 +61,9 @@ from application.use_cases.fetch_external_financial_data import (
 )
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.forecast import ForecastImpl
+from application.use_cases.forward_integration_oauth_callback import (
+    ForwardIntegrationOAuthCallbackImpl,
+)
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_available_external_entities import (
     GetAvailableExternalEntitiesImpl,
@@ -177,6 +180,8 @@ from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
     HttpFileTransferStrategy,
 )
 from infrastructure.client.ai.openai.openai_client import OpenAIClient
+from infrastructure.client.ai.chatgpt.chatgpt_client import ChatGPTClient
+from infrastructure.client.ai.chatgpt.chatgpt_oauth import ChatGPTOAuth
 from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
     OpenAICompatibleClient,
 )
@@ -367,6 +372,9 @@ from infrastructure.calculations.loan_calculator import LoanCalculator
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
+from infrastructure.repository.host_identity.host_identity_repository import (
+    HostIdentityRepository,
+)
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
@@ -533,6 +541,10 @@ class FinanzeServer:
             ExternalIntegrationId.OPENAI_COMPATIBLE: OpenAICompatibleClient(),
             ExternalIntegrationId.LOCAL_MODELS: LocalModelsAIClient(
                 local_model_runtime, llama_router, local_model_catalog
+            ),
+            ExternalIntegrationId.CHATGPT: ChatGPTClient(
+                ChatGPTOAuth(HostIdentityRepository(db_client), args.port),
+                external_integration_repository,
             ),
         }
         agent_runtime_sandbox = AgentRuntimeSandbox(
@@ -1014,6 +1026,9 @@ class FinanzeServer:
             external_integration_repository,
             external_integrations,
         )
+        forward_integration_oauth_callback = ForwardIntegrationOAuthCallbackImpl(
+            external_integrations
+        )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
         get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
@@ -1466,6 +1481,7 @@ class FinanzeServer:
             list_hugging_face_quants_uc=list_hugging_face_quants,
             import_local_model_uc=import_local_model,
             poll_external_integration_connection_uc=poll_external_integration_connection,
+            forward_integration_oauth_callback_uc=forward_integration_oauth_callback,
         )
 
         self._log.info("Setting up MCP server...")

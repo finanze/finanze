@@ -23,7 +23,16 @@ class ExternalIntegrationQueries(str, Enum):
           AND status = ?
     """
 
+    EXPIRE = """
+        UPDATE external_integrations
+        SET status = ?
+        WHERE id = ?
+          AND status = ?
+    """
+
     GET_PAYLOAD = "SELECT payload FROM external_integrations WHERE id = ? AND status = ? AND payload IS NOT NULL"
+
+    GET_PAYLOAD_INCLUDING_EXPIRED = "SELECT payload FROM external_integrations WHERE id = ? AND status IN (?, ?) AND payload IS NOT NULL"
 
     GET_PAYLOADS_BY_TYPE = """
         SELECT id, payload

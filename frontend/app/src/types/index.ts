@@ -803,6 +803,7 @@ export enum ExternalIntegrationType {
 export enum ExternalIntegrationStatus {
   ON = "ON",
   OFF = "OFF",
+  EXPIRED = "EXPIRED",
 }
 
 export interface ExternalIntegration {
@@ -846,6 +847,7 @@ export interface CompleteIntegrationOAuthRequest {
   state: string
   code?: string | null
   error?: string | null
+  client_id?: string | null
 }
 
 export enum ExternalEntityStatus {

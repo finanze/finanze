@@ -242,6 +242,9 @@ from infrastructure.repository.db.versions.v0.v12.v0120_0_github_copilot_integra
 from infrastructure.repository.db.versions.v0.v12.v0120_1_claude_agent_integration import (
     V01201ClaudeAgentIntegration,
 )
+from infrastructure.repository.db.versions.v0.v12.v0120_2_chatgpt_integration import (
+    V01202ChatGPTIntegration,
+)
 
 versions = [
     V0Genesis(),
@@ -336,4 +339,5 @@ versions = [
     V011010ClearUnlinkedExternalTxs(),
     V01200GitHubCopilotIntegration(),
     V01201ClaudeAgentIntegration(),
+    V01202ChatGPTIntegration(),
 ]

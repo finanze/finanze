@@ -27,8 +27,12 @@ class ExternalIntegrationPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def expire(self, integration: ExternalIntegrationId):
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def get_payload(
-        self, integration: ExternalIntegrationId
+        self, integration: ExternalIntegrationId, include_expired: bool = False
     ) -> Optional[ExternalIntegrationPayload]:
         raise NotImplementedError
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -51,12 +51,16 @@ import {
   ExternalIntegrationType,
   type ExternalIntegration,
 } from "@/types"
-import { isWeb } from "@/lib/platform"
+import { isNativeMobile, isWeb } from "@/lib/platform"
 import {
   buildIntegrationCompletionUrl,
   openExternalAuthLink,
+  openExternalAuthPage,
   parseIntegrationOAuthCallback,
+  parseOAuthCallbackAddress,
+  startLoopbackAuthorization,
   type IntegrationOAuthCallback,
+  type LoopbackAuthorization,
 } from "@/lib/externalAuth"
 import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
 import {
@@ -69,10 +73,13 @@ import {
   toDeviceAuthorization,
   type DeviceAuthorization,
 } from "@/components/integrations/DeviceAuthorizationPanel"
+import { ChatGPTIntegrationPanel } from "@/components/integrations/ChatGPTIntegrationPanel"
 
 const LOCAL_MODELS_ID = "LOCAL_MODELS"
 const GITHUB_COPILOT_ID = "GITHUB_COPILOT"
 const CLAUDE_AGENT_ID = "CLAUDE_AGENT"
+const CHATGPT_ID = "CHATGPT"
+const OAUTH_INTEGRATIONS = new Set(["GOOGLE_SHEETS", CHATGPT_ID])
 const DEVICE_FLOW_INTEGRATIONS = new Set([GITHUB_COPILOT_ID])
 const DESKTOP_ONLY_INTEGRATIONS = new Set([
   LOCAL_MODELS_ID,
@@ -335,6 +342,21 @@ export function ProvidersTab() {
   const [deviceAuthorizations, setDeviceAuthorizations] = useState<
     Record<string, DeviceAuthorization>
   >({})
+  const loopbackRef = useRef<LoopbackAuthorization | null>(null)
+  const retryAuthorizationRef = useRef<
+    ((integrationId: string) => Promise<void>) | null
+  >(null)
+  const authorizationRetriedRef = useRef(false)
+
+  const releaseLoopback = useCallback(() => {
+    const active = loopbackRef.current
+    loopbackRef.current = null
+    if (active) {
+      void active.cancel()
+    }
+  }, [])
+
+  useEffect(() => releaseLoopback, [releaseLoopback])
 
   const clearDeviceAuthorization = useCallback((integrationId: string) => {
     setDeviceAuthorizations(prev => {
@@ -498,8 +520,14 @@ export function ProvidersTab() {
     ],
   )
 
-  const handleSetupIntegration = useCallback(
-    async (integrationId: string) => {
+  const handleIntegrationOAuthCallback = useCallback(
+    async ({
+      integrationId,
+      state,
+      code,
+      error,
+      clientId,
+    }: IntegrationOAuthCallback) => {
       const integration = externalIntegrations.find(
         item => item.id === integrationId,
       )
@@ -508,6 +536,61 @@ export function ProvidersTab() {
         return
       }
 
+      const { title: integrationName } = getIntegrationCopy(integration)
+
+      releaseLoopback()
+      setAwaitingAuthorization(null)
+
+      if (!state) {
+        showIntegrationError({ code: "AUTHORIZATION_EXPIRED" }, integrationName)
+        return
+      }
+
+      setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
+
+      try {
+        await completeIntegrationOAuth(integrationId, {
+          state,
+          code,
+          error,
+          ...(clientId ? { client_id: clientId } : {}),
+        })
+        await handleIntegrationEnabled(integration)
+      } catch (err) {
+        const retry = retryAuthorizationRef.current
+        if (
+          (err as any)?.code === "AUTHORIZATION_RETRY_REQUIRED" &&
+          !authorizationRetriedRef.current &&
+          retry
+        ) {
+          await retry(integrationId)
+          return
+        }
+        showIntegrationError(err, integrationName)
+      } finally {
+        setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
+      }
+    },
+    [
+      externalIntegrations,
+      getIntegrationCopy,
+      handleIntegrationEnabled,
+      releaseLoopback,
+      showIntegrationError,
+    ],
+  )
+
+  const handleSetupIntegration = useCallback(
+    async (integrationId: string, retry = false) => {
+      const integration = externalIntegrations.find(
+        item => item.id === integrationId,
+      )
+
+      if (!integration) {
+        return
+      }
+
+      authorizationRetriedRef.current = retry
       const { title: integrationName } = getIntegrationCopy(integration)
 
       const schema = integration.payload_schema ?? {}
@@ -546,18 +629,44 @@ export function ProvidersTab() {
 
       setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
 
+      let loopback: LoopbackAuthorization | null = null
       try {
-        const result =
-          integrationId === "GOOGLE_SHEETS"
-            ? await setupIntegration(
-                integrationId,
-                sanitizedPayload,
-                buildIntegrationCompletionUrl(integrationId),
-              )
-            : await setupIntegration(integrationId, sanitizedPayload)
+        if (integrationId === CHATGPT_ID && isNativeMobile()) {
+          releaseLoopback()
+          loopback = await startLoopbackAuthorization(integrationId)
+          loopbackRef.current = loopback
+        }
+        const completionUrl = OAUTH_INTEGRATIONS.has(integrationId)
+          ? (loopback?.callbackUrl ??
+            buildIntegrationCompletionUrl(integrationId))
+          : undefined
+        const result = completionUrl
+          ? await setupIntegration(
+              integrationId,
+              sanitizedPayload,
+              completionUrl,
+            )
+          : await setupIntegration(integrationId, sanitizedPayload)
         if (result?.link) {
           setAwaitingAuthorization(integrationId)
-          await openExternalAuthLink(result.link)
+          if (loopback) {
+            const active = loopback
+            loopback = null
+            void active
+              .wait(result.link)
+              .then(callback => {
+                if (loopbackRef.current !== active) return
+                loopbackRef.current = null
+                if (callback) {
+                  void handleIntegrationOAuthCallback(callback)
+                }
+              })
+              .catch(error => console.error(error))
+          } else if (integrationId === CHATGPT_ID) {
+            await openExternalAuthPage(result.link)
+          } else {
+            await openExternalAuthLink(result.link)
+          }
           return
         }
         if (result?.device) {
@@ -572,6 +681,12 @@ export function ProvidersTab() {
       } catch (error) {
         showIntegrationError(error, integrationName)
       } finally {
+        if (loopback) {
+          if (loopbackRef.current === loopback) {
+            loopbackRef.current = null
+          }
+          void loopback.cancel()
+        }
         setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
       }
     },
@@ -579,50 +694,61 @@ export function ProvidersTab() {
       externalIntegrations,
       getIntegrationCopy,
       handleIntegrationEnabled,
+      handleIntegrationOAuthCallback,
       integrationPayloads,
+      releaseLoopback,
       showIntegrationError,
       showToast,
       t,
     ],
   )
 
-  const handleIntegrationOAuthCallback = useCallback(
-    async ({ integrationId, state, code, error }: IntegrationOAuthCallback) => {
-      const integration = externalIntegrations.find(
-        item => item.id === integrationId,
-      )
+  const cancelAuthorization = useCallback(() => {
+    releaseLoopback()
+    setAwaitingAuthorization(null)
+  }, [releaseLoopback])
 
-      if (!integration) {
+  useEffect(() => {
+    retryAuthorizationRef.current = integrationId =>
+      handleSetupIntegration(integrationId, true)
+  }, [handleSetupIntegration])
+
+  const handleSubmitCallbackAddress = useCallback(
+    (integrationId: string, address: string) => {
+      const callback = parseOAuthCallbackAddress(integrationId, address)
+      if (!callback) {
+        showToast(t.settings.chatgpt.invalidAddress, "error", {
+          reportable: false,
+        })
         return
       }
-
-      const { title: integrationName } = getIntegrationCopy(integration)
-
-      setAwaitingAuthorization(null)
-
-      if (!state) {
-        showIntegrationError({ code: "AUTHORIZATION_EXPIRED" }, integrationName)
-        return
-      }
-
-      setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
-
-      try {
-        await completeIntegrationOAuth(integrationId, { state, code, error })
-        await handleIntegrationEnabled(integration)
-      } catch (err) {
-        showIntegrationError(err, integrationName)
-      } finally {
-        setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
-      }
+      void handleIntegrationOAuthCallback(callback)
     },
-    [
-      externalIntegrations,
-      getIntegrationCopy,
-      handleIntegrationEnabled,
-      showIntegrationError,
-    ],
+    [handleIntegrationOAuthCallback, showToast, t],
   )
+
+  useEffect(() => {
+    if (!awaitingAuthorization) {
+      return
+    }
+    const awaited = externalIntegrations.find(
+      item => item.id === awaitingAuthorization,
+    )
+    if (awaited?.status === ExternalIntegrationStatus.ON) {
+      releaseLoopback()
+      setAwaitingAuthorization(null)
+    }
+  }, [awaitingAuthorization, externalIntegrations, releaseLoopback])
+
+  useEffect(() => {
+    if (awaitingAuthorization !== CHATGPT_ID || !isWeb()) {
+      return
+    }
+    // Sign-in may finish in the tab the provider redirected to.
+    const refresh = () => void fetchExternalIntegrations(true)
+    window.addEventListener("focus", refresh)
+    return () => window.removeEventListener("focus", refresh)
+  }, [awaitingAuthorization, fetchExternalIntegrations])
 
   useEffect(() => {
     if (!isWeb() || externalIntegrations.length === 0) {
@@ -846,6 +972,7 @@ export function ProvidersTab() {
     const errors = integrationErrors[integration.id] ?? {}
     const isExpanded = expandedIntegrations[integration.id] ?? false
     const isEnabled = integration.status === ExternalIntegrationStatus.ON
+    const isExpired = integration.status === ExternalIntegrationStatus.EXPIRED
     const isLoading = !!isSetupLoading[integration.id]
     const disableLoading = !!isDisableLoading[integration.id]
     const isAwaitingAuthorization = awaitingAuthorization === integration.id
@@ -1103,11 +1230,7 @@ export function ProvidersTab() {
           >
             <LoadingSpinner size="sm" />
             <span>{t.settings.integrationAwaitingAuthorization}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAwaitingAuthorization(null)}
-            >
+            <Button variant="ghost" size="sm" onClick={cancelAuthorization}>
               {t.common.cancel}
             </Button>
           </div>
@@ -1127,7 +1250,7 @@ export function ProvidersTab() {
             </span>
           </Button>
         )}
-        {isEnabled && (
+        {(isEnabled || isExpired) && (
           <Button
             variant="destructive"
             size="sm"
@@ -1201,7 +1324,7 @@ export function ProvidersTab() {
                 <img
                   src={iconSrc}
                   alt={title}
-                  className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
+                  className="h-12 w-12 object-contain rounded flex-shrink-0 pointer-events-none select-none"
                   draggable={false}
                   style={{ WebkitUserSelect: "none" }}
                   onLoad={event => {
@@ -1218,7 +1341,19 @@ export function ProvidersTab() {
                   }}
                 />
                 <div className="min-w-0">
-                  <CardTitle className="text-lg break-words">{title}</CardTitle>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <CardTitle className="text-lg break-words">
+                      {title}
+                    </CardTitle>
+                    {integration.id === CHATGPT_ID && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                      >
+                        {t.settings.integrationBeta}
+                      </Badge>
+                    )}
+                  </div>
                   {isUnavailable && (
                     <p className="text-xs text-muted-foreground">
                       {t.common.notAvailableOnPlatform}
@@ -1232,15 +1367,25 @@ export function ProvidersTab() {
                     "hidden sm:flex",
                     isEnabled
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                      : isExpired
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
                   )}
                 >
-                  {isEnabled ? t.common.enabled : t.common.disabled}
+                  {isEnabled
+                    ? t.common.enabled
+                    : isExpired
+                      ? t.settings.integrationExpired
+                      : t.common.disabled}
                 </Badge>
                 <span
                   className={cn(
                     "sm:hidden h-2.5 w-2.5 rounded-full flex-shrink-0",
-                    isEnabled ? "bg-green-500" : "bg-red-500",
+                    isEnabled
+                      ? "bg-green-500"
+                      : isExpired
+                        ? "bg-amber-500"
+                        : "bg-red-500",
                   )}
                 />
                 {isExpanded ? (
@@ -1265,7 +1410,12 @@ export function ProvidersTab() {
               transition={{ duration: 0.2, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <CardContent className="space-y-4">
+              <CardContent
+                className={cn(
+                  "space-y-4",
+                  integration.id === CHATGPT_ID && "pb-3",
+                )}
+              >
                 {integration.id === LOCAL_MODELS_ID ? (
                   <LocalModelsIntegration
                     enabled={isEnabled}
@@ -1303,6 +1453,21 @@ export function ProvidersTab() {
                       setup:
                         !isEnabled && !deviceAuthorizations[integration.id],
                     })}
+                  </>
+                ) : integration.id === CHATGPT_ID ? (
+                  <>
+                    <ChatGPTIntegrationPanel
+                      enabled={isEnabled}
+                      expired={isExpired}
+                      awaiting={isAwaitingAuthorization}
+                      loading={isLoading}
+                      onContinue={() => handleSetupIntegration(integration.id)}
+                      onSubmitAddress={address =>
+                        handleSubmitCallbackAddress(integration.id, address)
+                      }
+                    />
+                    {(isEnabled || isExpired || isAwaitingAuthorization) &&
+                      renderActions({ setup: false })}
                   </>
                 ) : (
                   <>

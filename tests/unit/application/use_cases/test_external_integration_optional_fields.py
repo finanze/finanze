@@ -34,7 +34,7 @@ class FakeIntegration(ConnectableIntegration):
     async def setup(self, payload):
         self.payloads.append(payload)
 
-    async def teardown(self):
+    async def teardown(self, payload=None):
         self.teardowns += 1
         if self.error:
             raise self.error

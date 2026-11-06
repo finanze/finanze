@@ -539,6 +539,7 @@
     "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
     "AUTHORIZATION_DENIED": "Access to {integration} was denied or the required permissions were not granted.",
     "AUTHORIZATION_EXPIRED": "The {integration} authorization expired or is no longer valid. Please try again.",
+    "AUTHORIZATION_RETRY_REQUIRED": "{integration} did not accept the sign-in. Please try again.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -562,7 +563,8 @@
     "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again.",
     "RUNTIME_NOT_FOUND": "The program required by {integration} was not found on this computer. Install it or enter the full path to its executable.",
     "RUNTIME_OUTDATED": "The program required by {integration} is too old. Update it and try again.",
-    "RUNTIME_NOT_AUTHENTICATED": "The program required by {integration} is not signed in. Sign in to it on this computer and try again."
+    "RUNTIME_NOT_AUTHENTICATED": "The program required by {integration} is not signed in. Sign in to it on this computer and try again.",
+    "REAUTHENTICATION_REQUIRED": "Your {integration} sign-in expired. Sign in again in Integrations."
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -1455,11 +1457,26 @@
             }
           ]
         }
+      },
+      "CHATGPT": {
+        "description": "Sign in with your ChatGPT account to use the models included in your ChatGPT plan. Requires ChatGPT Plus or Pro, usage counts toward your plan limits, and requests are processed by OpenAI."
       }
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationAwaitingAuthorization": "Waiting for authorization in your browser...",
+    "integrationExpired": "Sign-in expired",
+    "integrationBeta": "Beta",
+    "chatgpt": {
+      "continue": "Continue with ChatGPT",
+      "usingPlan": "Using your ChatGPT plan",
+      "manageUsage": "Manage usage",
+      "expired": "Your ChatGPT sign-in expired. Continue with ChatGPT to sign in again.",
+      "pasteLabel": "Didn't return to Finanze? Paste the address shown in your browser after signing in.",
+      "pastePlaceholder": "http://127.0.0.1:…/auth/callback?code=…",
+      "finish": "Finish",
+      "invalidAddress": "That address doesn't contain a sign-in response. Copy the full address from your browser."
+    },
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
     "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",
@@ -2427,7 +2444,8 @@
       "summary": "{rules} labeled by rules · {external} labeled by suggestions",
       "done": "Movements relabeled",
       "externalFailed": "Movements relabeled, but suggestions could not be retrieved",
-      "externalModelUnavailable": "the selected model is no longer available, your existing suggestions were kept. Choose another model in the suggestions settings."
+      "externalModelUnavailable": "the selected model is no longer available, your existing suggestions were kept. Choose another model in the suggestions settings.",
+      "externalReauthRequired": "the sign-in to the suggestions provider expired. Sign in again in Integrations."
     },
     "automation": {
       "rulesTitle": "Rules",

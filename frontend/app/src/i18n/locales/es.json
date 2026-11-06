@@ -537,6 +537,7 @@
     "MISSING_SERVER_URL": "Introduce la URL del servidor de {integration}.",
     "AUTHORIZATION_DENIED": "Se denegó el acceso a {integration} o no se concedieron los permisos necesarios.",
     "AUTHORIZATION_EXPIRED": "La autorización de {integration} ha caducado o ya no es válida. Inténtalo de nuevo.",
+    "AUTHORIZATION_RETRY_REQUIRED": "{integration} no aceptó el inicio de sesión. Inténtalo de nuevo.",
     "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles para {entity}",
     "UNEXPECTED_ERROR": "Error inesperado en {entity}",
     "UNAUTHORIZED": "Credenciales inválidas o expiradas en {entity}",
@@ -560,7 +561,8 @@
     "RUNTIME_FAILED": "No se pudo iniciar {integration} en este dispositivo. Comprueba tu conexión e inténtalo de nuevo.",
     "RUNTIME_NOT_FOUND": "No se ha encontrado en este ordenador el programa que necesita {integration}. Instálalo o indica la ruta completa a su ejecutable.",
     "RUNTIME_OUTDATED": "El programa que necesita {integration} está desactualizado. Actualízalo e inténtalo de nuevo.",
-    "RUNTIME_NOT_AUTHENTICATED": "El programa que necesita {integration} no tiene la sesión iniciada. Inicia sesión en él en este ordenador e inténtalo de nuevo."
+    "RUNTIME_NOT_AUTHENTICATED": "El programa que necesita {integration} no tiene la sesión iniciada. Inicia sesión en él en este ordenador e inténtalo de nuevo.",
+    "REAUTHENTICATION_REQUIRED": "Tu sesión de {integration} ha caducado. Vuelve a iniciar sesión en Integraciones."
   },
   "errorBoundary": {
     "title": "Algo ha salido mal",
@@ -1453,11 +1455,26 @@
             }
           ]
         }
+      },
+      "CHATGPT": {
+        "description": "Inicia sesión con tu cuenta de ChatGPT para usar los modelos incluidos en tu plan de ChatGPT. Requiere ChatGPT Plus o Pro, el uso cuenta para los límites de tu plan y las solicitudes las procesa OpenAI."
       }
     },
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
     "integrationAwaitingAuthorization": "Esperando la autorización en tu navegador...",
+    "integrationExpired": "Sesión caducada",
+    "integrationBeta": "Beta",
+    "chatgpt": {
+      "continue": "Continuar con ChatGPT",
+      "usingPlan": "Usando tu plan de ChatGPT",
+      "manageUsage": "Gestionar uso",
+      "expired": "Tu sesión de ChatGPT ha caducado. Continúa con ChatGPT para volver a iniciar sesión.",
+      "pasteLabel": "¿No has vuelto a Finanze? Pega la dirección que muestra tu navegador después de iniciar sesión.",
+      "pastePlaceholder": "http://127.0.0.1:…/auth/callback?code=…",
+      "finish": "Finalizar",
+      "invalidAddress": "Esa dirección no contiene una respuesta de inicio de sesión. Copia la dirección completa de tu navegador."
+    },
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
     "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes.",
     "integrationInsecureKeyWarning": "Esta conexión no está cifrada (http), así que la clave API se envía en texto plano. Usa https o solo una red de confianza.",
@@ -2426,7 +2443,8 @@
       "summary": "{rules} etiquetados por reglas · {external} etiquetados por sugerencias",
       "done": "Movimientos reetiquetados",
       "externalFailed": "Movimientos reetiquetados, pero no se pudieron obtener sugerencias",
-      "externalModelUnavailable": "el modelo seleccionado ya no está disponible, se han mantenido tus sugerencias actuales. Elige otro modelo en los ajustes de sugerencias."
+      "externalModelUnavailable": "el modelo seleccionado ya no está disponible, se han mantenido tus sugerencias actuales. Elige otro modelo en los ajustes de sugerencias.",
+      "externalReauthRequired": "la sesión del proveedor de sugerencias ha caducado. Vuelve a iniciar sesión en Integraciones."
     },
     "automation": {
       "rulesTitle": "Reglas",

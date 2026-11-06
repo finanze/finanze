@@ -22,6 +22,7 @@ import {
 
 const DEFAULT_ORIGINS = [LabelOrigin.EXTERNAL]
 const MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
+const REAUTHENTICATION_REQUIRED = "REAUTHENTICATION_REQUIRED"
 
 export interface RelabelInitialFilters {
   from_date?: string
@@ -145,11 +146,14 @@ export function RelabelDialog({
       const response = await relabelTransactions(buildRequest(false))
       setMatched(response.matched)
       setResult(response)
+      const errorCode = response.external?.external_error_code
       const externalError =
-        response.external?.external_error_code === MODEL_NOT_FOUND
+        errorCode === MODEL_NOT_FOUND
           ? t.labels.relabel.externalModelUnavailable
-          : response.external?.external_error_details ||
-            response.external?.external_error
+          : errorCode === REAUTHENTICATION_REQUIRED
+            ? t.labels.relabel.externalReauthRequired
+            : response.external?.external_error_details ||
+              response.external?.external_error
       if (externalError) {
         showToast(
           `${t.labels.relabel.externalFailed}: ${externalError}`,

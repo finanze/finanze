@@ -170,7 +170,7 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
         self._catalogs = {self._pool.fingerprint(token): (self._clock(), entries)}
         self._current = payload
 
-    async def teardown(self):
+    async def teardown(self, payload: Optional[ExternalIntegrationPayload] = None):
         self._catalogs.clear()
         self._current = None
         self._superseded.clear()

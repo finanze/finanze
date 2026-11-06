@@ -36,6 +36,9 @@ from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 from domain.use_cases.forecast import Forecast
+from domain.use_cases.forward_integration_oauth_callback import (
+    ForwardIntegrationOAuthCallback,
+)
 from domain.use_cases.get_available_entities import GetAvailableEntities
 from domain.use_cases.get_available_external_entities import (
     GetAvailableExternalEntities,
@@ -195,6 +198,9 @@ from infrastructure.controller.routes.connect_external_integration import (
     connect_external_integration,
 )
 from infrastructure.controller.routes.contributions import contributions
+from infrastructure.controller.routes.forward_integration_oauth_callback import (
+    forward_integration_oauth_callback,
+)
 from infrastructure.controller.routes.create_real_estate import create_real_estate
 from infrastructure.controller.routes.create_template import create_template
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
@@ -438,6 +444,7 @@ async def register_routes(
     list_hugging_face_quants_uc: ListHuggingFaceQuants,
     import_local_model_uc: ImportLocalModel,
     poll_external_integration_connection_uc: PollExternalIntegrationConnection,
+    forward_integration_oauth_callback_uc: ForwardIntegrationOAuthCallback,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -932,3 +939,9 @@ async def register_routes(
     @app.route("/oauth/callback", methods=["GET"])
     async def oauth_callback_route():
         return await oauth_callback()
+
+    @app.route("/auth/callback", methods=["GET"])
+    async def forward_integration_oauth_callback_route():
+        return await forward_integration_oauth_callback(
+            forward_integration_oauth_callback_uc
+        )

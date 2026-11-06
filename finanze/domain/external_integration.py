@@ -16,6 +16,7 @@ class ExternalIntegrationType(str, Enum):
 class ExternalIntegrationStatus(str, Enum):
     ON = "ON"
     OFF = "OFF"
+    EXPIRED = "EXPIRED"
 
 
 class ExternalIntegrationId(str, Enum):
@@ -34,6 +35,7 @@ class ExternalIntegrationId(str, Enum):
     LOCAL_MODELS = "LOCAL_MODELS"
     GITHUB_COPILOT = "GITHUB_COPILOT"
     CLAUDE_AGENT = "CLAUDE_AGENT"
+    CHATGPT = "CHATGPT"
 
 
 @dataclass
@@ -112,6 +114,15 @@ class CompleteExternalIntegrationConnectionRequest:
     state: str
     code: Optional[str] = None
     error: Optional[str] = None
+    client_id: Optional[str] = None
+
+
+@dataclass
+class ForwardIntegrationOAuthCallbackRequest:
+    state: str
+    code: Optional[str] = None
+    error: Optional[str] = None
+    client_id: Optional[str] = None
 
 
 @dataclass
@@ -162,6 +173,7 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
     ExternalIntegrationId.CLAUDE_AGENT: {
         "cli_path": "Claude Code path",
     },
+    ExternalIntegrationId.CHATGPT: {},
 }
 
 EXTERNAL_INTEGRATION_OPTIONAL_FIELDS: dict[ExternalIntegrationId, set[str]] = {

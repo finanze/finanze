@@ -149,7 +149,7 @@ class ClaudeAgentClient(AIClient):
         self._catalogs.clear()
         await self._catalog(cli, max_age=0)
 
-    async def teardown(self):
+    async def teardown(self, payload: Optional[ExternalIntegrationPayload] = None):
         self._catalogs.clear()
         self._locator.invalidate()
         await self._pool.invalidate(PROVIDER)
