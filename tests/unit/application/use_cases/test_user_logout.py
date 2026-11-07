@@ -77,3 +77,22 @@ class TestUserLogoutExecute:
         await use_case.execute()
 
         error_reporter.set_user.assert_called_once_with(None)
+
+    @pytest.mark.asyncio
+    async def test_execute_releases_agent_runtimes_before_locking(self):
+        calls = []
+        agent_runtime_port = AsyncMock()
+        agent_runtime_port.release_all.side_effect = lambda: calls.append("release")
+        source_initiator = AsyncMock()
+        source_initiator.lock.side_effect = lambda: calls.append("lock")
+        use_case = UserLogoutImpl(
+            source_initiator=source_initiator,
+            config_port=AsyncMock(),
+            sheets_initiator=MagicMock(),
+            cloud_register=AsyncMock(),
+            agent_runtime_port=agent_runtime_port,
+        )
+
+        await use_case.execute()
+
+        assert calls == ["release", "lock"]

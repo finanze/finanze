@@ -130,6 +130,11 @@ class LazyComponents:
         )
         from infrastructure.client.interests.ecb_client import ECBClient
         from infrastructure.client.ai.openai.openai_client import OpenAIClient
+        from infrastructure.client.ai.chatgpt.chatgpt_client import ChatGPTClient
+        from infrastructure.client.ai.chatgpt.chatgpt_oauth import ChatGPTOAuth
+        from infrastructure.repository.host_identity.host_identity_repository import (
+            HostIdentityRepository,
+        )
         from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
             OpenAICompatibleClient,
         )
@@ -266,6 +271,9 @@ class LazyComponents:
         from application.use_cases.connect_external_integration import (
             ConnectExternalIntegrationImpl,
         )
+        from application.use_cases.complete_external_integration_connection import (
+            CompleteExternalIntegrationConnectionImpl,
+        )
         from application.use_cases.disconnect_external_integration import (
             DisconnectExternalIntegrationImpl,
         )
@@ -378,6 +386,10 @@ class LazyComponents:
             ExternalIntegrationId.OPENROUTER: OpenRouterClient(),
             ExternalIntegrationId.OPENAI: OpenAIClient(),
             ExternalIntegrationId.OPENAI_COMPATIBLE: OpenAICompatibleClient(),
+            ExternalIntegrationId.CHATGPT: ChatGPTClient(
+                ChatGPTOAuth(HostIdentityRepository(db_client), None),
+                d.ext_int_repo,
+            ),
         }
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
@@ -626,6 +638,9 @@ class LazyComponents:
             d.ext_int_repo, external_integrations
         )
         self.disconn_integration = DisconnectExternalIntegrationImpl(
+            d.ext_int_repo, external_integrations
+        )
+        self.complete_integration = CompleteExternalIntegrationConnectionImpl(
             d.ext_int_repo, external_integrations
         )
 

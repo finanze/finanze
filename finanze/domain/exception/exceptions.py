@@ -95,6 +95,12 @@ class IntegrationSetupErrorCode(str, Enum):
     MISSING_SERVER_URL = "MISSING_SERVER_URL"
     AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
     AUTHORIZATION_EXPIRED = "AUTHORIZATION_EXPIRED"
+    AUTHORIZATION_RETRY_REQUIRED = "AUTHORIZATION_RETRY_REQUIRED"
+    NOT_ENTITLED = "NOT_ENTITLED"
+    RUNTIME_FAILED = "RUNTIME_FAILED"
+    RUNTIME_NOT_FOUND = "RUNTIME_NOT_FOUND"
+    RUNTIME_OUTDATED = "RUNTIME_OUTDATED"
+    RUNTIME_NOT_AUTHENTICATED = "RUNTIME_NOT_AUTHENTICATED"
 
 
 INTEGRATION_SETUP_UNAUTHORIZED_CODES = (
@@ -107,6 +113,11 @@ INTEGRATION_SETUP_BAD_REQUEST_CODES = (
     IntegrationSetupErrorCode.MISSING_SERVER_URL,
     IntegrationSetupErrorCode.AUTHORIZATION_DENIED,
     IntegrationSetupErrorCode.AUTHORIZATION_EXPIRED,
+    IntegrationSetupErrorCode.AUTHORIZATION_RETRY_REQUIRED,
+    IntegrationSetupErrorCode.NOT_ENTITLED,
+    IntegrationSetupErrorCode.RUNTIME_NOT_FOUND,
+    IntegrationSetupErrorCode.RUNTIME_OUTDATED,
+    IntegrationSetupErrorCode.RUNTIME_NOT_AUTHENTICATED,
 )
 
 
@@ -126,6 +137,21 @@ class AIProviderErrorCode(str, Enum):
     UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
     UNAVAILABLE = "UNAVAILABLE"
     MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
+    REAUTHENTICATION_REQUIRED = "REAUTHENTICATION_REQUIRED"
+    RATE_LIMITED = "RATE_LIMITED"
+
+
+AI_PROVIDER_FALLBACK_ERRORS = frozenset(
+    {
+        AIProviderErrorCode.INVALID_CREDENTIALS,
+        AIProviderErrorCode.INSUFFICIENT_FUNDS,
+        AIProviderErrorCode.UNSUPPORTED_OPERATION,
+        AIProviderErrorCode.UNAVAILABLE,
+        AIProviderErrorCode.MODEL_NOT_FOUND,
+        AIProviderErrorCode.REAUTHENTICATION_REQUIRED,
+        AIProviderErrorCode.RATE_LIMITED,
+    }
+)
 
 
 class AIProviderError(Exception):
@@ -257,8 +283,9 @@ class InvalidLabelingRule(Exception):
 
 
 class ExternalLabelingUnavailable(Exception):
-    def __init__(self, details: str):
+    def __init__(self, details: str, code: Optional[str] = None):
         self.details = details
+        self.code = code
         super().__init__(details)
 
 

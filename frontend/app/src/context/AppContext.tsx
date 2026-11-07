@@ -163,9 +163,7 @@ const defaultAutoRefresh: AutoRefresh = {
 
 const defaultExternalLabeling: ExternalLabelingSettings = {
   enabled: false,
-  provider: null,
-  model: null,
-  upstreamProvider: null,
+  providers: [],
   autoRun: true,
   minConfidence: 70,
   maxPerRun: 400,

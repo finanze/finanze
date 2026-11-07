@@ -18,7 +18,11 @@ from application.ports.transaction_label_port import TransactionLabelPort
 from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
-from domain.exception.exceptions import ExternalLabelingUnavailable
+from domain.exception.exceptions import (
+    AI_PROVIDER_FALLBACK_ERRORS,
+    AIProviderErrorCode,
+    ExternalLabelingUnavailable,
+)
 from domain.external_integration import ExternalIntegrationId
 from domain.external_labeling import (
     MAX_LABELING_INSTRUCTIONS_LENGTH,
@@ -36,7 +40,7 @@ from domain.labeling import (
     conditions_match,
     matching_rules,
 )
-from domain.settings import SettingsSection
+from domain.settings import ExternalLabelingConfig, SettingsSection
 from domain.settlement import SETTLEMENT_MAX_DAYS, match_settlements
 from domain.transactions import (
     ACCOUNT_MOVEMENT_TYPES,
@@ -194,6 +198,42 @@ class TransactionLabelerAdapter(TransactionLabeler):
                 applied += 1
         return applied
 
+    async def external_availability_error(self) -> Optional[LabelingResult]:
+        settings = await self._config_port.load_sections({SettingsSection.LABELING})
+        config = settings.labeling.external
+        if not config.enabled or not config.providers:
+            return None
+        candidates = await self._candidates(config)
+        if not candidates:
+            return LabelingResult(
+                external_error=ExternalLabelingUnavailable.__name__,
+                external_error_code=AIProviderErrorCode.UNAVAILABLE.value,
+                external_error_details="No configured labeling provider is connected and available here",
+            )
+        for entry, provider, credentials in candidates:
+            if await provider.is_model_available(entry.model, credentials) is not False:
+                return None
+        return LabelingResult(
+            external_error=ExternalLabelingUnavailable.__name__,
+            external_error_code=AIProviderErrorCode.MODEL_NOT_FOUND.value,
+            external_error_details="The configured models are no longer available",
+        )
+
+    async def _candidates(self, config: ExternalLabelingConfig):
+        candidates = []
+        for entry in config.providers:
+            try:
+                provider_id = ExternalIntegrationId(entry.provider)
+            except ValueError:
+                continue
+            provider = self._providers.get(provider_id)
+            if provider is None:
+                continue
+            credentials = await self._external_integration_port.get_payload(provider_id)
+            if credentials is not None:
+                candidates.append((entry, provider, credentials))
+        return candidates
+
     async def classify_external(
         self,
         selection: AccountTxSelection,
@@ -204,21 +244,18 @@ class TransactionLabelerAdapter(TransactionLabeler):
         try:
             settings = await self._config_port.load_sections({SettingsSection.LABELING})
             config = settings.labeling.external
-            if not config.enabled or not config.provider or not config.model:
+            if not config.enabled or not config.providers:
                 return result
             if trigger == LabelingTrigger.AUTO and not config.autoRun:
                 return result
 
-            try:
-                provider_id = ExternalIntegrationId(config.provider)
-            except ValueError:
-                return result
-            provider = self._providers.get(provider_id)
-            if provider is None:
-                return result
-
-            credentials = await self._external_integration_port.get_payload(provider_id)
-            if credentials is None:
+            provider_candidates = await self._candidates(config)
+            if not provider_candidates:
+                result.external_error = ExternalLabelingUnavailable.__name__
+                result.external_error_code = AIProviderErrorCode.UNAVAILABLE.value
+                result.external_error_details = (
+                    "No configured labeling provider is connected and available here"
+                )
                 return result
 
             txs = await self._transaction_port.get_account_txs(
@@ -275,37 +312,61 @@ class TransactionLabelerAdapter(TransactionLabeler):
             instructions = (config.instructions or "").strip()[
                 :MAX_LABELING_INSTRUCTIONS_LENGTH
             ] or None
-            provider_name = f"{provider_id.value}:{config.model}"
             budget = (
                 AUTO_TIME_BUDGET_SECONDS
                 if trigger == LabelingTrigger.AUTO
                 else MANUAL_TIME_BUDGET_SECONDS
             )
             started = time.monotonic()
+            candidate_index = 0
 
             for index in range(0, len(txs), EXTERNAL_BATCH_SIZE):
                 if time.monotonic() - started > budget:
                     break
                 batch = txs[index : index + EXTERNAL_BATCH_SIZE]
-                suggestions = await provider.label(
-                    ExternalLabelingRequest(
-                        model=config.model,
-                        txs=[_to_external_tx(tx) for tx in batch],
-                        labels=candidates,
-                        examples=examples,
-                        instructions=instructions,
-                        upstream_provider=(config.upstreamProvider or "").strip()
-                        or None,
-                    ),
-                    credentials,
-                )
+                while True:
+                    entry, provider, credentials = provider_candidates[candidate_index]
+                    if time.monotonic() - started > budget:
+                        return result
+                    try:
+                        suggestions = await provider.label(
+                            ExternalLabelingRequest(
+                                model=entry.model,
+                                txs=[_to_external_tx(tx) for tx in batch],
+                                labels=candidates,
+                                examples=examples,
+                                instructions=instructions,
+                                upstream_provider=entry.upstreamProvider or None,
+                            ),
+                            credentials,
+                        )
+                        break
+                    except ExternalLabelingUnavailable as error:
+                        if (
+                            error.code not in AI_PROVIDER_FALLBACK_ERRORS
+                            or candidate_index + 1 >= len(provider_candidates)
+                        ):
+                            raise
+                        self._log.warning(
+                            "Labeling provider %s failed (%s), trying the next priority",
+                            entry.provider,
+                            error.code,
+                        )
+                        candidate_index += 1
+                result.external_provider = entry.provider
+                result.external_model = entry.model
                 result.external_labeled += await self._store_external(
-                    batch, suggestions, known_label_ids, min_confidence, provider_name
+                    batch,
+                    suggestions,
+                    known_label_ids,
+                    min_confidence,
+                    f"{entry.provider}:{entry.model}",
                 )
         except ExternalLabelingUnavailable as e:
             self._log.warning(f"External transaction labeling unavailable: {e.details}")
             result.external_error = type(e).__name__
             result.external_error_details = e.details or None
+            result.external_error_code = e.code
         except Exception as e:
             self._log.exception("External transaction labeling failed")
             result.external_error = type(e).__name__

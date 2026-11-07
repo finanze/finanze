@@ -14,6 +14,7 @@ import {
   ImportResult,
   ExternalIntegrations,
   ExternalIntegrationConnectionResult,
+  ExternalIntegrationConnectionPoll,
   CompleteIntegrationOAuthRequest,
   PeriodicFlow,
   PendingFlow,
@@ -833,6 +834,16 @@ export async function completeIntegrationOAuth(
   return (await getApiClient()).post(
     `/integrations/${integrationId}/oauth/complete`,
     request,
+  )
+}
+
+export async function pollIntegrationDevice(
+  integrationId: string,
+  flowId: string,
+): Promise<ExternalIntegrationConnectionPoll> {
+  return (await getApiClient()).post(
+    `/integrations/${integrationId}/device/poll`,
+    { flow_id: flowId },
   )
 }
 

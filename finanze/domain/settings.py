@@ -4,9 +4,11 @@ from typing import Optional
 
 from domain.commodity import WeightUnit
 from domain.transactions import LabelOrigin
+from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass
 
 CURRENT_VERSION = 8
+MAX_EXTERNAL_LABELING_PROVIDERS = 3
 
 FilterValues = str | list[str]
 
@@ -172,11 +174,23 @@ class ExternalLabelingExamplesConfig:
 
 
 @dataclass
+class ExternalLabelingProviderEntry:
+    provider: str = Field(min_length=1, max_length=200)
+    model: str = Field(min_length=1, max_length=200)
+    upstreamProvider: Optional[str] = None
+
+    @field_validator("provider", "model", "upstreamProvider", mode="before")
+    @classmethod
+    def trim_values(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+@dataclass
 class ExternalLabelingConfig:
     enabled: bool = False
-    provider: Optional[str] = None
-    model: Optional[str] = None
-    upstreamProvider: Optional[str] = None
+    providers: list[ExternalLabelingProviderEntry] = Field(
+        default_factory=list, max_length=MAX_EXTERNAL_LABELING_PROVIDERS
+    )
     autoRun: bool = True
     minConfidence: int = 70
     maxPerRun: int = 400
@@ -184,6 +198,17 @@ class ExternalLabelingConfig:
         default_factory=ExternalLabelingExamplesConfig
     )
     instructions: Optional[str] = None
+
+    @field_validator("providers")
+    @classmethod
+    def unique_providers(cls, providers):
+        identities = [
+            (entry.provider, entry.model, entry.upstreamProvider or None)
+            for entry in providers
+        ]
+        if len(identities) != len(set(identities)):
+            raise ValueError("Duplicate external labeling providers")
+        return providers
 
 
 @dataclass

@@ -28,13 +28,22 @@ class DisconnectExternalIntegrationImpl(DisconnectExternalIntegration):
         except ValueError:
             raise IntegrationNotFound()
 
+        integration = self._integrations.get(integration_id)
+        connectable = isinstance(integration, ConnectableIntegration)
+        payload = (
+            await self._external_integration_port.get_payload(
+                integration_id, include_expired=True
+            )
+            if connectable
+            else None
+        )
+
         await self._external_integration_port.deactivate(integration_id)
 
-        integration = self._integrations.get(integration_id)
-        if not isinstance(integration, ConnectableIntegration):
+        if not connectable:
             return
         try:
-            await integration.teardown()
+            await integration.teardown(payload)
         except Exception:
             self._log.warning(
                 f"Could not tear down integration {integration_id.value}",

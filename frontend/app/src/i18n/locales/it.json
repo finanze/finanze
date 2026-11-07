@@ -538,6 +538,7 @@
     "MISSING_SERVER_URL": "Inserisci l'URL del server per {integration}.",
     "AUTHORIZATION_DENIED": "L'accesso a {integration} è stato negato o non sono stati concessi i permessi necessari.",
     "AUTHORIZATION_EXPIRED": "L'autorizzazione di {integration} è scaduta o non è più valida. Riprova.",
+    "AUTHORIZATION_RETRY_REQUIRED": "{integration} non ha accettato l'accesso. Riprova.",
     "NO_CREDENTIALS_AVAILABLE": "Nessuna credenziale disponibile per {entity}",
     "UNEXPECTED_ERROR": "Si è verificato un errore imprevisto con {entity}",
     "UNAUTHORIZED": "Credenziali non valide o scadute per {entity}",
@@ -556,7 +557,13 @@
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
-    "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro."
+    "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro.",
+    "NOT_ENTITLED": "Il tuo account non ha accesso a {integration}. Verifica che il tuo piano sia attivo e che la tua organizzazione lo consenta.",
+    "RUNTIME_FAILED": "Impossibile avviare {integration} su questo dispositivo. Controlla la connessione e riprova.",
+    "RUNTIME_NOT_FOUND": "Il programma richiesto da {integration} non è stato trovato su questo computer. Installalo o inserisci il percorso completo del suo eseguibile.",
+    "RUNTIME_OUTDATED": "Il programma richiesto da {integration} non è aggiornato. Aggiornalo e riprova.",
+    "RUNTIME_NOT_AUTHENTICATED": "Il programma richiesto da {integration} non ha effettuato l'accesso. Accedi su questo computer e riprova.",
+    "REAUTHENTICATION_REQUIRED": "Il tuo accesso a {integration} è scaduto. Accedi di nuovo in Integrazioni."
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",
@@ -1128,6 +1135,7 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
+        "name": "Google Sheets",
         "description": "Configura Google Sheets per abilitare l'importazione e l'esportazione dei dati.",
         "help": "Come ottenere le credenziali",
         "hint": {
@@ -1265,6 +1273,7 @@
         }
       },
       "ENABLE_BANKING": {
+        "name": "Enable Banking",
         "description": "Connetti conti bancari in tutta Europa tramite l'accesso PSD2 di Enable Banking.",
         "help": "Come configurare Enable Banking",
         "hint": {
@@ -1347,7 +1356,7 @@
         }
       },
       "OPENROUTER": {
-        "description": "Collega OpenRouter per ottenere suggerimenti automatici di etichette per i tuoi movimenti con il modello che preferisci.",
+        "description": "Collega OpenRouter per accedere ai modelli di diversi fornitori tramite un'unica API. L'utilizzo viene fatturato da OpenRouter.",
         "help": "Come ottenere una chiave API",
         "hint": {
           "title": "Ottieni una chiave API OpenRouter",
@@ -1369,7 +1378,7 @@
         }
       },
       "OPENAI": {
-        "description": "Collega OpenAI per ottenere suggerimenti automatici di etichette per i tuoi movimenti con i modelli GPT.",
+        "description": "Collega OpenAI per usare i modelli GPT tramite la sua API. L'utilizzo viene fatturato da OpenAI.",
         "help": "Come ottenere una chiave API",
         "hint": {
           "title": "Ottieni una chiave API OpenAI",
@@ -1391,7 +1400,8 @@
         }
       },
       "OPENAI_COMPATIBLE": {
-        "description": "Collega qualsiasi server compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, per etichettare i tuoi movimenti con modelli ospitati da te.",
+        "name": "IA personalizzata",
+        "description": "Collega un'API compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, eseguita localmente o su un server gestito da te.",
         "help": "Come collegarlo",
         "hint": {
           "title": "Collegare un server compatibile con OpenAI",
@@ -1404,7 +1414,8 @@
         }
       },
       "LOCAL_MODELS": {
-        "description": "Esegui piccoli modelli di IA in modo privato, su questo dispositivo o sul tuo server llama.cpp. Scaricali da qui e usali per etichettare i tuoi movimenti.",
+        "name": "Modelli locali",
+        "description": "Esegui modelli di IA in modo privato su questo dispositivo o sul tuo server llama.cpp. Scarica qui i modelli supportati.",
         "help": "Come funziona",
         "hint": {
           "title": "Modelli locali",
@@ -1424,14 +1435,85 @@
             }
           ]
         }
+      },
+      "GITHUB_COPILOT": {
+        "description": "Usa i modelli inclusi nel tuo piano GitHub Copilot. GitHub addebita l'utilizzo in crediti IA in base al prezzo per token di ogni modello e le richieste vengono elaborate da GitHub e dal fornitore del modello. Solo desktop e self-hosted."
+      },
+      "CLAUDE_AGENT": {
+        "name": "Agente di Claude",
+        "description": "Usa Claude tramite Claude Code installato e con l'accesso effettuato su questo computer. L'utilizzo conta per i limiti del tuo piano Claude e le richieste vengono elaborate da Anthropic. Solo desktop e self-hosted.",
+        "help": "Come configurarlo",
+        "hint": {
+          "title": "Configura Claude Agent",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Installa "
+            },
+            {
+              "type": "link",
+              "label": "Claude Code",
+              "url": "https://code.claude.com/docs/en/setup"
+            },
+            {
+              "type": "text",
+              "value": " su questo computer, esegui claude in un terminale e accedi con il tuo account Claude. Finanze riutilizza quell'accesso e non ti chiede mai le tue credenziali né una chiave API. Inserisci il percorso solo se Claude Code non viene trovato automaticamente."
+            }
+          ]
+        }
+      },
+      "CHATGPT": {
+        "description": "Accedi con il tuo account ChatGPT per usare i modelli inclusi nel tuo piano ChatGPT. Richiede ChatGPT Plus o Pro, l'utilizzo conta per i limiti del tuo piano e le richieste vengono elaborate da OpenAI."
       }
     },
     "disableIntegration": "Disabilita integrazione",
     "integrationEnabledSuccess": "Integrazione {integration} abilitata con successo",
     "integrationAwaitingAuthorization": "In attesa dell'autorizzazione nel browser...",
+    "integrationExpired": "Accesso scaduto",
+    "integrationBeta": "Beta",
+    "aiProviderFamilies": {
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "OPENROUTER": "OpenRouter",
+      "GITHUB_COPILOT": "GitHub Copilot",
+      "LOCAL_MODELS": "Modelli locali",
+      "CUSTOM": "IA personalizzata"
+    },
+    "aiProviderMethods": {
+      "OPENAI": "Chiave API",
+      "CHATGPT": "Piano ChatGPT",
+      "CLAUDE_AGENT": "CLI di Claude",
+      "OPENROUTER": "Chiave API",
+      "GITHUB_COPILOT": "Piano GitHub",
+      "LOCAL_MODELS": "Runtime locale o server",
+      "OPENAI_COMPATIBLE": "API compatibile"
+    },
+    "aiPlatforms": {
+      "DESKTOP": "Desktop",
+      "SELF_HOSTED": "Self-hosted",
+      "MOBILE": "Mobile"
+    },
+    "aiPlatformsLabel": "Piattaforme supportate:",
+    "aiConnectedMethods": "{count}/{total} connessi",
+    "chatgpt": {
+      "continue": "Continua con ChatGPT",
+      "usingPlan": "Stai usando il tuo piano ChatGPT",
+      "manageUsage": "Gestisci utilizzo",
+      "expired": "Il tuo accesso a ChatGPT è scaduto. Continua con ChatGPT per accedere di nuovo.",
+      "pasteLabel": "Non sei tornato su Finanze? Incolla l'indirizzo mostrato dal browser dopo l'accesso.",
+      "pastePlaceholder": "http://127.0.0.1:…/auth/callback?code=…",
+      "finish": "Completa",
+      "invalidAddress": "Quell'indirizzo non contiene una risposta di accesso. Copia l'indirizzo completo dal browser."
+    },
     "integrationDisabledSuccess": "Integrazione {integration} disabilitata con successo",
     "integrationRequiredMessage": "Abilita l'integrazione Google Sheets in Integrazioni per configurare queste impostazioni.",
     "integrationInsecureKeyWarning": "Questa connessione non è cifrata (http), quindi la chiave API viene inviata in chiaro. Usa https o solo una rete di cui ti fidi.",
+    "deviceAuthorization": {
+      "intro": "Riceverai un codice monouso per accedere con il tuo account {integration}. Puoi revocare l'accesso in qualsiasi momento dalle impostazioni del tuo account.",
+      "instructions": "Inserisci questo codice su {site} per autorizzare Finanze:",
+      "copyAndOpen": "Copia il codice e apri {site}",
+      "waiting": "In attesa di autorizzazione, il codice scade tra {time}"
+    },
     "localModels": {
       "builtInMode": "Motore integrato",
       "serverMode": "Il mio server llama.cpp",
@@ -2385,7 +2467,11 @@
       "matched": "{count} movimenti selezionati",
       "summary": "{rules} etichettati dalle regole · {external} etichettati dai suggerimenti",
       "done": "Movimenti rietichettati",
-      "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti"
+      "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti",
+      "providerUsed": "Provider utilizzato: {provider} ({model})",
+      "fallbackUsed": "Alternativa utilizzata: {provider} ({model})",
+      "externalModelUnavailable": "il modello selezionato non è più disponibile, i tuoi suggerimenti attuali sono stati mantenuti. Scegli un altro modello nelle impostazioni dei suggerimenti.",
+      "externalReauthRequired": "l'accesso al fornitore dei suggerimenti è scaduto. Accedi di nuovo in Integrazioni."
     },
     "automation": {
       "rulesTitle": "Regole",
@@ -2404,7 +2490,7 @@
       "connected": "Collegato",
       "notConnected": "Non collegato",
       "unavailableHere": "Non disponibile su questo dispositivo",
-      "providerUnavailable": "{provider} non è disponibile su questo dispositivo, quindi qui i suggerimenti vengono saltati. Continuano a funzionare sui dispositivi che lo supportano. Scegli un altro provider per avere suggerimenti anche qui.",
+      "providerUnavailable": "{provider} non è disponibile su questa piattaforma e questa voce verrà saltata. Le altre priorità pronte possono ancora funzionare. Le impostazioni vengono conservate per le piattaforme supportate.",
       "connectProvider": "Configuralo nelle integrazioni",
       "connectRequired": "Collega il provider o disattiva i suggerimenti esterni per salvare.",
       "model": "Modello",
@@ -2423,7 +2509,24 @@
       "modelInvalid": "Modello non trovato o non supportato",
       "upstreamProvider": "Provider",
       "upstreamProviderPlaceholder": "Provider (opzionale)",
-      "upstreamProviderHint": "Facoltativamente, instrada le richieste verso un provider specifico, ad es. openai/flex. Verrà usato solo quel provider, senza alternative.",
+      "upstreamProviderHint": "Fissa questa voce a un provider upstream. Se fallisce, può essere usata la priorità di etichettatura successiva.",
+      "priorityTitle": "Priorità dei provider",
+      "platformPriorityNotice": "I provider vengono provati in ordine. I metodi non disponibili su questa piattaforma o che richiedono l'accesso vengono saltati. Anche un errore può passare l'etichettatura alla voce successiva.",
+      "addProvider": "Aggiungi provider",
+      "editProvider": "Modifica {provider}",
+      "removeProvider": "Rimuovi {provider}",
+      "reorderProvider": "Riordina {provider}",
+      "moveUp": "Sposta su",
+      "moveDown": "Sposta giù",
+      "preferredHere": "Preferito qui",
+      "priorityStates": {
+        "connected": "Pronto come alternativa",
+        "notConnected": "Non connesso",
+        "expired": "Accesso scaduto",
+        "unavailableHere": "Non disponibile qui"
+      },
+      "noEligibleProvider": "Nessun provider configurato è pronto su questa piattaforma. L'elenco delle priorità viene conservato.",
+      "duplicateProvider": "Ogni combinazione di provider, modello e upstream deve essere unica.",
       "minConfidence": "Confidenza minima (%)",
       "minConfidenceHint": "I suggerimenti sotto questa confidenza vengono scartati.",
       "minConfidenceNotApplicable": "Questo modello non indica la confidenza, quindi vengono applicati tutti i suggerimenti.",
@@ -2446,6 +2549,8 @@
       "noModelsMatch": "Nessun modello corrisponde alla ricerca.",
       "modelsError": "Impossibile caricare i modelli dal provider.",
       "modelUnavailable": "Il modello selezionato ({model}) non è più disponibile. Scegline un altro.",
+      "tokenPrice": "{input} / {output} per 1M",
+      "tokenPriceHint": "Prezzo per 1M di token di input / output",
       "manageModels": "Gestisci modelli",
       "modelLoaded": "Caricato",
       "modelFailed": "Avvio non riuscito",

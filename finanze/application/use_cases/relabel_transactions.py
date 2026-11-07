@@ -58,14 +58,23 @@ class RelabelTransactionsImpl(RelabelTransactions):
             return RelabelResult(matched=0)
 
         origins = request.origins or DEFAULT_RELABEL_ORIGINS
+        include_external = request.include_external
+        external = None
+        if include_external and LabelOrigin.EXTERNAL in origins:
+            external = await self._transaction_labeler.external_availability_error()
+            if external is not None:
+                origins = [
+                    origin for origin in origins if origin != LabelOrigin.EXTERNAL
+                ]
+                include_external = False
+
         async with self._transaction_handler_port.start():
             await self._transaction_label_port.delete(ids, origins)
             result = await self._transaction_labeler.classify(
                 AccountTxSelection(ids=ids)
             )
 
-        external = None
-        if request.include_external:
+        if include_external:
             external = await self._transaction_labeler.classify_external(
                 AccountTxSelection(ids=ids),
                 LabelingTrigger.MANUAL,

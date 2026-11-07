@@ -54,6 +54,7 @@ import {
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { cn } from "@/lib/utils"
+import { getIntegrationName } from "@/lib/integrations"
 import { saveBlobToDevice } from "@/lib/mobile"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
@@ -1968,7 +1969,11 @@ export default function ExportPage() {
   const goToProviders = () => navigate("/entities?tab=providers")
 
   const IntegrationRequiredBadge = ({
-    integrationName = "Google Sheets",
+    integrationName = getIntegrationName(
+      t,
+      "GOOGLE_SHEETS",
+      googleSheetsIntegration,
+    ),
   }: {
     integrationName?: string
   }) => (

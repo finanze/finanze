@@ -350,6 +350,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "POST",
+            "/api/v1/integrations/<integration_id>/oauth/complete",
+            "complete_external_integration_connection",
+            "complete_external_integration_connection",
+            lz.complete_integration,
+        ),
+        (
+            "POST",
             "/api/v1/flows/periodic",
             "save_periodic_flow",
             "save_periodic_flow",

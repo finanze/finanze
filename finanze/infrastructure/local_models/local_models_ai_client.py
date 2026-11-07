@@ -92,7 +92,7 @@ class LocalModelsAIClient(AIClient):
                 SETUP_ERROR_CODES.get(e.code, IntegrationSetupErrorCode.UNREACHABLE)
             ) from e
 
-    async def teardown(self):
+    async def teardown(self, payload: Optional[ExternalIntegrationPayload] = None):
         await self._runtime.stop()
 
     async def list_models(

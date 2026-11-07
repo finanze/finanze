@@ -28,8 +28,10 @@ async def complete_external_integration_connection(
 
     code = body.get("code")
     error = body.get("error")
-    if (code is not None and not isinstance(code, str)) or (
-        error is not None and not isinstance(error, str)
+    client_id = body.get("client_id")
+    if any(
+        value is not None and not isinstance(value, str)
+        for value in (code, error, client_id)
     ):
         return jsonify({"message": "Error: invalid callback parameters"}), 400
 
@@ -38,6 +40,7 @@ async def complete_external_integration_connection(
         state=state,
         code=code or None,
         error=error or None,
+        client_id=client_id or None,
     )
     await complete_external_integration_connection_uc.execute(req)
 

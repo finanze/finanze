@@ -18,6 +18,7 @@ import me.finanze.plugins.BackupProcessorPlugin;
 import me.finanze.plugins.DeviceCountryPlugin;
 import me.finanze.plugins.FileTransferPlugin;
 import me.finanze.plugins.ImageProcessorPlugin;
+import me.finanze.plugins.LoopbackCallbackPlugin;
 import me.finanze.plugins.NativeCookiesPlugin;
 import me.finanze.plugins.SmsOtpPlugin;
 
@@ -29,6 +30,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(DeviceCountryPlugin.class);
         registerPlugin(FileTransferPlugin.class);
         registerPlugin(ImageProcessorPlugin.class);
+        registerPlugin(LoopbackCallbackPlugin.class);
         registerPlugin(NativeCookiesPlugin.class);
         registerPlugin(SmsOtpPlugin.class);
         super.onCreate(savedInstanceState);
