@@ -416,9 +416,6 @@ export default function NetWorthTimelineCard({
     return allPoints.filter(p => p.date >= cutoff)
   }, [allPoints, range, customFrom, customTo, isForecast])
 
-  // In stacked mode with `fitYAxis`, each category is drawn relative to its own
-  // minimum in the visible range, so every band shows that category's variation
-  // instead of low categories being clipped below the axis.
   const stackedFit = fitYAxis && chartType === "stacked"
 
   const typeBaselines = useMemo(() => {
@@ -532,8 +529,6 @@ export default function NetWorthTimelineCard({
     return m === Infinity ? 0 : m
   }, [chartData])
 
-  // In lines mode with `fitYAxis`, the individual lines must be included even
-  // when the total is shown, otherwise low lines would be clipped.
   const linesFit = fitYAxis && chartType === "lines"
 
   const yAxisMax = useMemo(() => {
@@ -561,9 +556,6 @@ export default function NetWorthTimelineCard({
     return m === Infinity ? 0 : m
   }, [chartType, showTotal, linesFit, chartData, visibleTypes, minTotal])
 
-  // Lower bound of the Y axis. By default stacked charts start at 0 and line
-  // charts get some padding below the minimum (never below 0). With `fitYAxis`
-  // the axis starts right at the lowest value currently displayed.
   const yAxisLower = useMemo(() => {
     if (stackedFit) return plotOffset
     if (fitYAxis) return yAxisMin
