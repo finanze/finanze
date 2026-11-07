@@ -26,7 +26,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -34,7 +34,7 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
@@ -43,13 +43,13 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python build deps
         run: pip install python-minifier
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26'
 
@@ -100,7 +100,7 @@ jobs:
             | tail -20
 
       - name: Upload iOS app
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ios-app
           path: frontend/app/build/ios/Build/Products/Debug-iphonesimulator/App.app
@@ -109,10 +109,10 @@ jobs:
   build-android:
     name: Build Android App
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -120,14 +120,14 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -135,13 +135,13 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python build deps
         run: pip install python-minifier
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26'
 
@@ -185,7 +185,7 @@ jobs:
         run: ./gradlew assembleFullDebug
 
       - name: Upload Android APK
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: frontend/app/android/app/build/outputs/apk/full/debug/app-full-debug.apk
@@ -200,7 +200,7 @@ jobs:
       APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -208,14 +208,14 @@ jobs:
           package_json_file: e2e/mobile/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
           cache-dependency-path: e2e/mobile/pnpm-lock.yaml
 
       - name: Download iOS app
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: ios-app
           path: ios-app/App.app
@@ -296,7 +296,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ios-test-results
           path: e2e/mobile/wdio-logs/
@@ -306,12 +306,12 @@ jobs:
     name: Android Tests
     needs: build-android
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Enable KVM
         run: |
@@ -325,20 +325,20 @@ jobs:
           package_json_file: e2e/mobile/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
           cache-dependency-path: e2e/mobile/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Download Android APK
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: android-apk
           path: android-apk
@@ -391,7 +391,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-test-results
           path: e2e/mobile/wdio-logs/
