@@ -51,7 +51,9 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
+          brew update
           brew install pyenv pyenv-virtualenv || true
+          brew upgrade pyenv
           if ! command -v pyenv >/dev/null 2>&1; then
             echo "pyenv missing after brew install" >&2
             exit 1
