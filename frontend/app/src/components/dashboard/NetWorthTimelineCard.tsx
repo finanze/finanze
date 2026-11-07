@@ -158,6 +158,7 @@ const PREFS_KEY = "finanze.networth-timeline-opts"
 function readPrefs(): {
   chartType: "stacked" | "lines"
   showTotal: boolean
+  fitYAxis?: boolean
   hiddenTypes: string[]
 } | null {
   try {
@@ -224,6 +225,7 @@ export default function NetWorthTimelineCard({
   const [showTotal, setShowTotal] = useState(
     () => readPrefs()?.showTotal ?? true,
   )
+  const [fitYAxis, setFitYAxis] = useState(() => readPrefs()?.fitYAxis ?? false)
   const [dragStart, setDragStart] = useState<string | null>(null)
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(
@@ -238,13 +240,14 @@ export default function NetWorthTimelineCard({
         JSON.stringify({
           chartType,
           showTotal,
+          fitYAxis,
           hiddenTypes: [...hiddenTypes],
         }),
       )
     } catch (e) {
       void e
     }
-  }, [chartType, showTotal, hiddenTypes])
+  }, [chartType, showTotal, fitYAxis, hiddenTypes])
 
   useModalBackHandler(expanded, () => setExpanded(false))
 
@@ -413,6 +416,27 @@ export default function NetWorthTimelineCard({
     return allPoints.filter(p => p.date >= cutoff)
   }, [allPoints, range, customFrom, customTo, isForecast])
 
+  const stackedFit = fitYAxis && chartType === "stacked"
+
+  const typeBaselines = useMemo(() => {
+    const base: Record<string, number> = {}
+    if (!stackedFit) return base
+    for (const type of visibleTypes) {
+      let m = Infinity
+      for (const point of filteredPoints) {
+        const v = point.breakdown[type] ?? 0
+        if (v < m) m = v
+      }
+      base[type] = m === Infinity ? 0 : m
+    }
+    return base
+  }, [stackedFit, filteredPoints, visibleTypes])
+
+  const plotOffset = useMemo(
+    () => Object.values(typeBaselines).reduce((acc, v) => acc + v, 0),
+    [typeBaselines],
+  )
+
   const chartData = useMemo(() => {
     return filteredPoints.map(point => {
       const row: Record<string, number | string> = { date: point.date }
@@ -420,12 +444,14 @@ export default function NetWorthTimelineCard({
       for (const type of visibleTypes) {
         const value = point.breakdown[type] ?? 0
         row[type] = value
+        row[`__p_${type}`] = value - (typeBaselines[type] ?? 0)
         total += value
       }
       row.__total = total
+      row.__p_total = total - plotOffset
       return row
     })
-  }, [filteredPoints, visibleTypes])
+  }, [filteredPoints, visibleTypes, typeBaselines, plotOffset])
 
   const toggleType = useCallback((type: string) => {
     setHiddenTypes(prev => {
@@ -503,9 +529,11 @@ export default function NetWorthTimelineCard({
     return m === Infinity ? 0 : m
   }, [chartData])
 
+  const linesFit = fitYAxis && chartType === "lines"
+
   const yAxisMax = useMemo(() => {
-    if (chartType !== "lines" || showTotal) return maxTotal
-    let m = 0
+    if (chartType !== "lines" || (showTotal && !linesFit)) return maxTotal
+    let m = showTotal ? maxTotal : 0
     for (const row of chartData) {
       for (const type of visibleTypes) {
         const v = typeof row[type] === "number" ? (row[type] as number) : 0
@@ -513,11 +541,11 @@ export default function NetWorthTimelineCard({
       }
     }
     return m
-  }, [chartType, showTotal, chartData, visibleTypes, maxTotal])
+  }, [chartType, showTotal, linesFit, chartData, visibleTypes, maxTotal])
 
   const yAxisMin = useMemo(() => {
-    if (chartType !== "lines" || showTotal) return minTotal
-    let m = Infinity
+    if (chartType !== "lines" || (showTotal && !linesFit)) return minTotal
+    let m = showTotal ? minTotal : Infinity
     for (const row of chartData) {
       for (const type of visibleTypes) {
         const v =
@@ -526,9 +554,25 @@ export default function NetWorthTimelineCard({
       }
     }
     return m === Infinity ? 0 : m
-  }, [chartType, showTotal, chartData, visibleTypes, minTotal])
+  }, [chartType, showTotal, linesFit, chartData, visibleTypes, minTotal])
+
+  const yAxisLower = useMemo(() => {
+    if (stackedFit) return plotOffset
+    if (fitYAxis) return yAxisMin
+    if (chartType === "stacked") return 0
+    return Math.max(0, yAxisMin - (yAxisMax - yAxisMin) * 0.1)
+  }, [stackedFit, plotOffset, fitYAxis, chartType, yAxisMin, yAxisMax])
 
   const yAxisDomain = useMemo(() => {
+    if (stackedFit) {
+      const plotMax = maxTotal - plotOffset
+      return [0, plotMax > 0 ? plotMax * 1.1 : 1] as [number, number]
+    }
+    if (fitYAxis) {
+      const range = yAxisMax - yAxisMin
+      const pad = range * 0.1 || Math.abs(yAxisMax) * 0.05
+      return [yAxisMin, yAxisMax + pad] as [number, number]
+    }
     if (chartType === "stacked") {
       return [0, (dataMax: number) => dataMax * 1.1] as [
         number,
@@ -538,7 +582,15 @@ export default function NetWorthTimelineCard({
     const range = yAxisMax - yAxisMin
     const pad = range * 0.1 || yAxisMax * 0.05
     return [Math.max(0, yAxisMin - pad), yAxisMax + pad] as [number, number]
-  }, [chartType, yAxisMin, yAxisMax])
+  }, [
+    stackedFit,
+    maxTotal,
+    plotOffset,
+    fitYAxis,
+    chartType,
+    yAxisMin,
+    yAxisMax,
+  ])
 
   const makeGridLabel = (text: string) => {
     const GridLabel = (props: {
@@ -582,11 +634,7 @@ export default function NetWorthTimelineCard({
     !isForecast && allPoints.length > 0 && allPoints.length <= 2
 
   const renderChart = (height: number | string, isExpanded: boolean) => {
-    const gridTickMin =
-      chartType === "lines"
-        ? Math.max(0, yAxisMin - (yAxisMax - yAxisMin) * 0.1)
-        : 0
-    const gridTicks = niceGridTicks(yAxisMax, isExpanded ? 7 : 4, gridTickMin)
+    const gridTicks = niceGridTicks(yAxisMax, isExpanded ? 7 : 4, yAxisLower)
     return (
       <div className="relative" style={{ height }}>
         {rangeLoading && (
@@ -636,7 +684,7 @@ export default function NetWorthTimelineCard({
             {gridTicks.map(tick => (
               <ReferenceLine
                 key={tick}
-                y={tick}
+                y={tick - plotOffset}
                 stroke="hsl(var(--foreground))"
                 strokeOpacity={0.07}
                 label={
@@ -662,6 +710,7 @@ export default function NetWorthTimelineCard({
               mirror
               width={0}
               domain={yAxisDomain}
+              allowDataOverflow={linesFit}
               tick={false}
               tickLine={false}
               axisLine={false}
@@ -712,7 +761,7 @@ export default function NetWorthTimelineCard({
                   <Area
                     key={type}
                     type="monotone"
-                    dataKey={type}
+                    dataKey={`__p_${type}`}
                     name={typeLabel(type)}
                     stackId="networth"
                     stroke="none"
@@ -737,7 +786,7 @@ export default function NetWorthTimelineCard({
                 ))}
             <Line
               type="monotone"
-              dataKey="__total"
+              dataKey="__p_total"
               name={t.netWorthTimeline.showTotal}
               stroke="hsl(var(--primary))"
               strokeWidth={2}
@@ -897,6 +946,14 @@ export default function NetWorthTimelineCard({
             >
               <span>{t.netWorthTimeline.showTotal}</span>
               {showTotal && <Check className="h-3.5 w-3.5 text-primary" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFitYAxis(prev => !prev)}
+              className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            >
+              <span>{t.netWorthTimeline.fitYAxis}</span>
+              {fitYAxis && <Check className="h-3.5 w-3.5 text-primary" />}
             </button>
           </div>
           <div className="my-1 border-t border-border" />
