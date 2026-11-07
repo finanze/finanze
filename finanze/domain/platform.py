@@ -17,6 +17,12 @@ class Distribution(str, Enum):
     WEB = "web"
 
 
+class IntegrationPlatform(str, Enum):
+    DESKTOP = "DESKTOP"
+    SELF_HOSTED = "SELF_HOSTED"
+    MOBILE = "MOBILE"
+
+
 # Names as expected in the OS context of an error report
 OS_NAMES = {
     OS.ANDROID: "Android",

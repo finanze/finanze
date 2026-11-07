@@ -1135,6 +1135,7 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
+        "name": "Google Sheets",
         "description": "Configura Google Sheets per abilitare l'importazione e l'esportazione dei dati.",
         "help": "Come ottenere le credenziali",
         "hint": {
@@ -1272,6 +1273,7 @@
         }
       },
       "ENABLE_BANKING": {
+        "name": "Enable Banking",
         "description": "Connetti conti bancari in tutta Europa tramite l'accesso PSD2 di Enable Banking.",
         "help": "Come configurare Enable Banking",
         "hint": {
@@ -1398,6 +1400,7 @@
         }
       },
       "OPENAI_COMPATIBLE": {
+        "name": "IA personalizzata",
         "description": "Collega un'API compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, eseguita localmente o su un server gestito da te.",
         "help": "Come collegarlo",
         "hint": {
@@ -1411,6 +1414,7 @@
         }
       },
       "LOCAL_MODELS": {
+        "name": "Modelli locali",
         "description": "Esegui modelli di IA in modo privato su questo dispositivo o sul tuo server llama.cpp. Scarica qui i modelli supportati.",
         "help": "Come funziona",
         "hint": {
@@ -1436,6 +1440,7 @@
         "description": "Usa i modelli inclusi nel tuo piano GitHub Copilot. GitHub addebita l'utilizzo in crediti IA in base al prezzo per token di ogni modello e le richieste vengono elaborate da GitHub e dal fornitore del modello. Solo desktop e self-hosted."
       },
       "CLAUDE_AGENT": {
+        "name": "Agente di Claude",
         "description": "Usa Claude tramite Claude Code installato e con l'accesso effettuato su questo computer. L'utilizzo conta per i limiti del tuo piano Claude e le richieste vengono elaborate da Anthropic. Solo desktop e self-hosted.",
         "help": "Come configurarlo",
         "hint": {
@@ -1466,6 +1471,30 @@
     "integrationAwaitingAuthorization": "In attesa dell'autorizzazione nel browser...",
     "integrationExpired": "Accesso scaduto",
     "integrationBeta": "Beta",
+    "aiProviderFamilies": {
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "OPENROUTER": "OpenRouter",
+      "GITHUB_COPILOT": "GitHub Copilot",
+      "LOCAL_MODELS": "Modelli locali",
+      "CUSTOM": "IA personalizzata"
+    },
+    "aiProviderMethods": {
+      "OPENAI": "Chiave API",
+      "CHATGPT": "Piano ChatGPT",
+      "CLAUDE_AGENT": "CLI di Claude",
+      "OPENROUTER": "Chiave API",
+      "GITHUB_COPILOT": "Piano GitHub",
+      "LOCAL_MODELS": "Runtime locale o server",
+      "OPENAI_COMPATIBLE": "API compatibile"
+    },
+    "aiPlatforms": {
+      "DESKTOP": "Desktop",
+      "SELF_HOSTED": "Self-hosted",
+      "MOBILE": "Mobile"
+    },
+    "aiPlatformsLabel": "Piattaforme supportate:",
+    "aiConnectedMethods": "{count}/{total} connessi",
     "chatgpt": {
       "continue": "Continua con ChatGPT",
       "usingPlan": "Stai usando il tuo piano ChatGPT",
@@ -2439,6 +2468,8 @@
       "summary": "{rules} etichettati dalle regole · {external} etichettati dai suggerimenti",
       "done": "Movimenti rietichettati",
       "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti",
+      "providerUsed": "Provider utilizzato: {provider} ({model})",
+      "fallbackUsed": "Alternativa utilizzata: {provider} ({model})",
       "externalModelUnavailable": "il modello selezionato non è più disponibile, i tuoi suggerimenti attuali sono stati mantenuti. Scegli un altro modello nelle impostazioni dei suggerimenti.",
       "externalReauthRequired": "l'accesso al fornitore dei suggerimenti è scaduto. Accedi di nuovo in Integrazioni."
     },
@@ -2459,7 +2490,7 @@
       "connected": "Collegato",
       "notConnected": "Non collegato",
       "unavailableHere": "Non disponibile su questo dispositivo",
-      "providerUnavailable": "{provider} non è disponibile su questo dispositivo, quindi qui i suggerimenti vengono saltati. Continuano a funzionare sui dispositivi che lo supportano. Scegli un altro provider per avere suggerimenti anche qui.",
+      "providerUnavailable": "{provider} non è disponibile su questa piattaforma e questa voce verrà saltata. Le altre priorità pronte possono ancora funzionare. Le impostazioni vengono conservate per le piattaforme supportate.",
       "connectProvider": "Configuralo nelle integrazioni",
       "connectRequired": "Collega il provider o disattiva i suggerimenti esterni per salvare.",
       "model": "Modello",
@@ -2478,7 +2509,24 @@
       "modelInvalid": "Modello non trovato o non supportato",
       "upstreamProvider": "Provider",
       "upstreamProviderPlaceholder": "Provider (opzionale)",
-      "upstreamProviderHint": "Facoltativamente, instrada le richieste verso un provider specifico, ad es. openai/flex. Verrà usato solo quel provider, senza alternative.",
+      "upstreamProviderHint": "Fissa questa voce a un provider upstream. Se fallisce, può essere usata la priorità di etichettatura successiva.",
+      "priorityTitle": "Priorità dei provider",
+      "platformPriorityNotice": "I provider vengono provati in ordine. I metodi non disponibili su questa piattaforma o che richiedono l'accesso vengono saltati. Anche un errore può passare l'etichettatura alla voce successiva.",
+      "addProvider": "Aggiungi provider",
+      "editProvider": "Modifica {provider}",
+      "removeProvider": "Rimuovi {provider}",
+      "reorderProvider": "Riordina {provider}",
+      "moveUp": "Sposta su",
+      "moveDown": "Sposta giù",
+      "preferredHere": "Preferito qui",
+      "priorityStates": {
+        "connected": "Pronto come alternativa",
+        "notConnected": "Non connesso",
+        "expired": "Accesso scaduto",
+        "unavailableHere": "Non disponibile qui"
+      },
+      "noEligibleProvider": "Nessun provider configurato è pronto su questa piattaforma. L'elenco delle priorità viene conservato.",
+      "duplicateProvider": "Ogni combinazione di provider, modello e upstream deve essere unica.",
       "minConfidence": "Confidenza minima (%)",
       "minConfidenceHint": "I suggerimenti sotto questa confidenza vengono scartati.",
       "minConfidenceNotApplicable": "Questo modello non indica la confidenza, quindi vengono applicati tutti i suggerimenti.",

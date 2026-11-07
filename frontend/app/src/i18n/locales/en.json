@@ -1136,6 +1136,7 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
+        "name": "Google Sheets",
         "description": "Configure your Google Sheets API to enable data import and export.",
         "help": "How to get the credentials",
         "hint": {
@@ -1273,6 +1274,7 @@
         }
       },
       "ENABLE_BANKING": {
+        "name": "Enable Banking",
         "description": "Connect bank accounts across Europe through Enable Banking's PSD2 access.",
         "help": "How to set up Enable Banking",
         "hint": {
@@ -1399,6 +1401,7 @@
         }
       },
       "OPENAI_COMPATIBLE": {
+        "name": "Custom AI",
         "description": "Connect to an OpenAI-compatible API, such as Ollama, LM Studio, vLLM or llama.cpp, running locally or on a server you host.",
         "help": "How to connect",
         "hint": {
@@ -1412,6 +1415,7 @@
         }
       },
       "LOCAL_MODELS": {
+        "name": "Local models",
         "description": "Run AI models privately on this device or on your own llama.cpp server. Download supported models here.",
         "help": "How it works",
         "hint": {
@@ -1437,6 +1441,7 @@
         "description": "Use models included in your GitHub Copilot plan. GitHub bills usage in AI credits according to each model's token prices, and requests are processed by GitHub and the model provider. Desktop and self-hosted only."
       },
       "CLAUDE_AGENT": {
+        "name": "Claude Agent",
         "description": "Use Claude through Claude Code installed and signed in on this computer. Usage counts toward your Claude plan limits, and requests are processed by Anthropic. Desktop and self-hosted only.",
         "help": "How to set it up",
         "hint": {
@@ -1467,6 +1472,30 @@
     "integrationAwaitingAuthorization": "Waiting for authorization in your browser...",
     "integrationExpired": "Sign-in expired",
     "integrationBeta": "Beta",
+    "aiProviderFamilies": {
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "OPENROUTER": "OpenRouter",
+      "GITHUB_COPILOT": "GitHub Copilot",
+      "LOCAL_MODELS": "Local Models",
+      "CUSTOM": "Custom AI"
+    },
+    "aiProviderMethods": {
+      "OPENAI": "API key",
+      "CHATGPT": "ChatGPT plan",
+      "CLAUDE_AGENT": "Claude CLI",
+      "OPENROUTER": "API key",
+      "GITHUB_COPILOT": "GitHub plan",
+      "LOCAL_MODELS": "Local runtime or server",
+      "OPENAI_COMPATIBLE": "Compatible API"
+    },
+    "aiPlatforms": {
+      "DESKTOP": "Desktop",
+      "SELF_HOSTED": "Self-hosted",
+      "MOBILE": "Mobile"
+    },
+    "aiPlatformsLabel": "Supported platforms:",
+    "aiConnectedMethods": "{count}/{total} connected",
     "chatgpt": {
       "continue": "Continue with ChatGPT",
       "usingPlan": "Using your ChatGPT plan",
@@ -2444,6 +2473,8 @@
       "summary": "{rules} labeled by rules · {external} labeled by suggestions",
       "done": "Movements relabeled",
       "externalFailed": "Movements relabeled, but suggestions could not be retrieved",
+      "providerUsed": "Provider used: {provider} ({model})",
+      "fallbackUsed": "Fallback used: {provider} ({model})",
       "externalModelUnavailable": "the selected model is no longer available, your existing suggestions were kept. Choose another model in the suggestions settings.",
       "externalReauthRequired": "the sign-in to the suggestions provider expired. Sign in again in Integrations."
     },
@@ -2464,7 +2495,7 @@
       "connected": "Connected",
       "notConnected": "Not connected",
       "unavailableHere": "Not available on this device",
-      "providerUnavailable": "{provider} is not available on this device, so suggestions are skipped here. They keep working on devices that support it. Choose another provider to also get suggestions here.",
+      "providerUnavailable": "{provider} is unavailable on this platform and this entry will be skipped. Other ready priorities can still run. Its settings are kept for supported platforms.",
       "connectProvider": "Configure it in integrations",
       "connectRequired": "Connect the provider or turn off external suggestions to save.",
       "model": "Model",
@@ -2483,7 +2514,24 @@
       "modelInvalid": "Model not found or not supported",
       "upstreamProvider": "Provider",
       "upstreamProviderPlaceholder": "Provider (optional)",
-      "upstreamProviderHint": "Optionally route requests to a specific provider, e.g. openai/flex. Requests will only go to that provider, without fallbacks.",
+      "upstreamProviderHint": "Pins this entry to one upstream provider. The next labeling priority can still be used if this entry fails.",
+      "priorityTitle": "Provider priority",
+      "platformPriorityNotice": "Providers are tried in order. Methods unavailable on this platform or requiring sign-in are skipped. A provider failure can also move labeling to the next entry.",
+      "addProvider": "Add provider",
+      "editProvider": "Edit {provider}",
+      "removeProvider": "Remove {provider}",
+      "reorderProvider": "Reorder {provider}",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "preferredHere": "Preferred here",
+      "priorityStates": {
+        "connected": "Ready as fallback",
+        "notConnected": "Not connected",
+        "expired": "Sign-in expired",
+        "unavailableHere": "Unavailable here"
+      },
+      "noEligibleProvider": "No configured provider is ready on this platform. Your priority list is preserved.",
+      "duplicateProvider": "Each provider, model and upstream combination must be unique.",
       "minConfidence": "Minimum confidence (%)",
       "minConfidenceHint": "Suggestions below this confidence are discarded.",
       "minConfidenceNotApplicable": "This model does not report confidence, so every suggestion is applied.",

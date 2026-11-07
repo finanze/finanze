@@ -24,6 +24,7 @@ from domain.exception.exceptions import (
     AIProviderError,
     AIProviderErrorCode,
     ExternalLabelingUnavailable,
+    TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.external_labeling import (
@@ -183,6 +184,13 @@ class TestRecommendedModels:
 
 
 class TestLabel:
+    @pytest.mark.asyncio
+    async def test_rate_limit_is_a_typed_fallback_error(self):
+        provider = _provider(FakeAIClient(error=TooManyRequests()))
+        with pytest.raises(ExternalLabelingUnavailable) as error:
+            await provider.label(_request("gen"), CREDENTIALS)
+        assert error.value.code == "RATE_LIMITED"
+
     @pytest.mark.asyncio
     async def test_model_info_is_cached(self):
         client = FakeAIClient(models={"gen": GENERATION_MODEL})

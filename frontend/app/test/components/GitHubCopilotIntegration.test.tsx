@@ -188,9 +188,15 @@ describe("GitHub Copilot device authorization", () => {
     expect(pollIntegrationDevice).not.toHaveBeenCalled()
   })
 
-  it("is hidden where the runtime is not available", () => {
+  it("shows an unavailable method without allowing setup", () => {
     renderTab([copilot({ available: false })])
 
-    expect(screen.queryByText(NAME)).not.toBeInTheDocument()
+    expect(screen.getByText(NAME)).toBeInTheDocument()
+    expect(
+      screen.getByText(en.common.notAvailableOnPlatform),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: en.common.setup }),
+    ).not.toBeInTheDocument()
   })
 })

@@ -15,7 +15,9 @@ import {
   Landmark,
   Link2,
   Link2Off,
+  Monitor,
   Server,
+  Smartphone,
   Upload,
   type LucideIcon,
 } from "lucide-react"
@@ -47,9 +49,15 @@ import {
 import { cn } from "@/lib/utils"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
+  getIntegrationFamilyName,
+  getIntegrationMethodName,
+  getIntegrationName,
+} from "@/lib/integrations"
+import {
   ExternalIntegrationStatus,
   ExternalIntegrationType,
   type ExternalIntegration,
+  type IntegrationPlatform,
 } from "@/types"
 import { isNativeMobile, isWeb } from "@/lib/platform"
 import {
@@ -77,15 +85,9 @@ import { ChatGPTIntegrationPanel } from "@/components/integrations/ChatGPTIntegr
 
 const LOCAL_MODELS_ID = "LOCAL_MODELS"
 const GITHUB_COPILOT_ID = "GITHUB_COPILOT"
-const CLAUDE_AGENT_ID = "CLAUDE_AGENT"
 const CHATGPT_ID = "CHATGPT"
 const OAUTH_INTEGRATIONS = new Set(["GOOGLE_SHEETS", CHATGPT_ID])
 const DEVICE_FLOW_INTEGRATIONS = new Set([GITHUB_COPILOT_ID])
-const DESKTOP_ONLY_INTEGRATIONS = new Set([
-  LOCAL_MODELS_ID,
-  GITHUB_COPILOT_ID,
-  CLAUDE_AGENT_ID,
-])
 const SERVER_DETAILS_INTEGRATIONS = new Set(["OPENAI_COMPATIBLE"])
 const URL_FIELDS = ["base_url", "server_url"]
 const LOOPBACK_HOST_REGEX = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/i
@@ -120,6 +122,62 @@ const INTEGRATION_CATEGORY_ICONS: Record<ExternalIntegrationType, LucideIcon> =
     [ExternalIntegrationType.AI_PROVIDER]: BrainCircuit,
     [ExternalIntegrationType.DATA_SOURCE]: Database,
   }
+
+const PLATFORM_ICONS: Record<IntegrationPlatform, LucideIcon> = {
+  DESKTOP: Monitor,
+  SELF_HOSTED: Server,
+  MOBILE: Smartphone,
+}
+
+function IntegrationPlatformsBadge({
+  platforms,
+}: {
+  platforms: IntegrationPlatform[]
+}) {
+  const { t } = useI18n()
+  if (platforms.length === 0) return null
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label={t.settings.aiPlatformsLabel}
+          title={t.settings.aiPlatformsLabel}
+          onClick={event => event.stopPropagation()}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto max-w-[280px] p-3"
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="mb-2 text-xs font-medium text-muted-foreground">
+          {t.settings.aiPlatformsLabel}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {platforms.map(platform => {
+            const PlatformIcon = PLATFORM_ICONS[platform]
+            return (
+              <Badge
+                key={platform}
+                variant="secondary"
+                className="gap-1 text-xs"
+              >
+                <PlatformIcon className="h-3 w-3" />
+                {t.settings.aiPlatforms[platform]}
+              </Badge>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 type IntegrationHintPart =
   | { type: "text"; value: string }
@@ -371,6 +429,7 @@ export function ProvidersTab() {
 
   const getIntegrationCopy = useCallback(
     (integration: ExternalIntegration) => {
+      const title = getIntegrationName(t, integration.id, integration)
       const translations =
         (
           ((t.settings as unknown as Record<string, unknown>)?.integration ??
@@ -402,7 +461,7 @@ export function ProvidersTab() {
       const hint =
         hintParts || hintText || (hintSteps && hintSteps.length > 0)
           ? {
-              title: hintTitleRaw || integration.name,
+              title: hintTitleRaw || title,
               text: hintText || undefined,
               parts: hintParts,
               steps: hintSteps && hintSteps.length > 0 ? hintSteps : undefined,
@@ -410,7 +469,7 @@ export function ProvidersTab() {
           : undefined
 
       return {
-        title: integration.name,
+        title,
         description: descriptionRaw || undefined,
         helpLabel: helpRaw || undefined,
         hint,
@@ -966,7 +1025,10 @@ export function ProvidersTab() {
     return () => clearTimeout(timer)
   }, [externalIntegrations, searchParams])
 
-  const renderIntegrationCard = (integration: ExternalIntegration) => {
+  const renderIntegrationCard = (
+    integration: ExternalIntegration,
+    embedded = false,
+  ) => {
     const schemaEntries = Object.entries(integration.payload_schema ?? {})
     const payload = integrationPayloads[integration.id] ?? {}
     const errors = integrationErrors[integration.id] ?? {}
@@ -1296,18 +1358,33 @@ export function ProvidersTab() {
 
     const iconSrc = `icons/external-integrations/${integration.id}.png`
     const isHighlighted = highlighted === integration.id
+    const Container = embedded ? "div" : Card
+    const Header = embedded ? "div" : CardHeader
+    const Content = embedded ? "div" : CardContent
+    const methodName = getIntegrationMethodName(t, integration.id, integration)
+    const headerTitle = integration.family
+      ? embedded
+        ? methodName
+        : getIntegrationFamilyName(t, integration.family)
+      : title
 
     return (
-      <Card
+      <Container
         key={integration.id}
         data-testid={`integration-card-${integration.id}`}
         className={cn(
           "self-start",
+          embedded &&
+            "relative rounded-md p-3 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border last:after:hidden",
           isUnavailable ? "opacity-60" : undefined,
-          isHighlighted ? "ring-2 ring-yellow-500 animate-pulse" : undefined,
+          isHighlighted
+            ? embedded
+              ? "bg-accent/40 ring-1 ring-inset ring-yellow-500/60"
+              : "ring-2 ring-yellow-500 animate-pulse"
+            : undefined,
         )}
       >
-        <CardHeader>
+        <Header className={embedded ? "space-y-1.5 pb-4" : undefined}>
           <div className="flex items-start justify-between gap-3">
             <div
               className={cn(
@@ -1324,7 +1401,10 @@ export function ProvidersTab() {
                 <img
                   src={iconSrc}
                   alt={title}
-                  className="h-12 w-12 object-contain rounded flex-shrink-0 pointer-events-none select-none"
+                  className={cn(
+                    "object-contain rounded flex-shrink-0 pointer-events-none select-none",
+                    embedded ? "h-8 w-8" : "h-12 w-12",
+                  )}
                   draggable={false}
                   style={{ WebkitUserSelect: "none" }}
                   onLoad={event => {
@@ -1343,7 +1423,7 @@ export function ProvidersTab() {
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <CardTitle className="text-lg break-words">
-                      {title}
+                      {headerTitle}
                     </CardTitle>
                     {integration.id === CHATGPT_ID && (
                       <Badge
@@ -1354,6 +1434,11 @@ export function ProvidersTab() {
                       </Badge>
                     )}
                   </div>
+                  {!embedded && integration.family && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {methodName}
+                    </p>
+                  )}
                   {isUnavailable && (
                     <p className="text-xs text-muted-foreground">
                       {t.common.notAvailableOnPlatform}
@@ -1362,6 +1447,11 @@ export function ProvidersTab() {
                 </div>
               </div>
               <div className="flex items-center space-x-1 flex-shrink-0">
+                {integration.platforms && (
+                  <IntegrationPlatformsBadge
+                    platforms={integration.platforms}
+                  />
+                )}
                 <Badge
                   className={cn(
                     "hidden sm:flex",
@@ -1399,7 +1489,7 @@ export function ProvidersTab() {
           {description && (
             <CardDescription className="pt-2">{description}</CardDescription>
           )}
-        </CardHeader>
+        </Header>
         <AnimatePresence initial={false}>
           {isExpanded && !isUnavailable && (
             <motion.div
@@ -1410,10 +1500,10 @@ export function ProvidersTab() {
               transition={{ duration: 0.2, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <CardContent
+              <Content
                 className={cn(
                   "space-y-4",
-                  integration.id === CHATGPT_ID && "pb-3",
+                  !embedded && integration.id === CHATGPT_ID && "pb-3",
                 )}
               >
                 {integration.id === LOCAL_MODELS_ID ? (
@@ -1475,12 +1565,44 @@ export function ProvidersTab() {
                     {renderActions({ setup: true })}
                   </>
                 )}
-              </CardContent>
+              </Content>
             </motion.div>
           )}
         </AnimatePresence>
-      </Card>
+      </Container>
     )
+  }
+
+  const renderAIProviders = (items: ExternalIntegration[]) => {
+    const families = new Map<string, ExternalIntegration[]>()
+    for (const integration of items) {
+      const key = integration.family
+        ? `family:${integration.family.id}`
+        : `integration:${integration.id}`
+      families.set(key, [...(families.get(key) ?? []), integration])
+    }
+    return [...families.entries()].map(([key, methods]) => {
+      if (methods.length === 1) return renderIntegrationCard(methods[0])
+      const family = methods[0].family!
+      return (
+        <Card
+          key={key}
+          className="self-start"
+          data-testid={`ai-family-${family.id}`}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-lg">
+                {getIntegrationFamilyName(t, family)}
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+            {methods.map(method => renderIntegrationCard(method, true))}
+          </CardContent>
+        </Card>
+      )
+    })
   }
 
   return (
@@ -1500,10 +1622,7 @@ export function ProvidersTab() {
       ) : (
         INTEGRATION_CATEGORY_ORDER.map(category => {
           const items = externalIntegrations.filter(
-            integration =>
-              integration.type === category &&
-              (!DESKTOP_ONLY_INTEGRATIONS.has(integration.id) ||
-                integration.available),
+            integration => integration.type === category,
           )
 
           if (items.length === 0) {
@@ -1519,7 +1638,11 @@ export function ProvidersTab() {
                 {t.settings.integrationCategories[category]}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-                {items.map(integration => renderIntegrationCard(integration))}
+                {category === ExternalIntegrationType.AI_PROVIDER
+                  ? renderAIProviders(items)
+                  : items.map(integration =>
+                      renderIntegrationCard(integration),
+                    )}
               </div>
             </div>
           )

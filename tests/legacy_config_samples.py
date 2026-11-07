@@ -18,6 +18,7 @@ from domain.settings import (
     ExportTransactionsSheetConfig,
     ExternalLabelingConfig,
     ExternalLabelingExamplesConfig,
+    ExternalLabelingProviderEntry,
     FilterConfig,
     ImportConfig,
     ImportPositionSheetConfig,
@@ -124,9 +125,13 @@ def labeling_settings() -> Settings:
     settings.labeling = LabelingConfig(
         external=ExternalLabelingConfig(
             enabled=True,
-            provider="OPENROUTER",
-            model="openai/gpt-5-mini",
-            upstreamProvider="openai",
+            providers=[
+                ExternalLabelingProviderEntry(
+                    provider="OPENROUTER",
+                    model="openai/gpt-5-mini",
+                    upstreamProvider="openai",
+                )
+            ],
             autoRun=False,
             minConfidence=85,
             maxPerRun=150,
@@ -415,7 +420,17 @@ BROKEN_MOBILE_SAMPLES = ["mobile_invalid.json", "mobile_list.json"]
 
 def old_app_settings(raw: dict) -> Settings:
     migrated, _ = ConfigMigrator().migrate(deepcopy(raw))
-    return Settings(**migrated)
+    settings = Settings(**migrated)
+    external = migrated.get("labeling", {}).get("external", {})
+    if external.get("provider") and external.get("model"):
+        settings.labeling.external.providers = [
+            ExternalLabelingProviderEntry(
+                provider=external["provider"],
+                model=external["model"],
+                upstreamProvider=external.get("upstreamProvider"),
+            )
+        ]
+    return settings
 
 
 def assert_same_settings(actual: Settings, expected: Settings):

@@ -51,7 +51,7 @@ async function fillClaudeSetup(page: Page, cliPath?: string) {
     await page.getByRole('tab', { name: 'Providers' }).click()
 
     const card = page.getByTestId(`integration-card-${INTEGRATION_ID}`)
-    await card.getByText('Claude Agent', { exact: true }).click()
+    await card.getByText('Anthropic', { exact: true }).click()
     await expect(card.getByText('Disabled', { exact: true })).toBeVisible()
     await expect(
         card.getByText(

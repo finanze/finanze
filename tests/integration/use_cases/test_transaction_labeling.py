@@ -22,6 +22,7 @@ from domain.data_init import DatasourceInitContext
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.external_integration import ExternalIntegrationId
+from domain.exception.exceptions import AIProviderErrorCode, ExternalLabelingUnavailable
 from domain.external_labeling import ExternalLabelSuggestion
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
@@ -41,6 +42,7 @@ from domain.settings import (
     CryptoAssetConfig,
     ExternalLabelingConfig,
     ExternalLabelingExamplesConfig,
+    ExternalLabelingProviderEntry,
     LabelingConfig,
     Settings,
 )
@@ -414,8 +416,11 @@ async def test_classify_external_stores_confident_suggestions(env):
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
-                provider="OPENROUTER",
-                model="~typesafe/jev-latest",
+                providers=[
+                    ExternalLabelingProviderEntry(
+                        provider="OPENROUTER", model="~typesafe/jev-latest"
+                    )
+                ],
                 minConfidence=70,
                 examples=ExternalLabelingExamplesConfig(enabled=True, count=5),
                 instructions="  Burgers are restaurants  ",
@@ -498,8 +503,11 @@ async def test_classify_external_examples_only_from_selected_origins(env):
             return_value=_settings(
                 ExternalLabelingConfig(
                     enabled=True,
-                    provider="OPENROUTER",
-                    model="m/x",
+                    providers=[
+                        ExternalLabelingProviderEntry(
+                            provider="OPENROUTER", model="m/x"
+                        )
+                    ],
                     examples=ExternalLabelingExamplesConfig(
                         enabled=True, count=5, origins=origins
                     ),
@@ -530,7 +538,11 @@ async def test_classify_external_disabled_or_auto_run_off_does_nothing(env):
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(
-                enabled=True, provider="OPENROUTER", model="m/x", autoRun=False
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(provider="OPENROUTER", model="m/x")
+                ],
+                autoRun=False,
             )
         )
     )
@@ -545,7 +557,12 @@ async def test_classify_external_disabled_or_auto_run_off_does_nothing(env):
 async def test_classify_external_errors_are_swallowed(env):
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
-            ExternalLabelingConfig(enabled=True, provider="OPENROUTER", model="m/x")
+            ExternalLabelingConfig(
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(provider="OPENROUTER", model="m/x")
+                ],
+            )
         )
     )
     env.provider.label = AsyncMock(side_effect=RuntimeError("boom"))
@@ -565,6 +582,169 @@ async def test_classify_external_errors_are_swallowed(env):
         AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
     )
     env.provider.label.assert_awaited_once()
+
+
+def _priorities(env, *providers):
+    env.config_port.load_sections.return_value = _settings(
+        ExternalLabelingConfig(
+            enabled=True,
+            providers=[
+                ExternalLabelingProviderEntry(provider=provider, model=f"model-{index}")
+                for index, provider in enumerate(providers)
+            ],
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_priorities_skip_unsupported_and_disconnected_providers(env):
+    _priorities(env, "CLAUDE_AGENT", "OPENAI", "OPENROUTER")
+    disconnected = AsyncMock(spec=ExternalTxLabelingProvider)
+    env.labeler._providers[ExternalIntegrationId.OPENAI] = disconnected
+    env.integration_port.get_payload.side_effect = lambda provider: (
+        None if provider == ExternalIntegrationId.OPENAI else {}
+    )
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_provider == "OPENROUTER"
+    env.provider.label.assert_awaited_once()
+    disconnected.label.assert_not_awaited()
+    assert all(
+        call.args[0] != ExternalIntegrationId.CLAUDE_AGENT
+        for call in env.integration_port.get_payload.await_args_list
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", list(AIProviderErrorCode))
+async def test_priorities_fall_back_on_provider_errors(env, code):
+    _priorities(env, "OPENROUTER", "OPENAI")
+    env.provider.label.side_effect = ExternalLabelingUnavailable(
+        "Primary failed", code.value
+    )
+    fallback = AsyncMock(spec=ExternalTxLabelingProvider)
+    env.labeler._providers[ExternalIntegrationId.OPENAI] = fallback
+    tx = env.account_tx("Pending", "15")
+    category = await env.label_id("groceries")
+    await env.save(tx)
+    fallback.label.return_value = [
+        ExternalLabelSuggestion(
+            tx_id=tx.id, label_id=category, confidence=Dezimal("0.9")
+        )
+    ]
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_error is None
+    assert result.external_provider == "OPENAI"
+    assert result.external_model == "model-1"
+    assert (await env.labels_of(tx.id))[0].provider == "OPENAI:model-1"
+    fallback.label.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_priorities_keep_completed_batches_and_stay_on_fallback(env):
+    _priorities(env, "OPENROUTER", "OPENAI")
+    fallback = AsyncMock(spec=ExternalTxLabelingProvider)
+    env.labeler._providers[ExternalIntegrationId.OPENAI] = fallback
+    category = await env.label_id("groceries")
+    txs = [env.account_tx(f"Pending {index}", "15") for index in range(51)]
+    await env.save(*txs)
+
+    def suggestions(request, credentials):
+        return [
+            ExternalLabelSuggestion(
+                tx_id=tx.id, label_id=category, confidence=Dezimal("0.9")
+            )
+            for tx in request.txs
+        ]
+
+    def primary(request, credentials):
+        if env.provider.label.await_count > 1:
+            raise ExternalLabelingUnavailable("Offline", "UNAVAILABLE")
+        return suggestions(request, credentials)
+
+    env.provider.label.side_effect = primary
+    fallback.label.side_effect = suggestions
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id for tx in txs]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_labeled == 51
+    assert env.provider.label.await_count == 2
+    assert fallback.label.await_count == 2
+    completed = {tx.id for tx in env.provider.label.await_args_list[0].args[0].txs}
+    retried = {
+        tx.id for call in fallback.label.await_args_list for tx in call.args[0].txs
+    }
+    assert not completed & retried
+    for tx in txs:
+        expected = "OPENROUTER:model-0" if tx.id in completed else "OPENAI:model-1"
+        assert (await env.labels_of(tx.id))[0].provider == expected
+
+
+@pytest.mark.asyncio
+async def test_priorities_do_not_hide_unexpected_exceptions(env):
+    _priorities(env, "OPENROUTER", "OPENAI")
+    fallback = AsyncMock(spec=ExternalTxLabelingProvider)
+    env.labeler._providers[ExternalIntegrationId.OPENAI] = fallback
+    env.provider.label.side_effect = RuntimeError("Unexpected")
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_error == "RuntimeError"
+    fallback.label.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_priorities_report_last_error_when_all_fail(env):
+    _priorities(env, "OPENROUTER", "OPENAI")
+    fallback = AsyncMock(spec=ExternalTxLabelingProvider)
+    env.labeler._providers[ExternalIntegrationId.OPENAI] = fallback
+    env.provider.label.side_effect = ExternalLabelingUnavailable(
+        "Offline", "UNAVAILABLE"
+    )
+    fallback.label.side_effect = ExternalLabelingUnavailable(
+        "No quota", "INSUFFICIENT_FUNDS"
+    )
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_error_code == "INSUFFICIENT_FUNDS"
+    assert await _unmatched_at(env, tx.id) is None
+
+
+@pytest.mark.asyncio
+async def test_relabel_preserves_external_labels_when_no_priority_can_run(env):
+    _priorities(env, "CLAUDE_AGENT")
+    category = await env.label_id("groceries")
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+    await env.tx_label_repo.add(
+        tx.id, [TxLabel(label_id=category, origin=LabelOrigin.EXTERNAL)]
+    )
+
+    result = await RelabelTransactionsImpl(
+        env.tx_repo, env.tx_label_repo, env.labeler, env.handler
+    ).execute(RelabelRequest(include_external=True))
+
+    assert result.external.external_error_code == "UNAVAILABLE"
+    assert (await env.labels_of(tx.id))[0].label_id == category
 
 
 def _openai_session(category: str, decisions: bool = False) -> AsyncMock:
@@ -641,7 +821,12 @@ async def test_classify_external_with_openai_provider(env):
     )
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
-            ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
+            ExternalLabelingConfig(
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(provider="OPENAI", model="gpt-6-luna")
+                ],
+            )
         )
     )
     tx = env.account_tx("Burger place", "15")
@@ -689,7 +874,12 @@ async def test_classify_external_with_openai_decisions(env):
     )
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
-            ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
+            ExternalLabelingConfig(
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(provider="OPENAI", model="gpt-6-luna")
+                ],
+            )
         )
     )
     tx = env.account_tx("Burger place", "15")
@@ -740,7 +930,12 @@ async def test_relabel_reports_openai_quota_error_details(env):
     )
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
-            ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
+            ExternalLabelingConfig(
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(provider="OPENAI", model="gpt-6-luna")
+                ],
+            )
         )
     )
     tx = env.account_tx("Burger place", "15")
@@ -757,9 +952,16 @@ async def test_relabel_reports_openai_quota_error_details(env):
 
 
 def _external_config(**kwargs) -> Settings:
+    upstream = kwargs.pop("upstreamProvider", None)
     return _settings(
         ExternalLabelingConfig(
-            enabled=True, provider="OPENROUTER", model="m/x", **kwargs
+            enabled=True,
+            providers=[
+                ExternalLabelingProviderEntry(
+                    provider="OPENROUTER", model="m/x", upstreamProvider=upstream
+                )
+            ],
+            **kwargs,
         )
     )
 
@@ -989,7 +1191,12 @@ async def test_github_copilot_labels_and_relabel_keeps_them_after_delisting(
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(
-                enabled=True, provider="GITHUB_COPILOT", model="gpt-5-mini"
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(
+                        provider="GITHUB_COPILOT", model="gpt-5-mini"
+                    )
+                ],
             )
         )
     )
@@ -1099,7 +1306,12 @@ async def test_claude_agent_labels_and_relabel_keeps_them_after_retirement(
     env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(
-                enabled=True, provider="CLAUDE_AGENT", model="claude-haiku-5-5"
+                enabled=True,
+                providers=[
+                    ExternalLabelingProviderEntry(
+                        provider="CLAUDE_AGENT", model="claude-haiku-5-5"
+                    )
+                ],
             )
         )
     )

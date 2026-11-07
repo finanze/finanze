@@ -814,7 +814,16 @@ export interface ExternalIntegration {
   available: boolean
   payload_schema?: Record<string, string> | null
   optional_fields?: string[] | null
+  family?: ExternalIntegrationFamily | null
+  platforms?: IntegrationPlatform[] | null
 }
+
+export interface ExternalIntegrationFamily {
+  id: string
+  name: string
+}
+
+export type IntegrationPlatform = "DESKTOP" | "SELF_HOSTED" | "MOBILE"
 
 export interface ExternalIntegrations {
   integrations: ExternalIntegration[]

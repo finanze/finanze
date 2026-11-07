@@ -138,6 +138,20 @@ class AIProviderErrorCode(str, Enum):
     UNAVAILABLE = "UNAVAILABLE"
     MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
     REAUTHENTICATION_REQUIRED = "REAUTHENTICATION_REQUIRED"
+    RATE_LIMITED = "RATE_LIMITED"
+
+
+AI_PROVIDER_FALLBACK_ERRORS = frozenset(
+    {
+        AIProviderErrorCode.INVALID_CREDENTIALS,
+        AIProviderErrorCode.INSUFFICIENT_FUNDS,
+        AIProviderErrorCode.UNSUPPORTED_OPERATION,
+        AIProviderErrorCode.UNAVAILABLE,
+        AIProviderErrorCode.MODEL_NOT_FOUND,
+        AIProviderErrorCode.REAUTHENTICATION_REQUIRED,
+        AIProviderErrorCode.RATE_LIMITED,
+    }
+)
 
 
 class AIProviderError(Exception):

@@ -62,6 +62,18 @@ def parse_timestamp(value: Any) -> Optional[datetime]:
 def parse_section(key: str, value: Any):
     if not isinstance(value, dict):
         raise ValueError(f"Settings section '{key}' must be an object")
+    if key == "labeling" and isinstance(value.get("external"), dict):
+        external = dict(value["external"])
+        provider = external.pop("provider", None)
+        model = external.pop("model", None)
+        upstream = external.pop("upstreamProvider", None)
+        if "providers" not in external:
+            external["providers"] = (
+                [{"provider": provider, "model": model, "upstreamProvider": upstream}]
+                if provider and model
+                else []
+            )
+        value = {**value, "external": external}
     return SECTION_TYPES[key](**value)
 
 

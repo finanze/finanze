@@ -14,7 +14,12 @@ from domain.ai import (
     AIReasoningEffort,
 )
 from domain.dezimal import Dezimal
-from domain.exception.exceptions import AIProviderError, ExternalLabelingUnavailable
+from domain.exception.exceptions import (
+    AIProviderError,
+    AIProviderErrorCode,
+    ExternalLabelingUnavailable,
+    TooManyRequests,
+)
 from domain.external_integration import ExternalIntegrationPayload
 from domain.external_labeling import (
     ExternalLabelingModel,
@@ -153,6 +158,11 @@ class AILabelingProvider(ExternalTxLabelingProvider):
                     )
         except AIProviderError as e:
             raise ExternalLabelingUnavailable(e.details, e.code.value) from e
+        except TooManyRequests as e:
+            raise ExternalLabelingUnavailable(
+                "The AI provider rate limit was reached",
+                AIProviderErrorCode.RATE_LIMITED.value,
+            ) from e
         return suggestions
 
     async def _generate(

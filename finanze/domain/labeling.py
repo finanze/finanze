@@ -196,6 +196,8 @@ class LabelingResult:
     external_error: Optional[str] = None
     external_error_details: Optional[str] = None
     external_error_code: Optional[str] = None
+    external_provider: Optional[str] = None
+    external_model: Optional[str] = None
 
 
 @dataclass

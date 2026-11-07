@@ -142,6 +142,8 @@ export interface LabelingResult {
   external_error?: string | null
   external_error_details?: string | null
   external_error_code?: string | null
+  external_provider?: string | null
+  external_model?: string | null
 }
 
 export interface RelabelResult {
@@ -178,11 +180,15 @@ export interface ExternalLabelingModels {
   models: ExternalLabelingModel[]
 }
 
+export interface ExternalLabelingProviderEntry {
+  provider: string
+  model: string
+  upstreamProvider?: string | null
+}
+
 export interface ExternalLabelingSettings {
   enabled: boolean
-  provider?: string | null
-  model?: string | null
-  upstreamProvider?: string | null
+  providers: ExternalLabelingProviderEntry[]
   autoRun: boolean
   minConfidence: number
   maxPerRun: number

@@ -80,7 +80,8 @@ async function continueWithChatGPT(page: Page) {
     await page.getByRole('tab', { name: 'Providers' }).click()
 
     const card = page.getByTestId(`integration-card-${INTEGRATION_ID}`)
-    await card.getByText('ChatGPT', { exact: true }).click()
+    await expect(page.getByTestId('ai-family-OPENAI')).toBeVisible()
+    await card.getByText('ChatGPT plan', { exact: true }).click()
     await expect(card.getByText('Disabled', { exact: true })).toBeVisible()
 
     const popupPromise = page.context().waitForEvent('page')

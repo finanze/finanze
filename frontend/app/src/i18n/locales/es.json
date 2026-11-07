@@ -1134,6 +1134,7 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
+        "name": "Google Sheets",
         "description": "Configura Google Sheets para habilitar la importación y exportación de datos.",
         "help": "Cómo obtener las credenciales",
         "hint": {
@@ -1271,6 +1272,7 @@
         }
       },
       "ENABLE_BANKING": {
+        "name": "Enable Banking",
         "description": "Conecta cuentas bancarias de toda Europa mediante el acceso PSD2 de Enable Banking.",
         "help": "Cómo configurar Enable Banking",
         "hint": {
@@ -1397,6 +1399,7 @@
         }
       },
       "OPENAI_COMPATIBLE": {
+        "name": "IA personalizada",
         "description": "Conecta una API compatible con OpenAI, como Ollama, LM Studio, vLLM o llama.cpp, alojada localmente o en tu propio servidor.",
         "help": "Cómo conectar",
         "hint": {
@@ -1410,6 +1413,7 @@
         }
       },
       "LOCAL_MODELS": {
+        "name": "Modelos locales",
         "description": "Ejecuta modelos de IA de forma privada en este dispositivo o en tu propio servidor llama.cpp. Descarga aquí los modelos compatibles.",
         "help": "Cómo funciona",
         "hint": {
@@ -1435,6 +1439,7 @@
         "description": "Usa los modelos incluidos en tu plan de GitHub Copilot. GitHub factura el uso en créditos de IA según el precio por token de cada modelo, y las solicitudes las procesan GitHub y el proveedor del modelo. Solo en escritorio y autoalojado."
       },
       "CLAUDE_AGENT": {
+        "name": "Agente de Claude",
         "description": "Usa Claude a través de Claude Code instalado y con la sesión iniciada en este ordenador. El uso cuenta para los límites de tu plan de Claude y las solicitudes las procesa Anthropic. Solo en escritorio y autoalojado.",
         "help": "Cómo configurarlo",
         "hint": {
@@ -1465,6 +1470,30 @@
     "integrationAwaitingAuthorization": "Esperando la autorización en tu navegador...",
     "integrationExpired": "Sesión caducada",
     "integrationBeta": "Beta",
+    "aiProviderFamilies": {
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "OPENROUTER": "OpenRouter",
+      "GITHUB_COPILOT": "GitHub Copilot",
+      "LOCAL_MODELS": "Modelos locales",
+      "CUSTOM": "IA personalizada"
+    },
+    "aiProviderMethods": {
+      "OPENAI": "Clave API",
+      "CHATGPT": "Plan de ChatGPT",
+      "CLAUDE_AGENT": "CLI de Claude",
+      "OPENROUTER": "Clave API",
+      "GITHUB_COPILOT": "Plan de GitHub",
+      "LOCAL_MODELS": "Entorno local o servidor",
+      "OPENAI_COMPATIBLE": "API compatible"
+    },
+    "aiPlatforms": {
+      "DESKTOP": "Escritorio",
+      "SELF_HOSTED": "Autoalojado",
+      "MOBILE": "Móvil"
+    },
+    "aiPlatformsLabel": "Plataformas compatibles:",
+    "aiConnectedMethods": "{count}/{total} conectados",
     "chatgpt": {
       "continue": "Continuar con ChatGPT",
       "usingPlan": "Usando tu plan de ChatGPT",
@@ -2443,6 +2472,8 @@
       "summary": "{rules} etiquetados por reglas · {external} etiquetados por sugerencias",
       "done": "Movimientos reetiquetados",
       "externalFailed": "Movimientos reetiquetados, pero no se pudieron obtener sugerencias",
+      "providerUsed": "Proveedor utilizado: {provider} ({model})",
+      "fallbackUsed": "Alternativa utilizada: {provider} ({model})",
       "externalModelUnavailable": "el modelo seleccionado ya no está disponible, se han mantenido tus sugerencias actuales. Elige otro modelo en los ajustes de sugerencias.",
       "externalReauthRequired": "la sesión del proveedor de sugerencias ha caducado. Vuelve a iniciar sesión en Integraciones."
     },
@@ -2463,7 +2494,7 @@
       "connected": "Conectado",
       "notConnected": "No conectado",
       "unavailableHere": "No disponible en este dispositivo",
-      "providerUnavailable": "{provider} no está disponible en este dispositivo, así que aquí no se piden sugerencias. Siguen funcionando en los dispositivos que lo admiten. Elige otro proveedor para tener sugerencias también aquí.",
+      "providerUnavailable": "{provider} no está disponible en esta plataforma y se omitirá esta entrada. Las demás prioridades listas pueden seguir funcionando. Se conserva su configuración para las plataformas compatibles.",
       "connectProvider": "Configúralo en integraciones",
       "connectRequired": "Conecta el proveedor o desactiva las sugerencias externas para guardar.",
       "model": "Modelo",
@@ -2482,7 +2513,24 @@
       "modelInvalid": "Modelo no encontrado o no compatible",
       "upstreamProvider": "Proveedor",
       "upstreamProviderPlaceholder": "Proveedor (opcional)",
-      "upstreamProviderHint": "Opcionalmente, envía las peticiones a un proveedor concreto, p. ej. openai/flex. Solo se usará ese proveedor, sin alternativas.",
+      "upstreamProviderHint": "Fija esta entrada a un proveedor upstream. Si falla, se puede usar la siguiente prioridad de etiquetado.",
+      "priorityTitle": "Prioridad de proveedores",
+      "platformPriorityNotice": "Los proveedores se prueban en orden. Se omiten los métodos no disponibles en esta plataforma o que requieren iniciar sesión. Un fallo también puede pasar el etiquetado a la siguiente entrada.",
+      "addProvider": "Añadir proveedor",
+      "editProvider": "Editar {provider}",
+      "removeProvider": "Eliminar {provider}",
+      "reorderProvider": "Reordenar {provider}",
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "preferredHere": "Preferido aquí",
+      "priorityStates": {
+        "connected": "Listo como alternativa",
+        "notConnected": "No conectado",
+        "expired": "Sesión caducada",
+        "unavailableHere": "No disponible aquí"
+      },
+      "noEligibleProvider": "Ningún proveedor configurado está listo en esta plataforma. Se conserva tu lista de prioridades.",
+      "duplicateProvider": "Cada combinación de proveedor, modelo y upstream debe ser única.",
       "minConfidence": "Confianza mínima (%)",
       "minConfidenceHint": "Las sugerencias por debajo de esta confianza se descartan.",
       "minConfidenceNotApplicable": "Este modelo no indica su confianza, así que se aplican todas las sugerencias.",

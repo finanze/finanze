@@ -10,6 +10,8 @@ import { MultiSelect } from "@/components/ui/MultiSelect"
 import { EntitySelector } from "@/components/EntitySelector"
 import { relabelTransactions } from "@/services/api"
 import { cn } from "@/lib/utils"
+import { resolveExternalProvider } from "@/lib/externalLabeling"
+import { getIntegrationName } from "@/lib/integrations"
 import { EntityType } from "@/types"
 import { LabelOrigin } from "@/types/transactions"
 import type { RelabelRequest, RelabelResult } from "@/types/labeling"
@@ -56,14 +58,20 @@ export function RelabelDialog({
   const labelOptions = useLabelOptions()
   const externalSettings = settings.labeling?.external
   const externalAutoRun = Boolean(externalSettings?.autoRun)
-  const externalProvider = externalSettings?.provider ?? ""
+  const externalEntry = resolveExternalProvider(
+    externalSettings,
+    externalIntegrations,
+  )
+  const externalProvider = externalEntry?.provider ?? ""
   const externalIntegration = externalIntegrations.find(
     integration => integration.id === externalProvider,
   )
-  const externalEnabled =
-    Boolean(externalSettings?.enabled) &&
-    externalIntegration?.available !== false
-  const externalProviderName = externalIntegration?.name ?? externalProvider
+  const externalEnabled = Boolean(externalEntry)
+  const externalProviderName = getIntegrationName(
+    t,
+    externalProvider,
+    externalIntegration,
+  )
 
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
@@ -94,8 +102,8 @@ export function RelabelDialog({
   }, [isOpen, initial, externalAutoRun])
 
   useEffect(() => {
-    if (isOpen && externalEnabled) void fetchExternalIntegrations()
-  }, [isOpen, externalEnabled, fetchExternalIntegrations])
+    if (isOpen && externalSettings?.enabled) void fetchExternalIntegrations()
+  }, [isOpen, externalSettings?.enabled, fetchExternalIntegrations])
 
   const entityOptions = useMemo(
     () =>
@@ -360,9 +368,9 @@ export function RelabelDialog({
                     externalProviderName,
                   )}
                 </span>
-                {externalSettings?.model && (
+                {externalEntry?.model && (
                   <span className="block truncate font-mono text-[11px] text-violet-700 dark:text-violet-300">
-                    {externalSettings.model}
+                    {externalEntry.model}
                   </span>
                 )}
               </span>
@@ -412,6 +420,30 @@ export function RelabelDialog({
                 .replace("{rules}", `${ruleLabeled}`)
                 .replace("{external}", `${externalLabeled}`)}
             </div>
+          )}
+          {result?.external?.external_provider && (
+            <p
+              className="mt-2 break-words text-xs text-muted-foreground"
+              data-testid="relabel-provider-used"
+            >
+              {(result.external.external_provider !== externalProvider ||
+              result.external.external_model !== externalEntry?.model
+                ? t.labels.relabel.fallbackUsed
+                : t.labels.relabel.providerUsed
+              )
+                .replace(
+                  "{provider}",
+                  getIntegrationName(
+                    t,
+                    result.external.external_provider,
+                    externalIntegrations.find(
+                      integration =>
+                        integration.id === result.external?.external_provider,
+                    ),
+                  ),
+                )
+                .replace("{model}", result.external.external_model ?? "")}
+            </p>
           )}
         </div>
       )}
