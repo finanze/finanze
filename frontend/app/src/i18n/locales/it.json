@@ -681,7 +681,7 @@
     "unselectAll": "Deseleziona tutto",
     "fetchSelected": "Recupera",
     "deepScrape": "Forza recupero completo",
-    "deepScrapeDescription": "Recupera di nuovo i dati precedenti (potrebbe richiedere molto tempo, potresti essere bloccato e non è consigliato)",
+    "deepScrapeDescription": "Sostituisce la cronologia delle transazioni recuperate con quella disponibile, applicando le esclusioni. I dati precedenti all'intervallo disponibile del fornitore potrebbero andare persi. Può richiedere tempo e restano validi i limiti del fornitore.",
     "twoFactorOldTxs": "Includi movimenti più vecchi dei conti",
     "twoFactorOldTxsDescription": "Recupera i movimenti dei conti oltre il limite abituale di 3 mesi. Alla fine verrà richiesto un codice di verifica aggiuntivo.",
     "twoFactorOldTxsEntityDescription": {
@@ -765,6 +765,24 @@
     "assets": {
       "title": "Beni",
       "description": "Impostazioni specifiche relative ai beni",
+      "accounts": {
+        "title": "Conti",
+        "description": "Ignora conti bancari specifici durante il recupero",
+        "exclusionsLabel": "IBAN esclusi",
+        "exclusionsDescription": "Saldi e movimenti di questi conti, oltre a carte e portafogli collegati, vengono ignorati in ogni recupero.",
+        "dataUnchanged": "I dati già salvati restano fino al prossimo recupero. Usa il recupero completo per pulire anche le transazioni passate.",
+        "rulesChanged": "Esclusioni salvate. Verranno applicate al prossimo recupero.",
+        "emptyState": "Nessun conto escluso",
+        "ibanPlaceholder": "IT00 0000 0000 0000 0000 0000 000",
+        "ibanLabel": "IBAN",
+        "invalidIban": "Usa solo lettere e numeri, fino a 34 caratteri.",
+        "duplicateIban": "Questo IBAN è già escluso.",
+        "addIban": "Aggiungi",
+        "saveIban": "Salva modifiche",
+        "cancelEdit": "Annulla modifica",
+        "editIban": "Modifica IBAN",
+        "removeIban": "Rimuovi esclusione"
+      },
       "crypto": {
         "title": "Crypto",
         "description": "Impostazioni relative alle criptovalute",

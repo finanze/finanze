@@ -680,7 +680,7 @@
     "unselectAll": "Deseleccionar todas",
     "fetchSelected": "Obtener",
     "deepScrape": "Forzar extracción completa",
-    "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
+    "deepScrapeDescription": "Sustituye el historial de transacciones extraídas por el historial disponible, aplicando las exclusiones. Los datos más antiguos que el rango disponible del proveedor pueden perderse. Puede llevar tiempo y siguen aplicándose los límites del proveedor.",
     "twoFactorOldTxs": "Incluir movimientos antiguos de cuentas",
     "twoFactorOldTxsDescription": "Obtiene movimientos de cuentas más allá del límite habitual de 3 meses. Se pedirá un código de verificación adicional al final.",
     "twoFactorOldTxsEntityDescription": {
@@ -764,6 +764,24 @@
     "assets": {
       "title": "Activos",
       "description": "Ajustes específicos del funcionamiento de los activos",
+      "accounts": {
+        "title": "Cuentas",
+        "description": "Omite cuentas bancarias concretas al extraer datos",
+        "exclusionsLabel": "IBAN excluidos",
+        "exclusionsDescription": "Los saldos y movimientos de estas cuentas, y las tarjetas y carteras vinculadas a ellas, se omiten en cada extracción.",
+        "dataUnchanged": "Los datos ya guardados se mantienen hasta la próxima extracción. Usa la extracción completa para limpiar también los movimientos pasados.",
+        "rulesChanged": "Exclusiones guardadas. Se aplicarán en la próxima extracción.",
+        "emptyState": "No hay cuentas excluidas",
+        "ibanPlaceholder": "ES00 0000 0000 0000 0000 0000",
+        "ibanLabel": "IBAN",
+        "invalidIban": "Usa solo letras y números, hasta 34 caracteres.",
+        "duplicateIban": "Este IBAN ya está excluido.",
+        "addIban": "Añadir",
+        "saveIban": "Guardar cambios",
+        "cancelEdit": "Cancelar edición",
+        "editIban": "Editar IBAN",
+        "removeIban": "Eliminar exclusión"
+      },
       "crypto": {
         "title": "Cripto",
         "description": "Configuración relacionada con criptomonedas",

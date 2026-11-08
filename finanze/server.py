@@ -825,6 +825,8 @@ class FinanzeServer:
             transaction_handler,
             transaction_repository,
             transaction_labeler,
+            settings_repository,
+            transaction_label_repository,
         )
         export_sheets = ExportSheetsImpl(
             position_repository,

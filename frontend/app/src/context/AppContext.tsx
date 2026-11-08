@@ -39,6 +39,7 @@ import type {
   ExternalLabelingSettings,
   LabelingSettings,
 } from "@/types/labeling"
+import type { AccountAssetConfig } from "@/types/accountExclusions"
 import {
   getFeatureFlags,
   subscribeFeatureFlags,
@@ -61,6 +62,7 @@ export interface AppSettings {
     editMode: EditMode
   }
   assets: {
+    accounts?: AccountAssetConfig
     crypto: {
       stablecoins: string[]
       hideUnknownTokens: boolean
@@ -141,6 +143,7 @@ const defaultSettings: AppSettings = {
     editMode: EditMode.QUICK,
   },
   assets: {
+    accounts: { exclusions: [] },
     crypto: {
       stablecoins: [],
       hideUnknownTokens: false,
@@ -199,6 +202,9 @@ const mergeSettingsWithDefaults = (
   const mergedAssets = {
     ...defaultSettings.assets,
     ...incoming?.assets,
+    accounts: {
+      exclusions: incoming?.assets?.accounts?.exclusions ?? [],
+    },
     crypto: {
       ...defaultSettings.assets.crypto,
       ...incoming?.assets?.crypto,

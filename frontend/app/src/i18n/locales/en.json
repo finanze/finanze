@@ -682,7 +682,7 @@
     "unselectAll": "Unselect all",
     "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
-    "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "deepScrapeDescription": "Replace fetched transaction history with the available history, applying exclusions. Older data outside the provider's available range may be lost. This may take a long time and provider limits still apply.",
     "twoFactorOldTxs": "Include older account transactions",
     "twoFactorOldTxsDescription": "Fetch account transactions beyond the usual 3-month limit. An extra verification code will be requested at the end.",
     "twoFactorOldTxsEntityDescription": {
@@ -766,6 +766,24 @@
     "assets": {
       "title": "Assets",
       "description": "Specific asset related settings",
+      "accounts": {
+        "title": "Accounts",
+        "description": "Skip specific bank accounts when fetching",
+        "exclusionsLabel": "Excluded IBANs",
+        "exclusionsDescription": "Balances and transactions of these accounts, plus cards and portfolios linked to them, are skipped on every fetch.",
+        "dataUnchanged": "Already stored data stays until the next fetch. Use deep fetch to also clean past transactions.",
+        "rulesChanged": "Exclusions saved. They will apply on the next fetch.",
+        "emptyState": "No excluded accounts",
+        "ibanPlaceholder": "ES00 0000 0000 0000 0000 0000",
+        "ibanLabel": "IBAN",
+        "invalidIban": "Use letters and numbers only, up to 34 characters.",
+        "duplicateIban": "This IBAN is already excluded.",
+        "addIban": "Add",
+        "saveIban": "Save changes",
+        "cancelEdit": "Cancel edit",
+        "editIban": "Edit IBAN",
+        "removeIban": "Remove exclusion"
+      },
       "crypto": {
         "title": "Crypto",
         "description": "Cryptocurrency assets related settings",

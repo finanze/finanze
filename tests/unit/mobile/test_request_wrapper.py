@@ -15,6 +15,9 @@ from domain.cashflow import CashflowGranularity
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import InvalidLabelingRule
 from domain.earnings_expenses import FlowType
+from domain.entity import Feature
+from domain.fetch_result import FetchResult, FetchResultCode
+from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.get_cashflow_summary import GetCashflowSummary
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -51,11 +54,71 @@ def mobile_transport(monkeypatch):
         "mobile_cashflow_summary",
         ROOT / "finanze/infrastructure/controller/routes/cashflow_summary.py",
     )
+    external_fetch = _load_module(
+        "mobile_external_fetch",
+        ROOT
+        / "finanze/infrastructure/controller/routes/fetch_external_financial_data.py",
+    )
     return SimpleNamespace(
         RequestWrapper=wrapper.RequestWrapper,
         router=router.Router(),
         cashflow_summary=cashflow.cashflow_summary,
+        external_fetch=external_fetch.fetch_external_financial_data,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body", [None, {}, {"features": ["TRANSACTIONS"], "deep": True}]
+)
+async def test_external_fetch_options_through_mobile_router(mobile_transport, body):
+    use_case = AsyncMock(spec=FetchExternalFinancialData)
+    use_case.execute.return_value = FetchResult(FetchResultCode.COMPLETED)
+    external_id = uuid4()
+
+    async def route(request):
+        return await mobile_transport.external_fetch(
+            use_case, request.view_args["external_entity_id"]
+        )
+
+    mobile_transport.router.add(
+        "POST", "/api/v1/data/fetch/external/<external_entity_id>", route
+    )
+    response = await mobile_transport.router.handle(
+        "POST",
+        f"/api/v1/data/fetch/external/{external_id}",
+        body,
+        {},
+    )
+    assert response["status"] == 200
+    assert json.loads(response["json"])["code"] == "COMPLETED"
+    query = use_case.execute.await_args.args[0]
+    assert query.external_entity_id == external_id
+    assert query.features == ([Feature.TRANSACTIONS] if body else None)
+    assert query.deep == bool(body)
+
+
+@pytest.mark.asyncio
+async def test_invalid_external_fetch_options_are_rejected_on_mobile(mobile_transport):
+    use_case = AsyncMock(spec=FetchExternalFinancialData)
+    external_id = uuid4()
+
+    async def route(request):
+        return await mobile_transport.external_fetch(
+            use_case, request.view_args["external_entity_id"]
+        )
+
+    mobile_transport.router.add(
+        "POST", "/api/v1/data/fetch/external/<external_entity_id>", route
+    )
+    response = await mobile_transport.router.handle(
+        "POST",
+        f"/api/v1/data/fetch/external/{external_id}",
+        {"deep": "true"},
+        {},
+    )
+    assert response["status"] == 400
+    use_case.execute.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
