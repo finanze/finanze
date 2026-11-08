@@ -84,14 +84,12 @@ Set monthly targets for needs, wants, and investment contributions, then compare
 
 Create labels and reusable rules to categorize transactions. Rules can match transaction text, type, amount, currency, dates, entities, or IBANs. Preview matches before applying rules, including to existing transactions.
 
-For AI suggestions, connect OpenAI or OpenRouter, a custom OpenAI-compatible endpoint, or local models. Decision-capable models can return confidence scores when supported.
+For AI suggestions, connect OpenAI (API key), ChatGPT (Plus or Pro plan), OpenRouter, GitHub Copilot, Anthropic Claude through Claude Code, a custom OpenAI-compatible endpoint, or local models. Configure them under **Entities > Providers > AI providers**. GitHub Copilot and Claude Code are available in desktop and self-hosted distributions. Decision-capable models can return confidence scores when supported.
 
 ### Local and Self-Hosted Models
 
-Configure providers under **Entities > Providers > AI providers**.
-
 - **Local models:** Run GGUF models with the built-in llama.cpp engine on desktop. Download recommended or Hugging Face models, import a GGUF file, or connect your own llama.cpp server in router mode.
-- **Custom AI:** Connect Ollama, LM Studio, vLLM, or a single-model llama.cpp server with its base URL and optional API key.
+- **Custom AI:** Connect an OpenAI-compatible API such as Ollama, LM Studio, vLLM, or a single-model llama.cpp server with its base URL and optional API key.
 
 The built-in engine runs models on-device and is desktop-only. External endpoints must be reachable from Finanze.
 
@@ -325,14 +323,52 @@ For the frontend use `pnpm`, and `node 24`.
 
 6. TLS client for mobile (required for some entities needing TLS fingerprint impersonation):
 
-    Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (
+    Requires: Go, full Xcode with iOS and simulator SDKs (iOS), JDK 21+ and Android NDK r28+ (Android), gomobile (
     `go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
 
     ```sh
     cd frontend/app           # If not already
     go mod tidy -C native/tlsclient
     pnpm native:setup         # Builds iOS xcframework + Android AAR and copies to native projects
+    # Or build only the platform you need:
+    pnpm native:setup:ios
+    pnpm native:setup:android
     ```
+
+    <details>
+    <summary>Android and iOS toolchain setup</summary>
+
+    **Android setup:** Install **NDK (Side by side)** in Android Studio > SDK Manager > SDK Tools.
+    The native build automatically selects the newest complete NDK installation under the SDK's `ndk/` directory,
+    using `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, or the default SDK location
+    (`~/Library/Android/sdk` on macOS, `~/Android/Sdk` on Linux).
+    Set `ANDROID_NDK_HOME` (or `ANDROID_NDK_ROOT`) to override detection; an invalid override fails instead of falling back.
+    Set `JAVA_HOME` to a JDK, not a JRE; if unset, the native build warns and checks the Java tools on `PATH`.
+
+    ```sh
+    # macOS: select an installed JDK 21
+    export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+    # Only needed for custom SDK/NDK locations or to pin an NDK version:
+    export ANDROID_HOME="$HOME/Library/Android/sdk"
+    export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/<installed-version>"
+    ```
+
+    Replace `<installed-version>` with the installed NDK folder name. Add exports you need to your shell profile
+    (for example, `~/.zshrc`) to keep them across terminals.
+
+    **iOS setup (macOS):** Command Line Tools alone are not enough. Install and open Xcode to finish its initial setup
+    and install the iOS platform components. If `xcode-select -p` points to `/Library/Developer/CommandLineTools`
+    or another Xcode installation, override the developer directory for the setup command:
+
+    ```sh
+    DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer" pnpm native:setup:ios
+    ```
+
+    Adjust the path if Xcode is installed elsewhere. To select it for all future commands instead:
+    `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`.
+    The native build checks both iOS SDKs before building and reports how to set `DEVELOPER_DIR` if unavailable.
+
+    </details>
 
 #### Other
 

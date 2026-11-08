@@ -48,9 +48,9 @@ services:
 #  - Values entered in the UI override these environment variables.
 #  - A single-model llama-server (started with -m) or Ollama uses the Custom AI provider instead.
 #  - GGUF files dropped in ./.storage/models/local are listed after pressing Refresh in Finanze.
-#  - For GPU use ghcr.io/ggml-org/llama.cpp:server-cuda-b11669 or server-vulkan-b11669 with the device setup.
+#  - For GPU use ghcr.io/ggml-org/llama.cpp:server-cuda-b12110 or server-vulkan-b12110 with the device setup.
 #  finanze-llama:
-#    image: ghcr.io/ggml-org/llama.cpp:server-b11669
+#    image: ghcr.io/ggml-org/llama.cpp:server-b12110
 #    restart: unless-stopped
 #    environment:
 #      LLAMA_API_KEY: ${FINANZE_LLAMA_API_KEY}
