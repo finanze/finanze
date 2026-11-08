@@ -245,6 +245,9 @@ from infrastructure.repository.db.versions.v0.v12.v0120_1_claude_agent_integrati
 from infrastructure.repository.db.versions.v0.v12.v0120_2_chatgpt_integration import (
     V01202ChatGPTIntegration,
 )
+from infrastructure.repository.db.versions.v0.v12.v0120_3_labeling_rule_multi_conditions import (
+    V01203LabelingRuleMultiConditions,
+)
 
 versions = [
     V0Genesis(),
@@ -340,4 +343,5 @@ versions = [
     V01200GitHubCopilotIntegration(),
     V01201ClaudeAgentIntegration(),
     V01202ChatGPTIntegration(),
+    V01203LabelingRuleMultiConditions(),
 ]

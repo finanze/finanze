@@ -635,6 +635,167 @@ test.describe('Cashflow', () => {
         await expect(labelCard).toHaveCount(0)
     })
 
+    test('labels movements matching any alternative of a rule with several text values', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await ensureEditMode(page, 'DRAFT')
+        await connectUrbanitaeIfNeeded(page)
+        await navigateToTransactions(page)
+
+        const runId = alphabeticRunId(Date.now())
+        const alphaName = `E2E Rule Alternatives Alpha ${runId}`
+        const betaName = `E2E Rule Alternatives Beta ${runId}`
+        const gammaName = `E2E Rule Alternatives Gamma ${runId}`
+        const labelName = `E2E Rule Alternatives Label ${runId}`
+        const ruleName = `E2E Rule Alternatives Rule ${runId}`
+        await createManualTransaction(
+            page,
+            alphaName,
+            '11.10',
+            daysAgo(0),
+            'Outflow',
+        )
+        await createManualTransaction(
+            page,
+            betaName,
+            '22.20',
+            daysAgo(0),
+            'Outflow',
+        )
+        await createManualTransaction(
+            page,
+            gammaName,
+            '33.30',
+            daysAgo(0),
+            'Outflow',
+        )
+
+        await navigateToCashflow(page)
+        await page.getByRole('tab', { name: /Labels/ }).click()
+        await page
+            .getByRole('button', { name: 'New label', exact: true })
+            .click()
+        const labelDialog = page.getByTestId('label-dialog')
+        await labelDialog.locator('#label-name').fill(labelName)
+        await labelDialog
+            .getByRole('button', { name: 'Save', exact: true })
+            .click()
+        await expect(labelDialog).toBeHidden()
+
+        await page.getByRole('tab', { name: /Rules/ }).click()
+        await page
+            .getByRole('button', { name: 'New rule', exact: true })
+            .click()
+        const ruleDialog = page.getByTestId('rule-dialog')
+        const groups = ruleDialog.getByTestId('rule-condition-group')
+        await ruleDialog.locator('#rule-name').fill(ruleName)
+        const firstText = groups.nth(0).getByTestId('rule-text-value')
+        await firstText.fill(alphaName)
+        await firstText.press('Enter')
+        await firstText.fill(`${betaName},`)
+        await expect(groups.nth(0).getByTestId('tag-chip')).toHaveText([
+            alphaName,
+            betaName,
+        ])
+        await expect(firstText).toHaveValue('')
+
+        await ruleDialog.getByTestId('rule-add-alternative').click()
+        await expect(groups).toHaveCount(2)
+        await expect(ruleDialog.getByTestId('rule-or-divider')).toBeVisible()
+        await ruleDialog
+            .getByTestId('label-selector')
+            .getByRole('button', { name: labelName, exact: true })
+            .click()
+        await ruleDialog
+            .getByRole('button', { name: 'Save', exact: true })
+            .click()
+        await expect(ruleDialog.getByRole('alert')).toHaveText(
+            'Alternative conditions 2 are empty, add at least one condition',
+        )
+
+        await groups
+            .nth(1)
+            .getByRole('combobox', { name: 'Condition', exact: true })
+            .selectOption({ label: 'Is exactly' })
+        await groups.nth(1).getByTestId('rule-text-value').fill(gammaName)
+        await ruleDialog
+            .getByRole('button', { name: 'Preview', exact: true })
+            .click()
+        const preview = ruleDialog.getByTestId('rule-preview')
+        await expect(preview).toContainText('3 movements match')
+        await expect(preview).toContainText(alphaName)
+        await expect(preview).toContainText(betaName)
+        await expect(preview).toContainText(gammaName)
+        await ruleDialog
+            .getByRole('button', { name: 'Save', exact: true })
+            .click()
+        await expect(ruleDialog).toBeHidden()
+
+        const ruleCard = page
+            .getByTestId('rule-card')
+            .filter({ hasText: ruleName })
+        await expect(ruleCard).toBeVisible()
+        await expect(ruleCard.getByTestId('rule-or')).toHaveCount(1)
+        await expect(ruleCard).toContainText(`"${alphaName}", "${betaName}"`)
+        await expect(ruleCard).toContainText(`"${gammaName}"`)
+
+        await navigateToTransactions(page)
+        await expect(
+            page
+                .locator('[data-testid="tx-labels"]:visible')
+                .filter({ hasText: labelName }),
+        ).toHaveCount(3)
+
+        await navigateToCashflow(page)
+        await selectCashflowPreset(page, 'thisMonth')
+        const breakdownRow = page
+            .getByTestId('cashflow-label-row')
+            .filter({ hasText: labelName })
+        await expect(breakdownRow).toBeVisible()
+        await expect(breakdownRow).toContainText(/66[.,]60/)
+
+        await page.getByRole('tab', { name: /Rules/ }).click()
+        await ruleCard
+            .getByRole('button', { name: `Edit ${ruleName}`, exact: true })
+            .click()
+        await expect(ruleDialog).toBeVisible()
+        await expect(groups).toHaveCount(2)
+        await expect(groups.nth(0).getByTestId('tag-chip')).toHaveCount(2)
+        await expect(
+            groups
+                .nth(1)
+                .getByRole('combobox', { name: 'Condition', exact: true }),
+        ).toHaveValue('EQUALS')
+        await ruleDialog
+            .getByRole('button', { name: 'Cancel', exact: true })
+            .click()
+        await expect(ruleDialog).toBeHidden()
+
+        await ruleCard
+            .getByRole('button', { name: 'Delete', exact: true })
+            .click()
+        let confirmation = page.locator('.fixed.inset-0').last()
+        await confirmation
+            .getByRole('button', { name: 'Delete', exact: true })
+            .click()
+        await expect(ruleCard).toHaveCount(0)
+
+        await page.getByRole('tab', { name: /Labels/ }).click()
+        const labelCard = page
+            .locator('[data-testid^="label-card-"]')
+            .filter({ hasText: labelName })
+        await expect(labelCard).toBeVisible()
+        await labelCard
+            .getByRole('button', { name: 'Delete', exact: true })
+            .click()
+        confirmation = page.locator('.fixed.inset-0').last()
+        await confirmation
+            .getByRole('button', { name: 'Delete', exact: true })
+            .click()
+        await expect(labelCard).toHaveCount(0)
+    })
+
     test('summarizes account inflows and outflows in their selected periods', async ({
         authenticatedPage: page,
     }) => {

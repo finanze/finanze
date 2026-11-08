@@ -11,6 +11,7 @@ from domain.dezimal import Dezimal
 from domain.exception.exceptions import InvalidLabelingRule
 from domain.transactions import (
     AccountTx,
+    AccountTxSelection,
     LabelOrigin,
     TxType,
     is_valid_iban_format,
@@ -25,6 +26,8 @@ MAX_LABEL_NAME_LENGTH = 64
 MAX_LABEL_DESCRIPTION_LENGTH = 300
 DEFAULT_TRANSFER_MAX_DAYS = 3
 MAX_TRANSFER_MAX_DAYS = 31
+MAX_CONDITION_GROUPS = 5
+MAX_TEXT_VALUES = 20
 
 
 class LabelingRuleKind(str, Enum):
@@ -96,7 +99,7 @@ class Labels:
 
 @dataclass
 class TextCondition:
-    value: str
+    values: list[str]
     operator: TextMatchOperator = TextMatchOperator.CONTAINS
     field: TextMatchField = TextMatchField.ANY
 
@@ -120,7 +123,7 @@ class LabelingRuleConditions:
 @dataclass
 class LabelingRule:
     id: Optional[UUID]
-    conditions: LabelingRuleConditions
+    conditions: list[LabelingRuleConditions]
     label_ids: list[UUID]
     name: Optional[str] = None
     enabled: bool = True
@@ -146,7 +149,7 @@ class SavedLabelingRule:
 
 @dataclass
 class LabelingRulePreviewRequest:
-    conditions: LabelingRuleConditions
+    conditions: list[LabelingRuleConditions]
     limit: int = 10
 
 
@@ -215,7 +218,22 @@ def normalize_text(value: Optional[str]) -> str:
     return " ".join(stripped.casefold().split())[:MAX_MATCH_TEXT_LENGTH]
 
 
-@lru_cache(maxsize=256)
+def normalize_text_values(values: list[str]) -> list[str]:
+    unique: dict[str, str] = {}
+    for value in values:
+        stripped = value.strip()
+        key = normalize_text(stripped)
+        if key and key not in unique:
+            unique[key] = stripped
+    return list(unique.values())
+
+
+@lru_cache(maxsize=1024)
+def _normalized_value(value: str) -> str:
+    return normalize_text(value)
+
+
+@lru_cache(maxsize=1024)
 def _compile_pattern(pattern: str) -> re.Pattern:
     return re.compile(pattern, re.IGNORECASE)
 
@@ -262,17 +280,37 @@ def validate_conditions(conditions: LabelingRuleConditions):
         if day is not None and not 1 <= day <= 31:
             raise InvalidLabelingRule("Day of month must be between 1 and 31")
 
-    text = conditions.text
-    if text is not None:
-        if not text.value or not text.value.strip():
-            raise InvalidLabelingRule("Text condition value is required")
-        if text.operator == TextMatchOperator.REGEX:
-            if len(text.value) > MAX_REGEX_LENGTH:
-                raise InvalidLabelingRule("Regular expression is too long")
-            try:
-                _compile_pattern(normalize_text(text.value))
-            except re.error as e:
-                raise InvalidLabelingRule(f"Invalid regular expression: {e}") from e
+    if conditions.text is not None:
+        _validate_text(conditions.text)
+
+
+def _validate_text(text: TextCondition):
+    if not text.values or any(not value or not value.strip() for value in text.values):
+        raise InvalidLabelingRule("Text condition value is required")
+    if len(text.values) > MAX_TEXT_VALUES:
+        raise InvalidLabelingRule(
+            f"Text condition supports at most {MAX_TEXT_VALUES} values"
+        )
+    if text.operator != TextMatchOperator.REGEX:
+        return
+    for value in text.values:
+        if len(value) > MAX_REGEX_LENGTH:
+            raise InvalidLabelingRule(f"Regular expression is too long: {value}")
+        try:
+            _compile_pattern(normalize_text(value))
+        except re.error as e:
+            raise InvalidLabelingRule(f"Invalid regular expression {value}: {e}") from e
+
+
+def validate_condition_groups(groups: list[LabelingRuleConditions]):
+    if not groups:
+        raise InvalidLabelingRule("At least one condition group is required")
+    if len(groups) > MAX_CONDITION_GROUPS:
+        raise InvalidLabelingRule(
+            f"A rule supports at most {MAX_CONDITION_GROUPS} condition groups"
+        )
+    for conditions in groups:
+        validate_conditions(conditions)
 
 
 def _validate_amounts(conditions: LabelingRuleConditions):
@@ -323,9 +361,15 @@ def validate_rule(rule: LabelingRule):
     if not rule.label_ids:
         raise InvalidLabelingRule("At least one label is required")
     if rule.kind == LabelingRuleKind.TRANSFER:
-        validate_transfer_conditions(rule.conditions)
+        if len(rule.conditions) != 1:
+            raise InvalidLabelingRule("Transfer rules support a single condition group")
+        validate_transfer_conditions(rule.conditions[0])
     else:
-        validate_conditions(rule.conditions)
+        validate_condition_groups(rule.conditions)
+
+
+def transfer_conditions(rule: LabelingRule) -> LabelingRuleConditions:
+    return rule.conditions[0] if rule.conditions else LabelingRuleConditions()
 
 
 def validate_label(label: Label):
@@ -339,23 +383,23 @@ def validate_label(label: Label):
         raise InvalidLabelingRule("Subcategory is not allowed for this label category")
 
 
+def _value_matches(operator: TextMatchOperator, expected: str, text: str) -> bool:
+    if operator == TextMatchOperator.CONTAINS:
+        return expected in text
+    if operator == TextMatchOperator.STARTS_WITH:
+        return text.startswith(expected)
+    if operator == TextMatchOperator.EQUALS:
+        return text == expected
+    return bool(_compile_pattern(expected).search(text))
+
+
 def _text_matches(condition: TextCondition, candidates: list[str]) -> bool:
-    expected = normalize_text(condition.value)
-    for candidate in candidates:
-        text = normalize_text(candidate)
-        if not text:
-            continue
-        if condition.operator == TextMatchOperator.CONTAINS and expected in text:
-            return True
-        if condition.operator == TextMatchOperator.STARTS_WITH and text.startswith(
-            expected
-        ):
-            return True
-        if condition.operator == TextMatchOperator.EQUALS and text == expected:
-            return True
-        if condition.operator == TextMatchOperator.REGEX and _compile_pattern(
-            expected
-        ).search(text):
+    texts = [text for text in map(normalize_text, candidates) if text]
+    if not texts:
+        return False
+    for value in condition.values:
+        expected = _normalized_value(value)
+        if any(_value_matches(condition.operator, expected, text) for text in texts):
             return True
     return False
 
@@ -414,11 +458,38 @@ def conditions_match(conditions: LabelingRuleConditions, tx: AccountTx) -> bool:
     return True
 
 
+def groups_match(groups: list[LabelingRuleConditions], tx: AccountTx) -> bool:
+    return any(conditions_match(conditions, tx) for conditions in groups)
+
+
+def candidate_selection(groups: list[LabelingRuleConditions]) -> AccountTxSelection:
+    from_dates = [conditions.from_date for conditions in groups]
+    to_dates = [conditions.to_date for conditions in groups]
+    entities = [conditions.entities for conditions in groups]
+    types = [conditions.types for conditions in groups]
+    return AccountTxSelection(
+        from_date=min(from_dates)
+        if groups and all(d is not None for d in from_dates)
+        else None,
+        to_date=max(to_dates)
+        if groups and all(d is not None for d in to_dates)
+        else None,
+        entities=list(dict.fromkeys(e for group in entities for e in group))
+        if groups and all(entities)
+        else None,
+        types=list(dict.fromkeys(t for group in types for t in group))
+        if groups and all(types)
+        else list(LABELABLE_TX_TYPES),
+        include_locked=False,
+        include_linked=False,
+    )
+
+
 def matching_rules(rules: list[LabelingRule], tx: AccountTx) -> list[LabelingRule]:
     return [
         rule
         for rule in rules
         if rule.enabled
         and rule.kind == LabelingRuleKind.MATCH
-        and conditions_match(rule.conditions, tx)
+        and groups_match(rule.conditions, tx)
     ]

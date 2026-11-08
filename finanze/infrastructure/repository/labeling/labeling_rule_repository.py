@@ -19,7 +19,7 @@ from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.labeling.queries import LabelingRuleQueries
 
 
-def serialize_conditions(conditions: LabelingRuleConditions) -> str:
+def _serialize_group(conditions: LabelingRuleConditions) -> dict:
     data = {}
     if conditions.types:
         data["types"] = [t.value for t in conditions.types]
@@ -41,7 +41,7 @@ def serialize_conditions(conditions: LabelingRuleConditions) -> str:
         data["entities"] = [str(e) for e in conditions.entities]
     if conditions.text is not None:
         data["text"] = {
-            "value": conditions.text.value,
+            "values": list(conditions.text.values),
             "operator": conditions.text.operator.value,
             "field": conditions.text.field.value,
         }
@@ -49,11 +49,14 @@ def serialize_conditions(conditions: LabelingRuleConditions) -> str:
         data["max_days"] = conditions.max_days
     if conditions.ibans:
         data["ibans"] = list(conditions.ibans)
-    return json.dumps(data)
+    return data
 
 
-def deserialize_conditions(raw: str) -> LabelingRuleConditions:
-    data = json.loads(raw) if raw else {}
+def serialize_conditions(groups: list[LabelingRuleConditions]) -> str:
+    return json.dumps([_serialize_group(conditions) for conditions in groups])
+
+
+def _deserialize_group(data: dict) -> LabelingRuleConditions:
     text = data.get("text")
     return LabelingRuleConditions(
         types=[TxType(t) for t in data["types"]] if data.get("types") else None,
@@ -72,7 +75,7 @@ def deserialize_conditions(raw: str) -> LabelingRuleConditions:
         day_to=data.get("day_to"),
         entities=[UUID(e) for e in data["entities"]] if data.get("entities") else None,
         text=TextCondition(
-            value=text["value"],
+            values=list(text["values"]),
             operator=TextMatchOperator(text.get("operator", "CONTAINS")),
             field=TextMatchField(text.get("field", "ANY")),
         )
@@ -81,6 +84,11 @@ def deserialize_conditions(raw: str) -> LabelingRuleConditions:
         max_days=data.get("max_days"),
         ibans=data.get("ibans") or None,
     )
+
+
+def deserialize_conditions(raw: str) -> list[LabelingRuleConditions]:
+    groups = json.loads(raw) if raw else []
+    return [_deserialize_group(data) for data in groups]
 
 
 def _group_rows(rows) -> list[LabelingRule]:

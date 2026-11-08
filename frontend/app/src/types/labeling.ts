@@ -54,10 +54,13 @@ export enum TextMatchField {
 }
 
 export interface TextCondition {
-  value: string
+  values: string[]
   operator: TextMatchOperator
   field: TextMatchField
 }
+
+export const MAX_CONDITION_GROUPS = 5
+export const MAX_TEXT_VALUES = 20
 
 export interface LabelingRuleConditions {
   types?: TxType[] | null
@@ -84,7 +87,7 @@ export interface LabelingRule {
   name?: string | null
   enabled: boolean
   kind: LabelingRuleKind
-  conditions: LabelingRuleConditions
+  conditions: LabelingRuleConditions[]
   label_ids: string[]
 }
 
@@ -96,7 +99,7 @@ export interface SaveLabelingRuleRequest {
   name?: string | null
   enabled: boolean
   kind?: LabelingRuleKind
-  conditions: LabelingRuleConditions
+  conditions: LabelingRuleConditions[]
   labels: string[]
   apply_to_existing: boolean
 }

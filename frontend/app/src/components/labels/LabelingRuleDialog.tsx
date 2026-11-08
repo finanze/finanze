@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
-import { AnimatePresence, motion } from "framer-motion"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import {
   ArrowLeftRight,
-  ChevronDown,
   Eye,
   Loader2,
+  Plus,
   Save,
   Wand2,
   X,
@@ -18,11 +18,7 @@ import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label as FieldLabel } from "@/components/ui/Label"
 import { Switch } from "@/components/ui/Switch"
-import { DatePicker } from "@/components/ui/DatePicker"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { type MultiSelectOption } from "@/components/ui/MultiSelect"
 import { EntitySelector } from "@/components/EntitySelector"
 import {
   createLabelingRule,
@@ -32,163 +28,40 @@ import {
 import { formatCurrency, formatDate, shortIban } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { ProductType, type Accounts } from "@/types/position"
-import { LABELABLE_TX_TYPES, TxType } from "@/types/transactions"
 import {
   LabelingRuleKind,
-  TextMatchField,
-  TextMatchOperator,
+  MAX_CONDITION_GROUPS,
+  MAX_TEXT_VALUES,
   type LabelingRule,
-  type LabelingRuleConditions,
   type LabelingRulePreview,
 } from "@/types/labeling"
-import { getIconForTxType } from "@/utils/dashboardUtils"
 import { LabelingModal } from "./LabelingModal"
 import { LabelSelector } from "./LabelSelector"
+import {
+  RuleAccountsField,
+  RuleConditionGroupFields,
+} from "./RuleConditionGroupFields"
+import {
+  MAX_TRANSFER_MAX_DAYS,
+  buildConditions,
+  emptyForm,
+  emptyGroup,
+  formFromRule,
+  formFromTx,
+  hasAnyCondition,
+  parseOptionalDay,
+  type ConditionGroupForm,
+  type RuleFormState,
+} from "./ruleForm"
 import type { LabelableTx } from "./TransactionLabelsDialog"
 
-const SELECT_CLASS =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-
 const PREVIEW_LIMIT = 10
-const DEFAULT_TRANSFER_MAX_DAYS = 3
-const MAX_TRANSFER_MAX_DAYS = 31
 const TRANSFER_LABEL_KEY = "internal_transfer"
 
 const RULE_KINDS = [
   { kind: LabelingRuleKind.MATCH, Icon: Wand2 },
   { kind: LabelingRuleKind.TRANSFER, Icon: ArrowLeftRight },
 ]
-
-const pillClass = (active: boolean) =>
-  cn(
-    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50",
-    active
-      ? "border-foreground bg-foreground text-background"
-      : "border-border text-muted-foreground hover:text-foreground",
-  )
-
-interface RuleFormState {
-  kind: LabelingRuleKind
-  name: string
-  enabled: boolean
-  labelIds: string[]
-  types: string[]
-  textValue: string
-  textField: TextMatchField
-  textOperator: TextMatchOperator
-  minAmount: string
-  maxAmount: string
-  currency: string
-  fromDate: string
-  toDate: string
-  dayFrom: string
-  dayTo: string
-  entities: string[]
-  ibans: string[]
-  maxDays: string
-}
-
-const emptyForm = (): RuleFormState => ({
-  kind: LabelingRuleKind.MATCH,
-  name: "",
-  enabled: true,
-  labelIds: [],
-  types: [],
-  textValue: "",
-  textField: TextMatchField.ANY,
-  textOperator: TextMatchOperator.CONTAINS,
-  minAmount: "",
-  maxAmount: "",
-  currency: "",
-  fromDate: "",
-  toDate: "",
-  dayFrom: "",
-  dayTo: "",
-  entities: [],
-  ibans: [],
-  maxDays: `${DEFAULT_TRANSFER_MAX_DAYS}`,
-})
-
-const formFromRule = (rule: LabelingRule): RuleFormState => {
-  const c = rule.conditions
-  return {
-    kind: rule.kind ?? LabelingRuleKind.MATCH,
-    name: rule.name ?? "",
-    enabled: rule.enabled,
-    labelIds: rule.label_ids,
-    types: c.types ?? [],
-    textValue: c.text?.value ?? "",
-    textField: c.text?.field ?? TextMatchField.ANY,
-    textOperator: c.text?.operator ?? TextMatchOperator.CONTAINS,
-    minAmount: c.min_amount != null ? `${c.min_amount}` : "",
-    maxAmount: c.max_amount != null ? `${c.max_amount}` : "",
-    currency: c.currency ?? "",
-    fromDate: c.from_date ?? "",
-    toDate: c.to_date ?? "",
-    dayFrom: c.day_from != null ? `${c.day_from}` : "",
-    dayTo: c.day_to != null ? `${c.day_to}` : "",
-    entities: c.entities ?? [],
-    ibans: c.ibans ?? [],
-    maxDays: `${c.max_days ?? DEFAULT_TRANSFER_MAX_DAYS}`,
-  }
-}
-
-const formFromTx = (tx: LabelableTx): RuleFormState => {
-  const counterparty = tx.counterparty?.trim()
-  return {
-    ...emptyForm(),
-    name: counterparty || tx.name,
-    labelIds: (tx.labels ?? []).map(label => label.label_id),
-    types: [tx.type],
-    textValue: counterparty || tx.name,
-    textField: counterparty ? TextMatchField.COUNTERPARTY : TextMatchField.NAME,
-  }
-}
-
-const parseOptionalNumber = (value: string): number | null => {
-  if (!value.trim()) return null
-  const parsed = Number.parseFloat(value.replace(",", "."))
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-const parseOptionalDay = (value: string): number | null => {
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-const buildConditions = (form: RuleFormState): LabelingRuleConditions => {
-  const shared = {
-    min_amount: parseOptionalNumber(form.minAmount),
-    max_amount: parseOptionalNumber(form.maxAmount),
-    currency: form.currency.trim() ? form.currency.trim().toUpperCase() : null,
-    entities: form.entities.length ? form.entities : null,
-    ibans: form.ibans.length ? form.ibans : null,
-  }
-  if (form.kind === LabelingRuleKind.TRANSFER) {
-    return {
-      ...shared,
-      max_days: parseOptionalDay(form.maxDays) ?? DEFAULT_TRANSFER_MAX_DAYS,
-    }
-  }
-  return {
-    ...shared,
-    types: form.types.length ? (form.types as TxType[]) : null,
-    from_date: form.fromDate || null,
-    to_date: form.toDate || null,
-    day_from: parseOptionalDay(form.dayFrom),
-    day_to: parseOptionalDay(form.dayTo),
-    text: form.textValue.trim()
-      ? {
-          value: form.textValue.trim(),
-          field: form.textField,
-          operator: form.textOperator,
-        }
-      : null,
-  }
-}
-
-const hasAnyCondition = (conditions: LabelingRuleConditions) =>
-  Object.values(conditions).some(value => value !== null)
 
 interface LabelingRuleDialogProps {
   isOpen: boolean
@@ -209,10 +82,12 @@ export function LabelingRuleDialog({
   const { entities, showToast, settings } = useAppContext()
   const { positionsData } = useFinancialData()
   const { labels } = useLabels()
+  const reducedMotion = useReducedMotion()
   const [form, setForm] = useState<RuleFormState>(emptyForm)
+  const [formVersion, setFormVersion] = useState(0)
   const [applyToExisting, setApplyToExisting] = useState(true)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [advancedAnimating, setAdvancedAnimating] = useState(false)
+  const [addedGroupKey, setAddedGroupKey] = useState<string | null>(null)
+  const [focusedGroupKey, setFocusedGroupKey] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [preview, setPreview] = useState<LabelingRulePreview | null>(null)
@@ -220,30 +95,21 @@ export function LabelingRuleDialog({
 
   useEffect(() => {
     if (!isOpen) return
-    const next = rule
-      ? formFromRule(rule)
-      : fromTx
-        ? formFromTx(fromTx)
-        : emptyForm()
-    setForm(next)
+    setForm(
+      rule ? formFromRule(rule) : fromTx ? formFromTx(fromTx) : emptyForm(),
+    )
+    setFormVersion(version => version + 1)
     setApplyToExisting(true)
+    setAddedGroupKey(null)
+    setFocusedGroupKey(null)
     setPreview(null)
     setError(null)
-    setAdvancedAnimating(false)
-    setShowAdvanced(
-      Boolean(
-        next.minAmount ||
-        next.maxAmount ||
-        next.currency ||
-        next.fromDate ||
-        next.toDate ||
-        next.dayFrom ||
-        next.dayTo ||
-        next.entities.length ||
-        next.ibans.length,
-      ),
-    )
   }, [isOpen, rule, fromTx])
+
+  const selectedIbans = useMemo(
+    () => form.groups.flatMap(group => group.ibans),
+    [form.groups],
+  )
 
   const accountOptions = useMemo<MultiSelectOption[]>(() => {
     const options = new Map<string, MultiSelectOption>()
@@ -262,13 +128,13 @@ export function LabelingRuleDialog({
         })
       }),
     )
-    form.ibans.forEach(iban => {
+    selectedIbans.forEach(iban => {
       if (!options.has(iban)) {
         options.set(iban, { value: iban, label: shortIban(iban) })
       }
     })
     return [...options.values()]
-  }, [positionsData, form.ibans])
+  }, [positionsData, selectedIbans])
 
   const entityOptions = useMemo(
     () =>
@@ -280,18 +146,55 @@ export function LabelingRuleDialog({
     [entities],
   )
 
+  const resetFeedback = () => {
+    setPreview(null)
+    setError(null)
+  }
+
   const update = <K extends keyof RuleFormState>(
     key: K,
     value: RuleFormState[K],
   ) => {
     setForm(prev => ({ ...prev, [key]: value }))
-    setPreview(null)
-    setError(null)
+    resetFeedback()
+  }
+
+  const updateGroup = (key: string, patch: Partial<ConditionGroupForm>) => {
+    setForm(prev => ({
+      ...prev,
+      groups: prev.groups.map(group =>
+        group.key === key ? { ...group, ...patch } : group,
+      ),
+    }))
+    resetFeedback()
+  }
+
+  const addGroup = () => {
+    const group = emptyGroup()
+    setForm(prev =>
+      prev.groups.length >= MAX_CONDITION_GROUPS
+        ? prev
+        : { ...prev, groups: [...prev.groups, group] },
+    )
+    setAddedGroupKey(group.key)
+    resetFeedback()
+  }
+
+  const removeGroup = (key: string) => {
+    setForm(prev =>
+      prev.groups.length <= 1
+        ? prev
+        : { ...prev, groups: prev.groups.filter(group => group.key !== key) },
+    )
+    resetFeedback()
   }
 
   const conditions = useMemo(() => buildConditions(form), [form])
   const isTransfer = form.kind === LabelingRuleKind.TRANSFER
   const canChooseKind = !rule && !fromTx
+  const primaryGroup = form.groups[0]
+  const hasAlternatives = form.groups.length > 1
+  const canAddGroup = form.groups.length < MAX_CONDITION_GROUPS
 
   const changeKind = (kind: LabelingRuleKind) => {
     if (kind === form.kind) return
@@ -306,8 +209,7 @@ export function LabelingRuleDialog({
           ? [transferLabel.id]
           : prev.labelIds,
     }))
-    setPreview(null)
-    setError(null)
+    resetFeedback()
   }
 
   const validate = (): boolean => {
@@ -319,8 +221,26 @@ export function LabelingRuleDialog({
       }
       return true
     }
-    if (!hasAnyCondition(conditions)) {
-      setError(t.labels.rules.conditionRequired)
+    const emptyIndex = conditions.findIndex(group => !hasAnyCondition(group))
+    if (emptyIndex >= 0) {
+      setError(
+        conditions.length === 1
+          ? t.labels.rules.conditionRequired
+          : t.labels.rules.alternativeConditionRequired.replace(
+              "{index}",
+              `${emptyIndex + 1}`,
+            ),
+      )
+      return false
+    }
+    if (
+      conditions.some(
+        group => (group.text?.values.length ?? 0) > MAX_TEXT_VALUES,
+      )
+    ) {
+      setError(
+        t.labels.rules.maxTextValues.replace("{max}", `${MAX_TEXT_VALUES}`),
+      )
       return false
     }
     return true
@@ -381,24 +301,6 @@ export function LabelingRuleDialog({
       setSaving(false)
     }
   }
-
-  const accountsField = (
-    <div className="space-y-1.5 sm:col-span-2">
-      <FieldLabel className="block">{t.labels.rules.accounts}</FieldLabel>
-      <MultiSelect
-        options={accountOptions}
-        value={form.ibans}
-        onChange={value => update("ibans", value)}
-        placeholder={t.labels.rules.anyAccount}
-        disabled={saving}
-      />
-      <p className="text-xs text-muted-foreground">
-        {isTransfer
-          ? t.labels.rules.transferAccountsHint
-          : t.labels.rules.accountsHint}
-      </p>
-    </div>
-  )
 
   return (
     <LabelingModal
@@ -571,16 +473,20 @@ export function LabelingRuleDialog({
               <FieldLabel>{t.labels.rules.amount}</FieldLabel>
               <div className="flex items-center gap-2">
                 <DecimalInput
-                  value={form.minAmount}
-                  onStringChange={value => update("minAmount", value)}
+                  value={primaryGroup.minAmount}
+                  onStringChange={minAmount =>
+                    updateGroup(primaryGroup.key, { minAmount })
+                  }
                   placeholder={t.labels.rules.min}
                   aria-label={t.labels.rules.minAmount}
                   disabled={saving}
                 />
                 <span className="text-muted-foreground">–</span>
                 <DecimalInput
-                  value={form.maxAmount}
-                  onStringChange={value => update("maxAmount", value)}
+                  value={primaryGroup.maxAmount}
+                  onStringChange={maxAmount =>
+                    updateGroup(primaryGroup.key, { maxAmount })
+                  }
                   placeholder={t.labels.rules.max}
                   aria-label={t.labels.rules.maxAmount}
                   disabled={saving}
@@ -593,11 +499,13 @@ export function LabelingRuleDialog({
               </FieldLabel>
               <Input
                 id="rule-currency"
-                value={form.currency}
+                value={primaryGroup.currency}
                 maxLength={10}
                 placeholder={t.labels.rules.anyCurrency}
                 onChange={event =>
-                  update("currency", event.target.value.toUpperCase())
+                  updateGroup(primaryGroup.key, {
+                    currency: event.target.value.toUpperCase(),
+                  })
                 }
                 disabled={saving}
               />
@@ -608,8 +516,10 @@ export function LabelingRuleDialog({
               </FieldLabel>
               <EntitySelector
                 entities={entityOptions}
-                selectedEntityIds={form.entities}
-                onSelectionChange={value => update("entities", value)}
+                selectedEntityIds={primaryGroup.entities}
+                onSelectionChange={entities =>
+                  updateGroup(primaryGroup.key, { entities })
+                }
                 disabled={saving}
                 className="max-w-none"
               />
@@ -617,246 +527,130 @@ export function LabelingRuleDialog({
                 {t.labels.rules.transferEntitiesHint}
               </p>
             </div>
-            {accountsField}
+            <RuleAccountsField
+              value={primaryGroup.ibans}
+              onChange={ibans => updateGroup(primaryGroup.key, { ibans })}
+              options={accountOptions}
+              hint={t.labels.rules.transferAccountsHint}
+              disabled={saving}
+            />
           </div>
         </div>
       ) : (
         <div className="space-y-4 border-t border-border pt-4">
-          <h3 className="text-sm font-semibold">{t.labels.rules.when}</h3>
-
-          <div className="space-y-2">
-            <FieldLabel htmlFor="rule-text-value">
-              {t.labels.rules.textValue}
-            </FieldLabel>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <select
-                aria-label={t.labels.rules.textOperator}
-                value={form.textOperator}
-                onChange={event =>
-                  update(
-                    "textOperator",
-                    event.target.value as TextMatchOperator,
-                  )
-                }
-                className={cn(SELECT_CLASS, "sm:w-48 sm:shrink-0")}
-                disabled={saving}
-              >
-                {Object.values(TextMatchOperator).map(operator => (
-                  <option key={operator} value={operator}>
-                    {t.labels.rules.operators[operator]}
-                  </option>
-                ))}
-              </select>
-              <Input
-                id="rule-text-value"
-                data-testid="rule-text-value"
-                value={form.textValue}
-                maxLength={200}
-                placeholder={t.labels.rules.textValuePlaceholder}
-                onChange={event => update("textValue", event.target.value)}
-                className={cn(
-                  "flex-1",
-                  form.textOperator === TextMatchOperator.REGEX && "font-mono",
-                )}
-                disabled={saving}
-              />
-            </div>
-            <div
-              className="flex flex-wrap items-center gap-1.5"
-              role="radiogroup"
-              aria-label={t.labels.rules.textField}
-            >
-              <span className="mr-1 text-xs text-muted-foreground">
-                {t.labels.rules.lookIn}
-              </span>
-              {Object.values(TextMatchField).map(field => (
-                <button
-                  key={field}
-                  type="button"
-                  role="radio"
-                  aria-checked={form.textField === field}
-                  onClick={() => update("textField", field)}
-                  disabled={saving}
-                  className={pillClass(form.textField === field)}
-                >
-                  {t.labels.rules.fields[field]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <FieldLabel>{t.transactions.transactionTypes}</FieldLabel>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                aria-pressed={form.types.length === 0}
-                onClick={() => update("types", [])}
-                disabled={saving}
-                className={pillClass(form.types.length === 0)}
-              >
-                {t.labels.rules.anyType}
-              </button>
-              {LABELABLE_TX_TYPES.map(type => {
-                const selected = form.types.includes(type)
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() =>
-                      update(
-                        "types",
-                        selected
-                          ? form.types.filter(value => value !== type)
-                          : [...form.types, type],
-                      )
-                    }
-                    disabled={saving}
-                    className={pillClass(selected)}
-                  >
-                    {getIconForTxType(type, "h-3.5 w-3.5")}
-                    {t.enums.transactionType[type] ?? type}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(prev => !prev)}
-            aria-expanded={showAdvanced}
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            {t.labels.rules.moreConditions}
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 transition-transform",
-                showAdvanced && "rotate-180",
-              )}
-            />
-          </button>
-
-          <AnimatePresence initial={false}>
-            {showAdvanced && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                onAnimationStart={() => setAdvancedAnimating(true)}
-                onAnimationComplete={() => setAdvancedAnimating(false)}
-                className={cn(advancedAnimating && "overflow-hidden")}
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <FieldLabel>{t.labels.rules.amount}</FieldLabel>
-                    <div className="flex items-center gap-2">
-                      <DecimalInput
-                        value={form.minAmount}
-                        onStringChange={value => update("minAmount", value)}
-                        placeholder={t.labels.rules.min}
-                        aria-label={t.labels.rules.minAmount}
-                        disabled={saving}
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <DecimalInput
-                        value={form.maxAmount}
-                        onStringChange={value => update("maxAmount", value)}
-                        placeholder={t.labels.rules.max}
-                        aria-label={t.labels.rules.maxAmount}
-                        disabled={saving}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <FieldLabel htmlFor="rule-currency">
-                      {t.transactions.currency}
-                    </FieldLabel>
-                    <Input
-                      id="rule-currency"
-                      value={form.currency}
-                      maxLength={10}
-                      placeholder={t.labels.rules.anyCurrency}
-                      onChange={event =>
-                        update("currency", event.target.value.toUpperCase())
-                      }
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <FieldLabel className="block">
-                      {t.labels.rules.dateRange}
-                    </FieldLabel>
-                    <div className="flex items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <DatePicker
-                          value={form.fromDate}
-                          onChange={value => update("fromDate", value)}
-                          placeholder={t.transactions.fromDate}
-                          disabled={saving}
-                        />
-                      </div>
-                      <span className="text-muted-foreground">–</span>
-                      <div className="min-w-0 flex-1">
-                        <DatePicker
-                          value={form.toDate}
-                          onChange={value => update("toDate", value)}
-                          placeholder={t.transactions.toDate}
-                          disabled={saving}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <FieldLabel>{t.labels.rules.dayOfMonth}</FieldLabel>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={31}
-                        value={form.dayFrom}
-                        placeholder="1"
-                        onChange={event =>
-                          update("dayFrom", event.target.value)
-                        }
-                        aria-label={t.labels.rules.dayFrom}
-                        disabled={saving}
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={31}
-                        value={form.dayTo}
-                        placeholder="31"
-                        onChange={event => update("dayTo", event.target.value)}
-                        aria-label={t.labels.rules.dayTo}
-                        disabled={saving}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t.labels.rules.dayOfMonthHint}
-                    </p>
-                  </div>
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <FieldLabel className="block">
-                      {t.transactions.entities}
-                    </FieldLabel>
-                    <EntitySelector
-                      entities={entityOptions}
-                      selectedEntityIds={form.entities}
-                      onSelectionChange={value => update("entities", value)}
-                      disabled={saving}
-                      className="max-w-none"
-                    />
-                  </div>
-                  {accountsField}
-                </div>
-              </motion.div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">{t.labels.rules.when}</h3>
+            {hasAlternatives && (
+              <p className="text-xs text-muted-foreground">
+                {t.labels.rules.alternativesHint}
+              </p>
             )}
-          </AnimatePresence>
+          </div>
+
+          <div key={formVersion}>
+            <AnimatePresence initial={false}>
+              {form.groups.map((group, index) => (
+                <motion.div
+                  key={group.key}
+                  initial={{ height: 0, opacity: 0, overflow: "hidden" }}
+                  animate={{
+                    height: "auto",
+                    opacity: 1,
+                    overflow: "hidden",
+                    transitionEnd: { overflow: "visible" },
+                  }}
+                  exit={{ height: 0, opacity: 0, overflow: "hidden" }}
+                  transition={{
+                    duration: reducedMotion ? 0 : 0.22,
+                    ease: "easeInOut",
+                  }}
+                  onAnimationComplete={() => {
+                    if (group.key === addedGroupKey) {
+                      setFocusedGroupKey(group.key)
+                    }
+                  }}
+                >
+                  <div className={cn("space-y-4", index > 0 && "pt-4")}>
+                    {index > 0 && (
+                      <div
+                        className="flex items-center gap-3"
+                        data-testid="rule-or-divider"
+                      >
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {t.labels.rules.or}
+                        </span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                    )}
+                    <div
+                      data-testid="rule-condition-group"
+                      className={cn(
+                        hasAlternatives &&
+                          "space-y-3 sm:rounded-lg sm:border sm:border-border sm:p-4",
+                      )}
+                    >
+                      {hasAlternatives && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {t.labels.rules.alternative.replace(
+                              "{index}",
+                              `${index + 1}`,
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeGroup(group.key)}
+                            disabled={saving}
+                            aria-label={t.labels.rules.removeAlternative.replace(
+                              "{index}",
+                              `${index + 1}`,
+                            )}
+                            title={t.labels.rules.removeAlternative.replace(
+                              "{index}",
+                              `${index + 1}`,
+                            )}
+                            className="-mr-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                      <RuleConditionGroupFields
+                        group={group}
+                        onChange={patch => updateGroup(group.key, patch)}
+                        entityOptions={entityOptions}
+                        accountOptions={accountOptions}
+                        disabled={saving}
+                        focusText={group.key === focusedGroupKey}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={addGroup}
+              disabled={saving || !canAddGroup}
+              data-testid="rule-add-alternative"
+              className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t.labels.rules.addAlternative}
+            </button>
+            {!canAddGroup && (
+              <span className="text-xs text-muted-foreground">
+                {t.labels.rules.maxAlternatives.replace(
+                  "{max}",
+                  `${MAX_CONDITION_GROUPS}`,
+                )}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

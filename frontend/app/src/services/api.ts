@@ -473,7 +473,7 @@ export async function deleteLabelingRule(ruleId: string): Promise<void> {
 }
 
 export async function previewLabelingRule(
-  conditions: LabelingRuleConditions,
+  conditions: LabelingRuleConditions[],
   limit = 10,
 ): Promise<LabelingRulePreview> {
   return (await getApiClient()).post("/labeling/rules/preview", {
