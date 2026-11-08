@@ -2,6 +2,7 @@ import {
   EntitiesResponse,
   LoginRequest,
   FetchRequest,
+  Feature,
   FetchResponse,
   LoginResponse,
   AuthRequest,
@@ -472,7 +473,7 @@ export async function deleteLabelingRule(ruleId: string): Promise<void> {
 }
 
 export async function previewLabelingRule(
-  conditions: LabelingRuleConditions,
+  conditions: LabelingRuleConditions[],
   limit = 10,
 ): Promise<LabelingRulePreview> {
   return (await getApiClient()).post("/labeling/rules/preview", {
@@ -1079,8 +1080,12 @@ export async function disconnectExternalEntity(
 
 export async function fetchExternalEntity(
   externalEntityId: string,
+  options?: { features: Feature[]; deep?: boolean },
 ): Promise<FetchResponse> {
-  return (await getApiClient()).post(`/data/fetch/external/${externalEntityId}`)
+  return (await getApiClient()).post(
+    `/data/fetch/external/${externalEntityId}`,
+    options,
+  )
 }
 
 export async function getInstruments(

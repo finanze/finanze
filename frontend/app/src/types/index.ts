@@ -20,6 +20,7 @@ import type {
   AutoUpdateProgressInfo,
 } from "./release"
 import { Transactions } from "./transactions"
+import type { AccountAssetConfig } from "./accountExclusions"
 
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
@@ -521,6 +522,7 @@ export interface Settings {
     }
   }
   assets: {
+    accounts?: AccountAssetConfig
     crypto: {
       stablecoins: string[]
       hideUnknownTokens: boolean

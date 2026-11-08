@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
+from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_fetcher import (
     ExternalEntityFetcher,
@@ -13,6 +14,7 @@ from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.ports.transaction_label_port import TransactionLabelPort
 from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from application.use_cases.fetch_financial_data import handle_cooldown
@@ -36,13 +38,15 @@ from domain.external_integration import (
     ExternalIntegrationId,
     ExternalIntegrationType,
 )
-from domain.fetch_record import FetchRecord
+from domain.fetch_exclusions import FetchExclusions
+from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_result import (
     FetchedData,
     FetchResult,
     FetchResultCode,
 )
 from domain.labeling import LabelingTrigger
+from domain.settings import SettingsSection
 from domain.transactions import (
     ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
     AccountTxSelection,
@@ -68,6 +72,8 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         transaction_handler_port: TransactionHandlerPort,
         transaction_port: TransactionPort,
         transaction_labeler: TransactionLabeler,
+        config_port: ConfigPort,
+        transaction_label_port: TransactionLabelPort,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
@@ -78,6 +84,8 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         self._transaction_handler_port = transaction_handler_port
         self._transaction_port = transaction_port
         self._transaction_labeler = transaction_labeler
+        self._config_port = config_port
+        self._transaction_label_port = transaction_label_port
 
         self._lock = Lock()
 
@@ -98,17 +106,41 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         if external_entity.status != ExternalEntityStatus.LINKED:
             return FetchResult(FetchResultCode.LINK_EXPIRED)
 
+        features = (
+            fetch_request.features
+            if fetch_request.features is not None
+            else [Feature.POSITION, Feature.TRANSACTIONS]
+        )
+        if not features or any(
+            feature not in (Feature.POSITION, Feature.TRANSACTIONS)
+            for feature in features
+        ):
+            return FetchResult(FetchResultCode.FEATURE_NOT_SUPPORTED)
+
         if self._lock.locked():
             raise ExecutionConflict()
 
         async with self._lock:
             last_fetch = await self._last_fetches_port.get_by_entity_id(entity_id)
-            result = handle_cooldown(
-                [r for r in last_fetch or [] if r.feature == Feature.POSITION],
-                self.EXTERNALLY_PROVIDED_POSITION_UPDATE_COOLDOWN,
-            )
-            if result:
-                return result
+            if Feature.POSITION in features:
+                result = handle_cooldown(
+                    [r for r in last_fetch or [] if r.feature == Feature.POSITION],
+                    self.EXTERNALLY_PROVIDED_POSITION_UPDATE_COOLDOWN,
+                )
+                if result:
+                    return result
+            elif not self._transactions_due(last_fetch):
+                result = handle_cooldown(
+                    [r for r in last_fetch or [] if r.feature == Feature.TRANSACTIONS],
+                    self.EXTERNALLY_PROVIDED_TRANSACTIONS_UPDATE_COOLDOWN,
+                )
+                if result:
+                    return result
+
+            settings = await self._config_port.load_sections({SettingsSection.ASSETS})
+            if settings.assets is None:
+                raise ValueError("Missing asset settings")
+            exclusions = FetchExclusions(settings.assets.accounts.exclusions)
 
             external_entity_provider = external_entity.provider
             provider = self._external_entity_fetchers[external_entity_provider]
@@ -120,38 +152,47 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
             )
             await provider.setup(enabled_integrations)
 
-            try:
-                fetch_request = ExternalEntityFetchRequest(
-                    external_entity=external_entity,
-                    entity=entity,
-                )
-                position = await provider.global_position(fetch_request)
-
-                async with self._transaction_handler_port.start():
+            position = None
+            completed = []
+            if Feature.POSITION in features:
+                try:
+                    position = await provider.global_position(
+                        ExternalEntityFetchRequest(
+                            external_entity=external_entity,
+                            entity=entity,
+                        )
+                    )
                     if position:
-                        await self._position_port.save(position)
+                        exclusions.apply_to_position(position)
 
-                    await self._update_last_fetch(entity_id, [Feature.POSITION])
+                    async with self._transaction_handler_port.start():
+                        if position:
+                            await self._position_port.save(position)
+                        await self._update_last_fetch(entity_id, [Feature.POSITION])
+                    completed.append(Feature.POSITION)
+                except ExternalEntityFailed:
+                    return FetchResult(FetchResultCode.REMOTE_FAILED)
+                except ExternalEntityLinkExpired:
+                    await self._external_entity_port.update_status(
+                        external_entity_id, ExternalEntityStatus.UNLINKED
+                    )
+                    return FetchResult(FetchResultCode.LINK_EXPIRED)
 
-            except ExternalEntityFailed:
-                return FetchResult(FetchResultCode.REMOTE_FAILED)
-            except ExternalEntityLinkExpired:
-                await self._external_entity_port.update_status(
-                    external_entity_id, ExternalEntityStatus.UNLINKED
-                )
-                return FetchResult(FetchResultCode.LINK_EXPIRED)
-
-            completed = [Feature.POSITION]
             failed = []
             transactions = None
-            if self._transactions_due(last_fetch):
+            if Feature.TRANSACTIONS in features and self._transactions_due(last_fetch):
                 try:
                     transactions = await self._fetch_and_store_transactions(
-                        provider, external_entity, entity
+                        provider,
+                        external_entity,
+                        entity,
+                        exclusions,
+                        fetch_request.deep,
                     )
                     completed.append(Feature.TRANSACTIONS)
                 except FeatureNotSupported:
-                    pass
+                    if not completed:
+                        return FetchResult(FetchResultCode.FEATURE_NOT_SUPPORTED)
                 except Exception as e:
                     self._log.warning(
                         f"Transactions fetch failed for external entity {external_entity_id}: {e}"
@@ -163,7 +204,11 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
             if failed:
                 details["failedFeatures"] = [f.value for f in failed]
                 return FetchResult(
-                    FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
+                    FetchResultCode.PARTIALLY_COMPLETED
+                    if completed
+                    else FetchResultCode.REMOTE_FAILED,
+                    data=data,
+                    details=details,
                 )
             return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
 
@@ -181,8 +226,14 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         provider: ExternalEntityFetcher,
         external_entity: ExternalEntity,
         entity: Entity,
+        exclusions: FetchExclusions,
+        deep: bool,
     ) -> Transactions:
-        latest = await self._transaction_port.get_latest_account_tx_date(entity.id)
+        latest = (
+            None
+            if deep
+            else await self._transaction_port.get_latest_account_tx_date(entity.id)
+        )
         if latest:
             from_date = latest.date() - timedelta(days=TRANSACTIONS_OVERLAP_DAYS)
         else:
@@ -190,7 +241,11 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
                 days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS
             )
 
-        registered = await self._transaction_port.get_refs_by_entity(entity.id)
+        registered = (
+            set()
+            if deep
+            else await self._transaction_port.get_refs_by_entity(entity.id)
+        )
         transactions = await provider.transactions(
             ExternalEntityTxFetchRequest(
                 external_entity=external_entity,
@@ -199,6 +254,7 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
                 registered_txs=registered,
             )
         )
+        exclusions.apply_to_transactions(transactions)
         new_txs = []
         seen = set(registered)
         for tx in transactions.account or []:
@@ -208,17 +264,47 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
             new_txs.append(tx)
 
         new_ids = [tx.id for tx in new_txs]
+        previous = {}
         async with self._transaction_handler_port.start():
+            if deep:
+                existing = await self._transaction_port.get_by_entity_and_source(
+                    entity.id, DataSource.REAL
+                )
+                existing_txs = existing.account or []
+                classifications = (
+                    await self._transaction_label_port.get_classifications_by_ids(
+                        [tx.id for tx in existing_txs]
+                    )
+                )
+                previous = {
+                    (tx.entity.id, tx.ref): classifications[tx.id]
+                    for tx in existing_txs
+                    if tx.id in classifications
+                }
+                await self._transaction_port.delete_by_entity_and_source(
+                    entity.id, DataSource.REAL
+                )
             if new_txs:
                 await self._transaction_port.save(Transactions(account=new_txs))
+                if previous:
+                    await self._transaction_label_port.restore(
+                        {
+                            tx.id: previous[(tx.entity.id, tx.ref)]
+                            for tx in new_txs
+                            if (tx.entity.id, tx.ref) in previous
+                        }
+                    )
                 await self._transaction_labeler.classify(
                     AccountTxSelection(ids=new_ids)
                 )
             await self._update_last_fetch(entity.id, [Feature.TRANSACTIONS])
 
-        if new_ids:
+        external_ids = [
+            tx.id for tx in new_txs if (tx.entity.id, tx.ref) not in previous
+        ]
+        if external_ids:
             await self._transaction_labeler.classify_external(
-                AccountTxSelection(ids=new_ids), LabelingTrigger.AUTO
+                AccountTxSelection(ids=external_ids), LabelingTrigger.AUTO
             )
         return Transactions(investment=[], account=new_txs)
 

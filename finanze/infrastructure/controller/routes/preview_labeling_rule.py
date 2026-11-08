@@ -1,6 +1,6 @@
 from domain.labeling import LabelingRulePreviewRequest
 from domain.use_cases.preview_labeling_rule import PreviewLabelingRule
-from infrastructure.controller.mappers.labeling_mapper import map_conditions
+from infrastructure.controller.mappers.labeling_mapper import map_condition_groups
 from quart import jsonify, request
 
 
@@ -8,7 +8,7 @@ async def preview_labeling_rule(preview_labeling_rule_uc: PreviewLabelingRule):
     body = await request.get_json()
     try:
         preview_request = LabelingRulePreviewRequest(
-            conditions=map_conditions(body.get("conditions") or {}),
+            conditions=map_condition_groups(body.get("conditions")),
             limit=int(body.get("limit", 10)),
         )
     except (KeyError, ValueError, TypeError, AttributeError) as e:

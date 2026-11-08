@@ -37,8 +37,10 @@ from domain.labeling import (
     LabelingRule,
     LabelingRuleKind,
     LabelingTrigger,
-    conditions_match,
+    candidate_selection,
+    groups_match,
     matching_rules,
+    transfer_conditions,
 )
 from domain.settings import ExternalLabelingConfig, SettingsSection
 from domain.settlement import SETTLEMENT_MAX_DAYS, match_settlements
@@ -162,23 +164,13 @@ class TransactionLabelerAdapter(TransactionLabeler):
         if not rule.enabled or not rule.label_ids:
             return 0
 
-        conditions = rule.conditions
-        types = [t for t in (conditions.types or LABELABLE_TX_TYPES)]
-        txs = await self._transaction_port.get_account_txs(
-            AccountTxSelection(
-                from_date=conditions.from_date,
-                to_date=conditions.to_date,
-                entities=conditions.entities,
-                types=types,
-                include_locked=False,
-                include_linked=False,
-            )
-        )
+        groups = rule.conditions
+        txs = await self._transaction_port.get_account_txs(candidate_selection(groups))
 
         applied = 0
         async with self._transaction_handler_port.start():
             for tx in txs:
-                if not conditions_match(conditions, tx):
+                if not groups_match(groups, tx):
                     continue
                 if any(
                     label.origin == LabelOrigin.EXTERNAL for label in tx.labels or []
@@ -504,7 +496,9 @@ class TransactionLabelerAdapter(TransactionLabeler):
         candidates = [tx for tx in txs if is_pairable(tx)]
         paired = 0
         if candidates:
-            gap = timedelta(days=max(transfer_max_days(r.conditions) for r in rules))
+            gap = timedelta(
+                days=max(transfer_max_days(transfer_conditions(r)) for r in rules)
+            )
             pool = await self._transaction_port.get_account_txs(
                 AccountTxSelection(
                     from_date=min(tx.date.date() for tx in candidates) - gap,
@@ -519,7 +513,7 @@ class TransactionLabelerAdapter(TransactionLabeler):
             taken: set[UUID] = set()
 
             for rule in rules:
-                pairs = match_transfers(candidates, pool, rule.conditions)
+                pairs = match_transfers(candidates, pool, transfer_conditions(rule))
                 if not pairs:
                     continue
                 labels = _rule_labels(rule)
@@ -556,16 +550,17 @@ class TransactionLabelerAdapter(TransactionLabeler):
                 )
                 return 0
 
+            conditions = transfer_conditions(rule)
             txs = await self._transaction_port.get_account_txs(
                 AccountTxSelection(
-                    entities=rule.conditions.entities,
+                    entities=conditions.entities,
                     types=list(TRANSFER_TX_TYPES),
                     include_locked=False,
                     include_linked=False,
                 )
             )
             pairable = [tx for tx in txs if is_pairable(tx)]
-            for outflow, inflow in match_transfers(pairable, pairable, rule.conditions):
+            for outflow, inflow in match_transfers(pairable, pairable, conditions):
                 await self._transaction_label_port.add_transfer_pair(
                     outflow.id, inflow.id, rule.id
                 )

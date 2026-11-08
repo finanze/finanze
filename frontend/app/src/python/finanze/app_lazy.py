@@ -553,6 +553,8 @@ class LazyComponents:
                 d.tx_handler,
                 d.tx_repo,
                 transaction_labeler,
+                d.settings_repository,
+                tx_label_repo,
             )
 
             market_forecast_provider = polymarket_fetcher

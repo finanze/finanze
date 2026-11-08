@@ -203,10 +203,11 @@ async def _create_rule(
     env, conditions, label_ids, apply_to_existing=False, kind=LabelingRuleKind.MATCH
 ):
     uc = CreateLabelingRuleImpl(env.rule_repo, env.label_repo, env.labeler, env.handler)
+    groups = conditions if isinstance(conditions, list) else [conditions]
     return await uc.execute(
         SaveLabelingRuleRequest(
             rule=LabelingRule(
-                id=None, conditions=conditions, label_ids=label_ids, kind=kind
+                id=None, conditions=groups, label_ids=label_ids, kind=kind
             ),
             apply_to_existing=apply_to_existing,
         )
@@ -231,7 +232,7 @@ async def test_migration_seeds_base_labels_and_default_rules(env):
 
     rules = await env.rule_repo.get_all()
     match_rules = [rule for rule in rules if rule.kind == LabelingRuleKind.MATCH]
-    assert {tuple(rule.conditions.types) for rule in match_rules} == {
+    assert {tuple(rule.conditions[0].types) for rule in match_rules} == {
         (TxType.INTEREST,),
         (TxType.FEE,),
     }
@@ -239,7 +240,7 @@ async def test_migration_seeds_base_labels_and_default_rules(env):
     transfer_rules = [rule for rule in rules if rule.kind == LabelingRuleKind.TRANSFER]
     assert len(transfer_rules) == 1
     assert transfer_rules[0].enabled
-    assert transfer_rules[0].conditions.max_days == 3
+    assert transfer_rules[0].conditions[0].max_days == 3
     assert transfer_rules[0].label_ids == [await env.label_id("internal_transfer")]
 
 
@@ -248,7 +249,7 @@ async def test_classify_applies_matching_rules_and_default_interest_rule(env):
     groceries = await env.label_id("groceries")
     await _create_rule(
         env,
-        LabelingRuleConditions(text=TextCondition(value="Mercadóna")),
+        LabelingRuleConditions(text=TextCondition(values=["Mercadóna"])),
         [groceries],
     )
     purchase = env.account_tx("MERCADONA VALENCIA", "45.20")
@@ -274,7 +275,7 @@ async def test_classify_applies_matching_rules_and_default_interest_rule(env):
 async def test_classify_skips_locked_transactions(env):
     groceries = await env.label_id("groceries")
     await _create_rule(
-        env, LabelingRuleConditions(text=TextCondition(value="market")), [groceries]
+        env, LabelingRuleConditions(text=TextCondition(values=["market"])), [groceries]
     )
     tx = env.account_tx("Market", "10", labels_locked=True)
     await env.save(tx)
@@ -328,7 +329,7 @@ async def test_create_rule_apply_to_existing_and_delete_rule_removes_labels(env)
     saved = await _create_rule(
         env,
         LabelingRuleConditions(
-            text=TextCondition(value="netflix"), types=[TxType.OUTFLOW]
+            text=TextCondition(values=["netflix"]), types=[TxType.OUTFLOW]
         ),
         [subscriptions],
         apply_to_existing=True,
@@ -351,7 +352,7 @@ async def test_update_transaction_labels_locks_and_unlock_reapplies_rules(env):
     groceries = await env.label_id("groceries")
     leisure = await env.label_id("leisure")
     await _create_rule(
-        env, LabelingRuleConditions(text=TextCondition(value="lidl")), [groceries]
+        env, LabelingRuleConditions(text=TextCondition(values=["lidl"])), [groceries]
     )
     tx = env.account_tx("LIDL", "30")
     await env.save(tx)
@@ -390,7 +391,7 @@ async def test_relabel_filters_by_labels_and_dry_run(env):
         [TxLabel(label_id=shopping, origin=LabelOrigin.RULE)],
     )
     await _create_rule(
-        env, LabelingRuleConditions(text=TextCondition(value="shop")), [groceries]
+        env, LabelingRuleConditions(text=TextCondition(values=["shop"])), [groceries]
     )
 
     uc = RelabelTransactionsImpl(
@@ -1062,7 +1063,9 @@ async def test_relabel_keeps_external_labels_when_model_is_no_longer_available(e
         ],
     )
     await _create_rule(
-        env, LabelingRuleConditions(text=TextCondition(value="mercadona")), [groceries]
+        env,
+        LabelingRuleConditions(text=TextCondition(values=["mercadona"])),
+        [groceries],
     )
 
     result = await RelabelTransactionsImpl(
@@ -1468,7 +1471,7 @@ async def test_classify_pairs_transfers_between_entities(env):
     rule = await _transfer_rule(env)
     await _create_rule(
         env,
-        LabelingRuleConditions(text=TextCondition(value="transfer")),
+        LabelingRuleConditions(text=TextCondition(values=["transfer"])),
         [other_income],
     )
     outflow = env.account_tx("Transfer to broker", "500", day=10)
@@ -1717,15 +1720,92 @@ async def test_rule_with_iban_condition_only_labels_that_account(env):
 
     saved = await _create_rule(
         env,
-        LabelingRuleConditions(text=TextCondition(value="market"), ibans=[CHECKING]),
+        LabelingRuleConditions(text=TextCondition(values=["market"]), ibans=[CHECKING]),
         [groceries],
         apply_to_existing=True,
     )
 
     assert saved.applied == 1
-    assert saved.rule.conditions.ibans == [CHECKING]
+    assert saved.rule.conditions[0].ibans == [CHECKING]
     stored_rule = await env.rule_repo.get_by_id(saved.rule.id)
-    assert stored_rule.conditions.ibans == [CHECKING]
+    assert stored_rule.conditions[0].ibans == [CHECKING]
     assert [label.label_id for label in await env.labels_of(checking.id)] == [groceries]
     assert await env.labels_of(savings.id) == []
     assert await env.labels_of(unknown.id) == []
+
+
+@pytest.mark.asyncio
+async def test_rule_with_alternative_groups_and_multiple_text_values(env):
+    groceries = await env.label_id("groceries")
+    mercadona = env.account_tx("MERCADONA VALENCIA", "30", day=5)
+    lidl = env.account_tx("Lidl Madrid", "15", day=6)
+    broker_cinema = env.account_tx("Cinema", "60", day=7, entity=env.broker)
+    bank_cinema = env.account_tx("Cinema", "60", day=8)
+    cheap_cinema = env.account_tx("Cinema", "20", day=9, entity=env.broker)
+    other = env.account_tx("Gym", "30", day=10)
+    await env.save(mercadona, lidl, broker_cinema, bank_cinema, cheap_cinema, other)
+
+    saved = await _create_rule(
+        env,
+        [
+            LabelingRuleConditions(
+                text=TextCondition(values=["mercadona", "lidl"]),
+            ),
+            LabelingRuleConditions(
+                text=TextCondition(values=["cinema"]),
+                entities=[env.broker.id],
+                min_amount=Dezimal(50),
+            ),
+        ],
+        [groceries],
+        apply_to_existing=True,
+    )
+
+    assert saved.applied == 3
+    for tx in (mercadona, lidl, broker_cinema):
+        assert [label.label_id for label in await env.labels_of(tx.id)] == [groceries]
+    for tx in (bank_cinema, cheap_cinema, other):
+        assert await env.labels_of(tx.id) == []
+
+    stored_rule = await env.rule_repo.get_by_id(saved.rule.id)
+    assert len(stored_rule.conditions) == 2
+    assert stored_rule.conditions[0].text.values == ["mercadona", "lidl"]
+    assert stored_rule.conditions[1].entities == [env.broker.id]
+
+    new_lidl = env.account_tx("LIDL BARCELONA", "12", day=11)
+    await env.save(new_lidl)
+    result = await env.labeler.classify(AccountTxSelection(ids=[new_lidl.id]))
+    assert result.rule_labeled == 1
+    assert [label.label_id for label in await env.labels_of(new_lidl.id)] == [groceries]
+
+
+@pytest.mark.asyncio
+async def test_rule_groups_with_disjoint_date_ranges_apply_to_both(env):
+    groceries = await env.label_id("groceries")
+    early = env.account_tx("Market", "10", day=3)
+    middle = env.account_tx("Market", "10", day=12)
+    late = env.account_tx("Market", "10", day=22)
+    await env.save(early, middle, late)
+
+    saved = await _create_rule(
+        env,
+        [
+            LabelingRuleConditions(
+                text=TextCondition(values=["market"]),
+                from_date=date(2025, 3, 1),
+                to_date=date(2025, 3, 5),
+            ),
+            LabelingRuleConditions(
+                text=TextCondition(values=["market"]),
+                from_date=date(2025, 3, 20),
+                to_date=date(2025, 3, 25),
+            ),
+        ],
+        [groceries],
+        apply_to_existing=True,
+    )
+
+    assert saved.applied == 2
+    assert [label.label_id for label in await env.labels_of(early.id)] == [groceries]
+    assert [label.label_id for label in await env.labels_of(late.id)] == [groceries]
+    assert await env.labels_of(middle.id) == []

@@ -37,10 +37,57 @@ let currentDbName: string | null = null
 // ---------------------------------------------------------------------------
 type WorkerId = string
 
+const MAIN_WORKER_ID: WorkerId = "main"
+
 let txOwner: WorkerId | null = null
-let connectionOwner: WorkerId | null = null
+let readyDbName: string | null = null
 const spanWaiters: Array<() => void> = []
+const attachWaiters: Array<{
+  workerId: WorkerId
+  resolve: () => void
+  reject: (error: Error) => void
+}> = []
+const blockedAttachWorkers = new Set<WorkerId>()
 let opLock: Promise<void> | null = null
+
+function normalizeDbName(dbName: string): string {
+  return dbName.endsWith(".db") ? dbName.slice(0, -3) : dbName
+}
+
+function waitForSharedConnection(workerId: WorkerId): Promise<void> {
+  return new Promise<void>((resolve, reject) =>
+    attachWaiters.push({ workerId, resolve, reject }),
+  )
+}
+
+function notifySharedConnectionReady(): void {
+  for (const waiter of attachWaiters.splice(0, attachWaiters.length)) {
+    waiter.resolve()
+  }
+}
+
+function rejectAttachWaiters(workerId: WorkerId): void {
+  for (let i = attachWaiters.length - 1; i >= 0; i--) {
+    if (attachWaiters[i].workerId !== workerId) continue
+    const [waiter] = attachWaiters.splice(i, 1)
+    waiter.reject(attachCancelledError())
+  }
+}
+
+function attachCancelledError(): Error {
+  return new Error("[Bridge][sqlite] Shared connection attach cancelled")
+}
+
+// Makes any pending or future attach of a secondary worker fail fast until
+// unblocked, so a disconnect never waits on a connection that may not reopen.
+export function blockSharedConnectionAttach(workerId: string): void {
+  blockedAttachWorkers.add(workerId)
+  rejectAttachWaiters(workerId)
+}
+
+export function unblockSharedConnectionAttach(workerId: string): void {
+  blockedAttachWorkers.delete(workerId)
+}
 
 function waitForSpanRelease(): Promise<void> {
   return new Promise<void>(resolve => spanWaiters.push(resolve))
@@ -248,7 +295,7 @@ async function openDatabase(
   passphrase?: string | null,
 ): Promise<SQLiteDBConnection> {
   const platform = Capacitor.getPlatform()
-  const effectiveDbName = dbName.endsWith(".db") ? dbName.slice(0, -3) : dbName
+  const effectiveDbName = normalizeDbName(dbName)
 
   ;({ encrypted, mode } = coerceOpenDatabaseParamsForPlatform(
     platform,
@@ -608,6 +655,7 @@ async function executeTransaction(
 }
 
 async function closeDatabase(): Promise<void> {
+  readyDbName = null
   const name = currentDbName
   if (currentDb) {
     await persistWebStoreIfNeeded("closeDatabase")
@@ -646,25 +694,10 @@ function createGatedFacade(workerId: WorkerId) {
       readonly: boolean = false,
       passphrase?: string | null,
     ): Promise<SQLiteDBConnection> {
-      return withGate(workerId, async () => {
-        if (connectionOwner === null) {
-          connectionOwner = workerId
-          try {
-            return await openDatabase(
-              dbName,
-              encrypted,
-              mode,
-              version,
-              readonly,
-              passphrase,
-            )
-          } catch (e) {
-            connectionOwner = null
-            throw e
-          }
-        }
-        if (workerId === connectionOwner) {
-          return openDatabase(
+      if (workerId === MAIN_WORKER_ID) {
+        return withGate(workerId, async () => {
+          readyDbName = null
+          const db = await openDatabase(
             dbName,
             encrypted,
             mode,
@@ -672,16 +705,34 @@ function createGatedFacade(workerId: WorkerId) {
             readonly,
             passphrase,
           )
-        }
-        // Non-owner worker: reuse the already-open shared connection. The owner
-        // worker is responsible for the native open/migrations/rekey.
-        if (!currentDb) {
-          throw new Error(
-            "[Bridge][sqlite] Background worker openDatabase: shared connection not ready",
-          )
-        }
-        return currentDb
-      })
+          readyDbName = currentDbName ?? normalizeDbName(dbName)
+          notifySharedConnectionReady()
+          return db
+        })
+      }
+
+      // Secondary workers never open natively (they lack the encryption
+      // secret); they attach to the main worker's connection once it is ready.
+      const requestedDbName = normalizeDbName(dbName)
+      for (;;) {
+        const attempt = await withGate<{
+          db?: SQLiteDBConnection
+          wait?: Promise<void>
+        }>(workerId, async () => {
+          if (blockedAttachWorkers.has(workerId)) throw attachCancelledError()
+          if (readyDbName !== null && currentDb) {
+            if (readyDbName !== requestedDbName) {
+              throw new Error(
+                `[Bridge][sqlite] Shared connection is ${readyDbName}, not ${requestedDbName}`,
+              )
+            }
+            return { db: currentDb }
+          }
+          return { wait: waitForSharedConnection(workerId) }
+        })
+        if (attempt.db) return attempt.db
+        await attempt.wait
+      }
     },
 
     executeSql(
@@ -727,13 +778,10 @@ function createGatedFacade(workerId: WorkerId) {
 
     async closeDatabase(): Promise<void> {
       return withGate(workerId, async () => {
-        if (workerId !== connectionOwner) {
-          // Non-owner worker: drop its local reference only; never tear down the
-          // native connection owned by the main worker.
-          return
-        }
+        // Secondary workers only drop their reference; the main worker owns
+        // the native connection.
+        if (workerId !== MAIN_WORKER_ID) return
         await closeDatabase()
-        connectionOwner = null
       })
     },
 
@@ -750,22 +798,9 @@ function createGatedFacade(workerId: WorkerId) {
       password: string,
       stagingFileName: string,
     ): Promise<{ ok: true }> {
-      return withGate(workerId, async () => {
-        try {
-          return await importDatabaseFromStaging(
-            dbName,
-            password,
-            stagingFileName,
-          )
-        } finally {
-          // importDatabaseFromStaging fully tears down and closes the shared
-          // native connection (currentDb is null afterwards). Relinquish
-          // ownership so the next openDatabase (e.g. the reinitialize call from
-          // any worker) claims it fresh and performs a real native open instead
-          // of hitting the non-owner "shared connection not ready" path.
-          connectionOwner = null
-        }
-      })
+      return withGate(workerId, () =>
+        importDatabaseFromStaging(dbName, password, stagingFileName),
+      )
     },
   }
 }
@@ -783,15 +818,13 @@ export function getSqliteBridge(
   return facade
 }
 
-// Crash-safety: if a worker is terminated mid-span, release any span/ownership
-// it held so the other worker is not blocked forever.
+// Crash-safety: if a worker is terminated mid-span, release any span it held
+// and any pending attach so nothing waits on it forever.
 export function releaseWorkerSpan(workerId: string): void {
   if (txOwner === workerId) {
     releaseSpan()
   }
-  if (connectionOwner === workerId) {
-    connectionOwner = null
-  }
+  rejectAttachWaiters(workerId)
 }
 
 export const sqliteBridge = getSqliteBridge("main")

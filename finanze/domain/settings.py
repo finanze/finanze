@@ -1,9 +1,9 @@
 from dataclasses import field
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from domain.commodity import WeightUnit
-from domain.transactions import LabelOrigin
+from domain.transactions import LabelOrigin, is_valid_iban_format, normalize_iban
 from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass
 
@@ -117,8 +117,40 @@ class CryptoAssetConfig:
 
 
 @dataclass
+class AccountExclusion:
+    type: Literal["IBAN"]
+    value: str
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_iban(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Invalid IBAN")
+        normalized = normalize_iban(value)
+        if not normalized or not is_valid_iban_format(normalized):
+            raise ValueError("Invalid IBAN")
+        return normalized
+
+
+@dataclass
+class AccountAssetConfig:
+    exclusions: list[AccountExclusion] = field(default_factory=list)
+
+    @field_validator("exclusions")
+    @classmethod
+    def unique_exclusions(
+        cls, exclusions: list[AccountExclusion]
+    ) -> list[AccountExclusion]:
+        values = [rule.value for rule in exclusions]
+        if len(values) != len(set(values)):
+            raise ValueError("Duplicate account exclusions")
+        return exclusions
+
+
+@dataclass
 class AssetConfig:
     crypto: CryptoAssetConfig
+    accounts: AccountAssetConfig = field(default_factory=AccountAssetConfig)
 
 
 class EditMode(str, Enum):

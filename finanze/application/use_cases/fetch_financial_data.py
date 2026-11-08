@@ -36,6 +36,7 @@ from domain.native_entity import CredentialType, InternalFeature
 from domain.entity_login import EntityLoginParams, LoginResultCode, TwoFactor
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import DataSource, FetchRecord
+from domain.fetch_exclusions import FetchExclusions
 from domain.fetch_pointer import FetchPointerContext
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
@@ -64,6 +65,7 @@ from domain.historic import (
 from domain.transactions import AccountTxSelection, TxType
 from domain.labeling import LabelingTrigger
 from domain.settlement import settlement_window
+from domain.settings import SettingsSection
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
 DEFAULT_FEATURES = [Feature.POSITION]
@@ -418,10 +420,11 @@ class FetchFinancialDataImpl(FetchFinancialData):
         transactions_ok = False
 
         try:
+            exclusions = await self._load_exclusions()
             if Feature.POSITION in features:
                 try:
                     position = await self._fetch_and_store_position(
-                        entity, specific_fetcher, entity_account_id
+                        entity, specific_fetcher, entity_account_id, exclusions
                     )
                     completed.append(Feature.POSITION)
                 except Exception as e:
@@ -445,7 +448,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             if Feature.TRANSACTIONS in features:
                 try:
                     transactions = await self._fetch_and_store_transactions(
-                        entity, specific_fetcher, options, entity_account_id
+                        entity, specific_fetcher, options, entity_account_id, exclusions
                     )
                     completed.append(Feature.TRANSACTIONS)
                     transactions_ok = True
@@ -573,8 +576,9 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
             options.deep = False
             options.pointer_context = None
+            exclusions = await self._load_exclusions()
             transactions = await self._fetch_and_store_transactions(
-                entity, specific_fetcher, options, entity_account_id
+                entity, specific_fetcher, options, entity_account_id, exclusions
             )
 
             data = FetchedData(transactions=transactions)
@@ -594,11 +598,18 @@ class FetchFinancialDataImpl(FetchFinancialData):
         except Exception:
             self._log.debug("Error closing financial entity fetcher", exc_info=True)
 
+    async def _load_exclusions(self) -> FetchExclusions:
+        settings = await self._config_port.load_sections({SettingsSection.ASSETS})
+        if settings.assets is None:
+            raise ValueError("Missing asset settings")
+        return FetchExclusions(settings.assets.accounts.exclusions)
+
     async def _fetch_and_store_position(
         self,
         entity: Entity,
         specific_fetcher: FinancialEntityFetcher,
         entity_account_id: UUID,
+        exclusions: FetchExclusions | None = None,
     ) -> Optional[GlobalPosition]:
         position = await specific_fetcher.global_position()
         if not position:
@@ -608,6 +619,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 )
             return None
 
+        if exclusions is not None:
+            exclusions.apply_to_position(position)
         position.entity_account_id = entity_account_id
         await self._enrich_crypto_assets(position)
         await self._enrich_loans(position)
@@ -654,6 +667,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         specific_fetcher: FinancialEntityFetcher,
         options: FetchOptions,
         entity_account_id: UUID,
+        exclusions: FetchExclusions | None = None,
     ):
         registered_txs = {}
         if not options.deep:
@@ -664,6 +678,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
         transactions = await specific_fetcher.transactions(registered_txs, options)
 
         if transactions:
+            if exclusions is not None:
+                exclusions.apply_to_transactions(transactions)
             for tx in transactions.investment or []:
                 tx.entity_account_id = entity_account_id
             for tx in transactions.account or []:

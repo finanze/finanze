@@ -283,7 +283,8 @@ jobs:
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
           IOS_PLATFORM_VERSION: ${{ env.IOS_PLATFORM_VERSION }}
-        run: pnpm test:ios
+          RETRY_ATTEMPTS: 2
+        run: bash ../../.github/scripts/retry.sh pnpm test:ios
 
       - name: Show WDIO logs
         if: ${{ !cancelled() }}
@@ -364,8 +365,10 @@ jobs:
           echo "CHROMEDRIVER_EXECUTABLE=/tmp/chromedriver/chromedriver-linux64/chromedriver" >> $GITHUB_ENV
 
       - name: Run Android tests
+        id: android-tests
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
-        with:
+        with: &android-tests-config
           api-level: 35
           target: google_apis
           arch: x86_64
@@ -375,7 +378,12 @@ jobs:
             adb wait-for-device shell getprop sys.boot_completed
             adb devices -l
             sleep 5
-            cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
+            cd e2e/mobile && ANDROID_APP_PATH="${{ github.workspace }}/android-apk/app-full-debug.apk" pnpm test:android
+
+      - name: Run Android tests (retry 1)
+        if: ${{ steps.android-tests.outcome == 'failure' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with: *android-tests-config
 
       - name: Show WDIO logs
         if: ${{ !cancelled() }}

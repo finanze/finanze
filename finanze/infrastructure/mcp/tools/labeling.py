@@ -5,6 +5,8 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from domain.labeling import (
+    MAX_CONDITION_GROUPS,
+    MAX_TEXT_VALUES,
     Label,
     LabelCategory,
     LabelingRule,
@@ -18,7 +20,7 @@ from domain.labeling import (
 )
 from domain.exception.exceptions import LabelingRuleNotFound, LabelNotFound
 from domain.transactions import TxType
-from infrastructure.controller.mappers.labeling_mapper import map_conditions
+from infrastructure.controller.mappers.labeling_mapper import map_condition_groups
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
@@ -31,7 +33,11 @@ RuleId = Annotated[UUID, Field(description="Labeling rule ID.")]
 
 
 class TextConditionInput(BaseModel):
-    value: str = Field(min_length=1)
+    values: list[Annotated[str, Field(min_length=1)]] = Field(
+        min_length=1,
+        max_length=MAX_TEXT_VALUES,
+        description="Text values; the condition matches when ANY of them matches.",
+    )
     operator: TextMatchOperator = TextMatchOperator.CONTAINS
     field: TextMatchField = TextMatchField.ANY
 
@@ -65,8 +71,20 @@ class RuleConditionsInput(BaseModel):
     )
 
 
-def _conditions(conditions: RuleConditionsInput):
-    return map_conditions(conditions.model_dump(mode="json", exclude_none=True))
+ConditionGroupsInput = Annotated[
+    list[RuleConditionsInput],
+    Field(
+        min_length=1,
+        max_length=MAX_CONDITION_GROUPS,
+        description="Condition groups: a movement matches when it meets ALL conditions of ANY group. TRANSFER rules take exactly one group.",
+    ),
+]
+
+
+def _conditions(groups: list[RuleConditionsInput]):
+    return map_condition_groups(
+        [group.model_dump(mode="json", exclude_none=True) for group in groups]
+    )
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
@@ -91,15 +109,15 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
 
     @registry.read("List labeling rules", category="activity_labels")
     async def list_labeling_rules():
-        """List the automatic labeling rules: MATCH rules label movements matching the conditions, TRANSFER rules detect transfers between own accounts."""
+        """List the automatic labeling rules: MATCH rules label movements matching ANY of their condition groups, TRANSFER rules detect transfers between own accounts."""
         return await ucs.get_labeling_rules.execute()
 
     @registry.read("Preview labeling rule", category="activity_labels")
     async def preview_labeling_rule(
-        conditions: RuleConditionsInput,
+        conditions: ConditionGroupsInput,
         limit: Annotated[int, Field(ge=1, le=50)] = 10,
     ):
-        """Preview which existing account movements match the given rule conditions, before saving a rule."""
+        """Preview which existing account movements match the given rule condition groups, before saving a rule."""
         return await ucs.preview_labeling_rule.execute(
             LabelingRulePreviewRequest(conditions=_conditions(conditions), limit=limit)
         )
@@ -170,7 +188,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         label_ids: Annotated[
             Optional[list[UUID]], Field(description="Labels to apply.")
         ] = None,
-        conditions: Optional[RuleConditionsInput] = None,
+        conditions: Optional[ConditionGroupsInput] = None,
         kind: Optional[LabelingRuleKind] = None,
         enabled: Optional[bool] = None,
         apply_to_existing: Annotated[
@@ -178,7 +196,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             Field(description="Also apply the rule to existing matching movements."),
         ] = False,
     ):
-        """Create an automatic labeling rule, or update one by rule_id. On update only the provided fields change. label_ids and conditions are required on create. Use preview_labeling_rule first."""
+        """Create an automatic labeling rule, or update one by rule_id. On update only the provided fields change (conditions replaces all groups). label_ids and conditions are required on create. Use several groups or several text values instead of creating similar rules. Use preview_labeling_rule first."""
         if rule_id:
             current = await find_rule(rule_id)
             changes = {

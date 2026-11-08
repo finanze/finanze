@@ -188,7 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (await isRegionBlocked()) return false
       const { success } = await apiSignup({ username, guest: true })
       if (success) {
-        connectBackgroundWorker(username)
         try {
           await syncStatus()
         } catch {

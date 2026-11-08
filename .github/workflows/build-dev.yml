@@ -91,6 +91,7 @@ jobs:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ macos-15, macos-15-intel, ubuntu-latest, windows-latest ]
 
@@ -278,7 +279,7 @@ jobs:
             SIGNING_PARAM="--no-sign"
           fi
 
-          python3 package.py --target full $OS_PARAM $SIGNING_PARAM
+          bash .github/scripts/retry.sh python3 package.py --target full --noconfirm $OS_PARAM $SIGNING_PARAM
 
       - name: Write Dev Version File
         if: ${{ steps.dev_version.outputs.dev_version != '' }}

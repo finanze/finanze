@@ -45,6 +45,8 @@ import {
 import { copyToClipboard } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
 import { PrivacyCard } from "@/components/settings/PrivacyCard"
+import { AccountExclusionsEditor } from "@/components/settings/AccountExclusionsEditor"
+import type { AccountExclusion } from "@/types/accountExclusions"
 
 const cleanObject = (obj: any): any => {
   if (obj === null || obj === undefined) {
@@ -111,6 +113,7 @@ export function GeneralTab() {
     Record<string, boolean>
   >({
     dataAutoRefresh: false,
+    assetsAccounts: false,
     assetsCrypto: false,
   })
 
@@ -127,6 +130,7 @@ export function GeneralTab() {
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
   const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
   const editMode = settings.general?.editMode ?? EditMode.QUICK
+  const saveQueueRef = useRef<Promise<boolean>>(Promise.resolve(true))
   const selectedCurrency = settings.general?.defaultCurrency || "EUR"
   const selectedCommodityWeightUnit =
     settings.general?.defaultCommodityWeightUnit || WeightUnit.GRAM
@@ -147,57 +151,76 @@ export function GeneralTab() {
     setSettings(storedSettings)
   }, [storedSettings])
 
-  const persistSettings = useCallback(
-    (nextSettings: AppSettings) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-      debounceTimerRef.current = setTimeout(async () => {
-        const sanitizedStablecoins = Array.from(
-          new Set(
-            (nextSettings.assets?.crypto?.stablecoins ?? []).map(symbol =>
-              symbol.trim().toUpperCase(),
-            ),
+  const persistSettingsNow = useCallback(
+    async (nextSettings: AppSettings) => {
+      const sanitizedStablecoins = Array.from(
+        new Set(
+          (nextSettings.assets?.crypto?.stablecoins ?? []).map(symbol =>
+            symbol.trim().toUpperCase(),
           ),
-        ).filter(Boolean)
+        ),
+      ).filter(Boolean)
 
-        const settingsForSave: Partial<AppSettings> = {
-          general: nextSettings.general,
-          data: nextSettings.data,
-          assets: {
-            ...nextSettings.assets,
-            crypto: {
-              ...nextSettings.assets?.crypto,
-              stablecoins: sanitizedStablecoins,
-            },
+      const settingsForSave: Partial<AppSettings> = {
+        general: nextSettings.general,
+        data: nextSettings.data,
+        assets: {
+          ...nextSettings.assets,
+          crypto: {
+            ...nextSettings.assets?.crypto,
+            stablecoins: sanitizedStablecoins,
           },
+        },
+      }
+      const cleanedSettings = cleanObject(settingsForSave) ?? {}
+
+      if (!cleanedSettings.assets) {
+        cleanedSettings.assets = {
+          crypto: { stablecoins: sanitizedStablecoins },
         }
-
-        const cleanedSettings = cleanObject(settingsForSave) ?? {}
-
-        if (!cleanedSettings.assets) {
-          cleanedSettings.assets = {
-            crypto: { stablecoins: sanitizedStablecoins },
-          }
-        } else {
-          cleanedSettings.assets.crypto = cleanedSettings.assets.crypto || {
-            stablecoins: [],
-          }
-          cleanedSettings.assets.crypto.stablecoins = sanitizedStablecoins
+      } else {
+        cleanedSettings.assets.crypto = cleanedSettings.assets.crypto || {
+          stablecoins: [],
         }
+        cleanedSettings.assets.crypto.stablecoins = sanitizedStablecoins
+      }
+      cleanedSettings.assets.accounts = {
+        exclusions: nextSettings.assets.accounts?.exclusions ?? [],
+      }
 
-        if (settingsForSave.data?.autoRefresh) {
-          cleanedSettings.data = cleanedSettings.data || {}
-          cleanedSettings.data.autoRefresh = {
-            ...settingsForSave.data.autoRefresh,
-          }
+      if (settingsForSave.data?.autoRefresh) {
+        cleanedSettings.data = cleanedSettings.data || {}
+        cleanedSettings.data.autoRefresh = {
+          ...settingsForSave.data.autoRefresh,
         }
+      }
 
-        await saveSettings(cleanedSettings, { silent: true })
-      }, AUTO_SAVE_DEBOUNCE_MS)
+      const save = saveQueueRef.current.then(() =>
+        saveSettings(cleanedSettings, { silent: true }),
+      )
+      saveQueueRef.current = save
+      return save
     },
     [saveSettings],
   )
+
+  const persistSettings = useCallback(
+    (nextSettings: AppSettings) => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = setTimeout(() => {
+        void persistSettingsNow(nextSettings)
+      }, AUTO_SAVE_DEBOUNCE_MS)
+    },
+    [persistSettingsNow],
+  )
+
+  const saveAccountExclusions = async (rules: AccountExclusion[]) => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    return persistSettingsNow({
+      ...settings,
+      assets: { ...settings.assets, accounts: { exclusions: rules } },
+    })
+  }
 
   persistRef.current = persistSettings
 
@@ -851,6 +874,12 @@ export function GeneralTab() {
             <CardDescription>{t.settings.assets.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <AccountExclusionsEditor
+              rules={settings.assets.accounts?.exclusions ?? []}
+              expanded={!!expandedSections.assetsAccounts}
+              onToggle={() => toggleSection("assetsAccounts")}
+              onSave={saveAccountExclusions}
+            />
             <div className="space-y-3">
               <div
                 className="flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/30 dark:bg-muted/10 dark:hover:bg-muted/20"

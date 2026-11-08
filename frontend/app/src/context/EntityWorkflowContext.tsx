@@ -912,6 +912,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             try {
               response = await fetchExternalEntity(
                 entity.external_entity_id || "",
+                { features, deep: options.deep },
               )
             } catch (e: any) {
               httpError = e?.status

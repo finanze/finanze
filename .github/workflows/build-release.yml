@@ -13,6 +13,7 @@ jobs:
       startsWith(github.event.pull_request.head.ref, 'release/')
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ macos-15, macos-15-intel, windows-latest, ubuntu-latest ]
 
@@ -127,7 +128,7 @@ jobs:
             OS_PARAM="--os win"
           fi
           
-          python3 package.py --target full $OS_PARAM
+          bash .github/scripts/retry.sh python3 package.py --target full --noconfirm $OS_PARAM
 
       - name: Upload Release Assets
         env:

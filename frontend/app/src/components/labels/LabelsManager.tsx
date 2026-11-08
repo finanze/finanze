@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -54,6 +55,8 @@ export type LabelsTab = "labels" | "rules" | "automation"
 
 const EDGE_CARD =
   "-mx-6 rounded-none border-x-0 md:mx-0 md:rounded-lg md:border-x"
+
+const RULE_SUMMARY_TEXT_VALUES = 3
 
 interface LabelsManagerProps {
   tab: LabelsTab
@@ -123,58 +126,63 @@ export function LabelsManager({ tab, onActionChange }: LabelsManagerProps) {
   }, [positionsData])
 
   const describeRule = useCallback(
-    (rule: LabelingRule): string[] => {
-      const c = rule.conditions
-      const parts: string[] = []
-      if (rule.kind === LabelingRuleKind.TRANSFER) {
-        const days = c.max_days ?? 3
-        parts.push(
-          days === 0
-            ? t.labels.rules.sameDay
-            : t.labels.rules.maxDaysSummary.replace("{days}", `${days}`),
-        )
-      }
-      if (c.text) {
-        parts.push(
-          `${t.labels.rules.fields[c.text.field]} ${t.labels.rules.operators[c.text.operator].toLocaleLowerCase()} "${c.text.value}"`,
-        )
-      }
-      if (c.types?.length) {
-        parts.push(
-          c.types
-            .map(type => t.enums.transactionType[type] ?? type)
-            .join(" / "),
-        )
-      }
-      if (c.min_amount != null || c.max_amount != null) {
-        parts.push(
-          `${c.min_amount ?? "0"} – ${c.max_amount ?? "∞"}${c.currency ? ` ${c.currency}` : ""}`,
-        )
-      } else if (c.currency) {
-        parts.push(c.currency)
-      }
-      if (c.day_from != null || c.day_to != null) {
-        parts.push(
-          t.labels.rules.daysSummary
-            .replace("{from}", `${c.day_from ?? 1}`)
-            .replace("{to}", `${c.day_to ?? 31}`),
-        )
-      }
-      if (c.from_date || c.to_date) {
-        parts.push(`${c.from_date ?? "…"} → ${c.to_date ?? "…"}`)
-      }
-      if (c.entities?.length) {
-        parts.push(c.entities.map(id => entityNames.get(id) ?? id).join(", "))
-      }
-      if (c.ibans?.length) {
-        parts.push(
-          c.ibans
-            .map(iban => accountNames.get(iban) ?? shortIban(iban))
-            .join(", "),
-        )
-      }
-      return parts
-    },
+    (rule: LabelingRule): string[][] =>
+      rule.conditions.map((c, groupIndex) => {
+        const parts: string[] = []
+        if (rule.kind === LabelingRuleKind.TRANSFER && groupIndex === 0) {
+          const days = c.max_days ?? 3
+          parts.push(
+            days === 0
+              ? t.labels.rules.sameDay
+              : t.labels.rules.maxDaysSummary.replace("{days}", `${days}`),
+          )
+        }
+        if (c.text?.values.length) {
+          const shown = c.text.values
+            .slice(0, RULE_SUMMARY_TEXT_VALUES)
+            .map(value => `"${value}"`)
+            .join(", ")
+          const hidden = c.text.values.length - RULE_SUMMARY_TEXT_VALUES
+          parts.push(
+            `${t.labels.rules.fields[c.text.field]} ${t.labels.rules.operators[c.text.operator].toLocaleLowerCase()} ${shown}${hidden > 0 ? ` ${t.labels.rules.moreValues.replace("{count}", `${hidden}`)}` : ""}`,
+          )
+        }
+        if (c.types?.length) {
+          parts.push(
+            c.types
+              .map(type => t.enums.transactionType[type] ?? type)
+              .join(" / "),
+          )
+        }
+        if (c.min_amount != null || c.max_amount != null) {
+          parts.push(
+            `${c.min_amount ?? "0"} – ${c.max_amount ?? "∞"}${c.currency ? ` ${c.currency}` : ""}`,
+          )
+        } else if (c.currency) {
+          parts.push(c.currency)
+        }
+        if (c.day_from != null || c.day_to != null) {
+          parts.push(
+            t.labels.rules.daysSummary
+              .replace("{from}", `${c.day_from ?? 1}`)
+              .replace("{to}", `${c.day_to ?? 31}`),
+          )
+        }
+        if (c.from_date || c.to_date) {
+          parts.push(`${c.from_date ?? "…"} → ${c.to_date ?? "…"}`)
+        }
+        if (c.entities?.length) {
+          parts.push(c.entities.map(id => entityNames.get(id) ?? id).join(", "))
+        }
+        if (c.ibans?.length) {
+          parts.push(
+            c.ibans
+              .map(iban => accountNames.get(iban) ?? shortIban(iban))
+              .join(", "),
+          )
+        }
+        return parts
+      }),
     [t, entityNames, accountNames],
   )
 
@@ -397,13 +405,25 @@ export function LabelsManager({ tab, onActionChange }: LabelsManagerProps) {
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {describeRule(rule).map((part, index) => (
-                            <span
-                              key={`${rule.id}-${index}`}
-                              className="rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
-                            >
-                              {part}
-                            </span>
+                          {describeRule(rule).map((parts, groupIndex) => (
+                            <Fragment key={`${rule.id}-${groupIndex}`}>
+                              {groupIndex > 0 && (
+                                <span
+                                  data-testid="rule-or"
+                                  className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                                >
+                                  {t.labels.rules.or}
+                                </span>
+                              )}
+                              {parts.map((part, index) => (
+                                <span
+                                  key={`${rule.id}-${groupIndex}-${index}`}
+                                  className="rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+                                >
+                                  {part}
+                                </span>
+                              ))}
+                            </Fragment>
                           ))}
                           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                           {rule.label_ids.map(labelId => {

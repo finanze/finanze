@@ -97,6 +97,7 @@ from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.user_files.user_data_manager import UserDataManager
 from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
+from infrastructure.config.base_config import BASE_CONFIG
 from infrastructure.repository.settings.settings_repository import SettingsRepository
 
 from application.ports.sheets_initiator import SheetsInitiator
@@ -263,6 +264,7 @@ async def app(tmp_path):
     crypto_asset_info_provider = AsyncMock(spec=CryptoAssetInfoProvider)
     exchange_rate_provider = AsyncMock(spec=ExchangeRateProvider)
     config_port = AsyncMock(spec=ConfigPort)
+    config_port.load_sections.return_value = BASE_CONFIG
 
     backup_local_registry = AsyncMock(spec=BackupLocalRegistry)
     backup_repository = AsyncMock(spec=BackupRepository)

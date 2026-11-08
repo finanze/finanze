@@ -14,6 +14,7 @@ from domain.labeling import (
     TextCondition,
     TextMatchField,
     TextMatchOperator,
+    normalize_text_values,
 )
 from domain.transactions import LabelOrigin, TxType, normalize_iban
 
@@ -76,6 +77,12 @@ def map_label(body: dict, label_id: Optional[UUID] = None) -> Label:
     )
 
 
+def _text_values(values) -> list[str]:
+    if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
+        raise ValueError("Text condition values must be a list of strings")
+    return normalize_text_values(values)
+
+
 def map_conditions(body: dict) -> LabelingRuleConditions:
     if not isinstance(body, dict):
         raise ValueError("Conditions must be a JSON object")
@@ -86,7 +93,7 @@ def map_conditions(body: dict) -> LabelingRuleConditions:
         if not isinstance(text, dict):
             raise ValueError("Text condition must be a JSON object")
         text_condition = TextCondition(
-            value=str(text.get("value") or ""),
+            values=_text_values(text.get("values")),
             operator=TextMatchOperator(text.get("operator", "CONTAINS")),
             field=TextMatchField(text.get("field", "ANY")),
         )
@@ -109,6 +116,12 @@ def map_conditions(body: dict) -> LabelingRuleConditions:
     )
 
 
+def map_condition_groups(value) -> list[LabelingRuleConditions]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("Conditions must be a non-empty list of condition groups")
+    return [map_conditions(group) for group in value]
+
+
 def map_rule(body: dict, rule_id: Optional[UUID] = None) -> LabelingRule:
     if not isinstance(body, dict):
         raise ValueError("Body must be a JSON object")
@@ -117,7 +130,7 @@ def map_rule(body: dict, rule_id: Optional[UUID] = None) -> LabelingRule:
         name=_optional_str(body.get("name")),
         enabled=bool(body.get("enabled", True)),
         kind=LabelingRuleKind(body.get("kind") or LabelingRuleKind.MATCH),
-        conditions=map_conditions(body.get("conditions") or {}),
+        conditions=map_condition_groups(body.get("conditions")),
         label_ids=_uuid_list(body.get("labels")) or [],
     )
 
