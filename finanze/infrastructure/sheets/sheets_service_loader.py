@@ -87,7 +87,7 @@ class SheetsServiceLoader(SheetsInitiator):
         self._log.debug("Connecting loader")
         self._base_path = user.path
 
-    async def teardown(self):
+    async def teardown(self, payload: Optional[ExternalIntegrationPayload] = None):
         self._clear()
         if self._base_path:
             (self._base_path / TOKEN_FILENAME).unlink(missing_ok=True)

@@ -44,6 +44,7 @@ import {
 } from "@/lib/externalAuth"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { cn } from "@/lib/utils"
+import { getIntegrationName } from "@/lib/integrations"
 
 export const ENABLE_BANKING_PROVIDER = "ENABLE_BANKING"
 
@@ -656,12 +657,14 @@ export function ExternalEntityConnectionModals({
                           >
                             <AdaptiveLogo
                               src={`icons/external-integrations/${provider.id}.png`}
-                              alt={provider.name}
+                              alt={getIntegrationName(t, provider.id, provider)}
                               className="w-6 h-6 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0"
                               imgClassName="w-6 h-6 object-contain"
                               lightBgClassName="bg-white p-0.5"
                             />
-                            <span className="truncate">{provider.name}</span>
+                            <span className="truncate">
+                              {getIntegrationName(t, provider.id, provider)}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -671,7 +674,11 @@ export function ExternalEntityConnectionModals({
                     <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                       <AdaptiveLogo
                         src={`icons/external-integrations/${enabledEntityProviders[0].id}.png`}
-                        alt={enabledEntityProviders[0].name}
+                        alt={getIntegrationName(
+                          t,
+                          enabledEntityProviders[0].id,
+                          enabledEntityProviders[0],
+                        )}
                         className="w-5 h-5 rounded flex items-center justify-center overflow-hidden flex-shrink-0"
                         imgClassName="w-5 h-5 object-contain"
                         lightBgClassName="bg-white p-0.5"
@@ -679,7 +686,11 @@ export function ExternalEntityConnectionModals({
                       <span className="truncate">
                         {t.entities.via.replace(
                           "{provider}",
-                          enabledEntityProviders[0].name,
+                          getIntegrationName(
+                            t,
+                            enabledEntityProviders[0].id,
+                            enabledEntityProviders[0],
+                          ),
                         )}
                       </span>
                     </div>

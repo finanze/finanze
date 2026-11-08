@@ -29,6 +29,9 @@ const EXCLUDED_DIRS = [
   "infrastructure/mcp",
   "infrastructure/repository/mcp",
   "infrastructure/local_models",
+  "infrastructure/agent_runtime",
+  "infrastructure/client/ai/github_copilot",
+  "infrastructure/client/ai/claude_agent",
 ]
 
 const EXCLUDED_PATHS = [
@@ -69,9 +72,12 @@ const EXCLUDED_PATHS = [
   "infrastructure/controller/routes/delete_local_model.py",
   "infrastructure/controller/routes/list_hugging_face_quants.py",
   "infrastructure/controller/routes/import_local_model.py",
-  "domain/use_cases/complete_external_integration_connection.py",
-  "application/use_cases/complete_external_integration_connection.py",
-  "infrastructure/controller/routes/complete_external_integration_connection.py",
+  "domain/use_cases/forward_integration_oauth_callback.py",
+  "application/use_cases/forward_integration_oauth_callback.py",
+  "infrastructure/controller/routes/forward_integration_oauth_callback.py",
+  "domain/use_cases/poll_external_integration_connection.py",
+  "application/use_cases/poll_external_integration_connection.py",
+  "infrastructure/controller/routes/poll_external_integration_connection.py",
 ]
 
 const EXCLUDED_FILES = [
@@ -194,6 +200,9 @@ const LAZY_PATTERNS = [
   "finanze/application/use_cases/save_commodities.py",
   "finanze/application/use_cases/connect_external_integration.py",
   "finanze/application/use_cases/disconnect_external_integration.py",
+  "finanze/application/use_cases/complete_external_integration_connection.py",
+  "finanze/application/ports/host_identity_port.py",
+  "finanze/infrastructure/repository/host_identity/",
   "finanze/application/use_cases/connect_external_entity.py",
   "finanze/application/use_cases/complete_external_entity_connection.py",
   "finanze/application/use_cases/delete_external_entity.py",
@@ -249,6 +258,7 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/controller/routes/save_commodities.py",
   "finanze/infrastructure/controller/routes/connect_external_integration.py",
   "finanze/infrastructure/controller/routes/disconnect_external_integration.py",
+  "finanze/infrastructure/controller/routes/complete_external_integration_connection.py",
   "finanze/infrastructure/controller/routes/connect_external_entity.py",
   "finanze/infrastructure/controller/routes/complete_external_entity_connection.py",
   "finanze/infrastructure/controller/routes/delete_external_entity.py",

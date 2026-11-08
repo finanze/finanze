@@ -12,7 +12,7 @@ jobs:
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main' &&
       startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     permissions:
       contents: write
@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout main branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: 'main'
           fetch-depth: 0
@@ -31,7 +31,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python dependencies
         run: |

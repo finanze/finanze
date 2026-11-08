@@ -2,6 +2,7 @@ from datetime import date
 from typing import Optional
 from uuid import UUID
 
+from domain.ai import AIModelPricing
 from domain.dezimal import Dezimal
 from domain.external_integration import ExternalIntegrationId
 from domain.transactions import TxType
@@ -61,6 +62,7 @@ class ExternalLabelingModel:
     size: Optional[int] = None
     loaded: bool = False
     load_failed: bool = False
+    pricing: Optional[AIModelPricing] = None
 
 
 @dataclass

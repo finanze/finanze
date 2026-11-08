@@ -11,6 +11,7 @@ import {
   useExternalEntityConnection,
 } from "@/components/ExternalEntityConnection"
 import en from "@/i18n/locales/en.json"
+import es from "@/i18n/locales/es.json"
 import {
   EntityType,
   ExternalEntitySetupResponseCode,
@@ -23,7 +24,10 @@ import {
 } from "@/services/api"
 
 const { state, app, workflow } = vi.hoisted(() => ({
-  state: { integrations: [] as unknown[] },
+  state: {
+    integrations: [] as unknown[],
+    locale: "en-US" as "en-US" | "es-ES",
+  },
   app: {
     fetchEntities: vi.fn(),
     showToast: vi.fn(),
@@ -32,7 +36,12 @@ const { state, app, workflow } = vi.hoisted(() => ({
   workflow: { setView: vi.fn() },
 }))
 
-vi.mock("@/i18n", () => ({ useI18n: () => ({ t: en, locale: "en-US" }) }))
+vi.mock("@/i18n", () => ({
+  useI18n: () => ({
+    t: state.locale === "es-ES" ? es : en,
+    locale: state.locale,
+  }),
+}))
 vi.mock("@/context/AppContext", () => ({
   useAppContext: () => ({
     ...app,
@@ -104,6 +113,7 @@ async function openInstitution(name: string, psuTypes: string[] | null) {
 describe("ExternalEntityConnection PSU type", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    state.locale = "en-US"
     state.integrations = [enableBanking]
     vi.mocked(connectExternalEntity).mockResolvedValue({
       code: ExternalEntitySetupResponseCode.ALREADY_LINKED,
@@ -112,6 +122,17 @@ describe("ExternalEntityConnection PSU type", () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it("localizes the provider label without translating institution names", async () => {
+    state.locale = "es-ES"
+    state.integrations = [{ ...enableBanking, name: "Database name" }]
+    await openInstitution("Original bank name", ["personal"])
+    expect(
+      screen.getByText(es.entities.via.replace("{provider}", "Enable Banking")),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText("Original bank name").length).toBeGreaterThan(0)
+    expect(screen.queryByText("Database name")).not.toBeInTheDocument()
   })
 
   it("expands a bank that lists both types and connects with the chosen type", async () => {
