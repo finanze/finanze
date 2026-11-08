@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -15,7 +15,9 @@ import {
   Landmark,
   Link2,
   Link2Off,
+  Monitor,
   Server,
+  Smartphone,
   Upload,
   type LucideIcon,
 } from "lucide-react"
@@ -47,16 +49,26 @@ import {
 import { cn } from "@/lib/utils"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
+  getIntegrationFamilyName,
+  getIntegrationMethodName,
+  getIntegrationName,
+} from "@/lib/integrations"
+import {
   ExternalIntegrationStatus,
   ExternalIntegrationType,
   type ExternalIntegration,
+  type IntegrationPlatform,
 } from "@/types"
-import { isWeb } from "@/lib/platform"
+import { isNativeMobile, isWeb } from "@/lib/platform"
 import {
   buildIntegrationCompletionUrl,
   openExternalAuthLink,
+  openExternalAuthPage,
   parseIntegrationOAuthCallback,
+  parseOAuthCallbackAddress,
+  startLoopbackAuthorization,
   type IntegrationOAuthCallback,
+  type LoopbackAuthorization,
 } from "@/lib/externalAuth"
 import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
 import {
@@ -64,8 +76,18 @@ import {
   type IntegrationFieldOptions,
 } from "@/components/settings/LocalModelsIntegration"
 import { AIServerDetailsDialog } from "@/components/settings/AIServerDetailsDialog"
+import {
+  DeviceAuthorizationPanel,
+  toDeviceAuthorization,
+  type DeviceAuthorization,
+} from "@/components/integrations/DeviceAuthorizationPanel"
+import { ChatGPTIntegrationPanel } from "@/components/integrations/ChatGPTIntegrationPanel"
 
 const LOCAL_MODELS_ID = "LOCAL_MODELS"
+const GITHUB_COPILOT_ID = "GITHUB_COPILOT"
+const CHATGPT_ID = "CHATGPT"
+const OAUTH_INTEGRATIONS = new Set(["GOOGLE_SHEETS", CHATGPT_ID])
+const DEVICE_FLOW_INTEGRATIONS = new Set([GITHUB_COPILOT_ID])
 const SERVER_DETAILS_INTEGRATIONS = new Set(["OPENAI_COMPATIBLE"])
 const URL_FIELDS = ["base_url", "server_url"]
 const LOOPBACK_HOST_REGEX = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/i
@@ -100,6 +122,62 @@ const INTEGRATION_CATEGORY_ICONS: Record<ExternalIntegrationType, LucideIcon> =
     [ExternalIntegrationType.AI_PROVIDER]: BrainCircuit,
     [ExternalIntegrationType.DATA_SOURCE]: Database,
   }
+
+const PLATFORM_ICONS: Record<IntegrationPlatform, LucideIcon> = {
+  DESKTOP: Monitor,
+  SELF_HOSTED: Server,
+  MOBILE: Smartphone,
+}
+
+function IntegrationPlatformsBadge({
+  platforms,
+}: {
+  platforms: IntegrationPlatform[]
+}) {
+  const { t } = useI18n()
+  if (platforms.length === 0) return null
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label={t.settings.aiPlatformsLabel}
+          title={t.settings.aiPlatformsLabel}
+          onClick={event => event.stopPropagation()}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto max-w-[280px] p-3"
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="mb-2 text-xs font-medium text-muted-foreground">
+          {t.settings.aiPlatformsLabel}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {platforms.map(platform => {
+            const PlatformIcon = PLATFORM_ICONS[platform]
+            return (
+              <Badge
+                key={platform}
+                variant="secondary"
+                className="gap-1 text-xs"
+              >
+                <PlatformIcon className="h-3 w-3" />
+                {t.settings.aiPlatforms[platform]}
+              </Badge>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 type IntegrationHintPart =
   | { type: "text"; value: string }
@@ -319,9 +397,39 @@ export function ProvidersTab() {
   const [awaitingAuthorization, setAwaitingAuthorization] = useState<
     string | null
   >(null)
+  const [deviceAuthorizations, setDeviceAuthorizations] = useState<
+    Record<string, DeviceAuthorization>
+  >({})
+  const loopbackRef = useRef<LoopbackAuthorization | null>(null)
+  const retryAuthorizationRef = useRef<
+    ((integrationId: string) => Promise<void>) | null
+  >(null)
+  const authorizationRetriedRef = useRef(false)
+
+  const releaseLoopback = useCallback(() => {
+    const active = loopbackRef.current
+    loopbackRef.current = null
+    if (active) {
+      void active.cancel()
+    }
+  }, [])
+
+  useEffect(() => releaseLoopback, [releaseLoopback])
+
+  const clearDeviceAuthorization = useCallback((integrationId: string) => {
+    setDeviceAuthorizations(prev => {
+      if (!prev[integrationId]) {
+        return prev
+      }
+      const next = { ...prev }
+      delete next[integrationId]
+      return next
+    })
+  }, [])
 
   const getIntegrationCopy = useCallback(
     (integration: ExternalIntegration) => {
+      const title = getIntegrationName(t, integration.id, integration)
       const translations =
         (
           ((t.settings as unknown as Record<string, unknown>)?.integration ??
@@ -353,7 +461,7 @@ export function ProvidersTab() {
       const hint =
         hintParts || hintText || (hintSteps && hintSteps.length > 0)
           ? {
-              title: hintTitleRaw || integration.name,
+              title: hintTitleRaw || title,
               text: hintText || undefined,
               parts: hintParts,
               steps: hintSteps && hintSteps.length > 0 ? hintSteps : undefined,
@@ -361,7 +469,7 @@ export function ProvidersTab() {
           : undefined
 
       return {
-        title: integration.name,
+        title,
         description: descriptionRaw || undefined,
         helpLabel: helpRaw || undefined,
         hint,
@@ -471,8 +579,14 @@ export function ProvidersTab() {
     ],
   )
 
-  const handleSetupIntegration = useCallback(
-    async (integrationId: string) => {
+  const handleIntegrationOAuthCallback = useCallback(
+    async ({
+      integrationId,
+      state,
+      code,
+      error,
+      clientId,
+    }: IntegrationOAuthCallback) => {
       const integration = externalIntegrations.find(
         item => item.id === integrationId,
       )
@@ -481,6 +595,61 @@ export function ProvidersTab() {
         return
       }
 
+      const { title: integrationName } = getIntegrationCopy(integration)
+
+      releaseLoopback()
+      setAwaitingAuthorization(null)
+
+      if (!state) {
+        showIntegrationError({ code: "AUTHORIZATION_EXPIRED" }, integrationName)
+        return
+      }
+
+      setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
+
+      try {
+        await completeIntegrationOAuth(integrationId, {
+          state,
+          code,
+          error,
+          ...(clientId ? { client_id: clientId } : {}),
+        })
+        await handleIntegrationEnabled(integration)
+      } catch (err) {
+        const retry = retryAuthorizationRef.current
+        if (
+          (err as any)?.code === "AUTHORIZATION_RETRY_REQUIRED" &&
+          !authorizationRetriedRef.current &&
+          retry
+        ) {
+          await retry(integrationId)
+          return
+        }
+        showIntegrationError(err, integrationName)
+      } finally {
+        setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
+      }
+    },
+    [
+      externalIntegrations,
+      getIntegrationCopy,
+      handleIntegrationEnabled,
+      releaseLoopback,
+      showIntegrationError,
+    ],
+  )
+
+  const handleSetupIntegration = useCallback(
+    async (integrationId: string, retry = false) => {
+      const integration = externalIntegrations.find(
+        item => item.id === integrationId,
+      )
+
+      if (!integration) {
+        return
+      }
+
+      authorizationRetriedRef.current = retry
       const { title: integrationName } = getIntegrationCopy(integration)
 
       const schema = integration.payload_schema ?? {}
@@ -519,24 +688,64 @@ export function ProvidersTab() {
 
       setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
 
+      let loopback: LoopbackAuthorization | null = null
       try {
-        const result =
-          integrationId === "GOOGLE_SHEETS"
-            ? await setupIntegration(
-                integrationId,
-                sanitizedPayload,
-                buildIntegrationCompletionUrl(integrationId),
-              )
-            : await setupIntegration(integrationId, sanitizedPayload)
+        if (integrationId === CHATGPT_ID && isNativeMobile()) {
+          releaseLoopback()
+          loopback = await startLoopbackAuthorization(integrationId)
+          loopbackRef.current = loopback
+        }
+        const completionUrl = OAUTH_INTEGRATIONS.has(integrationId)
+          ? (loopback?.callbackUrl ??
+            buildIntegrationCompletionUrl(integrationId))
+          : undefined
+        const result = completionUrl
+          ? await setupIntegration(
+              integrationId,
+              sanitizedPayload,
+              completionUrl,
+            )
+          : await setupIntegration(integrationId, sanitizedPayload)
         if (result?.link) {
           setAwaitingAuthorization(integrationId)
-          await openExternalAuthLink(result.link)
+          if (loopback) {
+            const active = loopback
+            loopback = null
+            void active
+              .wait(result.link)
+              .then(callback => {
+                if (loopbackRef.current !== active) return
+                loopbackRef.current = null
+                if (callback) {
+                  void handleIntegrationOAuthCallback(callback)
+                }
+              })
+              .catch(error => console.error(error))
+          } else if (integrationId === CHATGPT_ID) {
+            await openExternalAuthPage(result.link)
+          } else {
+            await openExternalAuthLink(result.link)
+          }
+          return
+        }
+        if (result?.device) {
+          const device = toDeviceAuthorization(result.device)
+          setDeviceAuthorizations(prev => ({
+            ...prev,
+            [integrationId]: device,
+          }))
           return
         }
         await handleIntegrationEnabled(integration)
       } catch (error) {
         showIntegrationError(error, integrationName)
       } finally {
+        if (loopback) {
+          if (loopbackRef.current === loopback) {
+            loopbackRef.current = null
+          }
+          void loopback.cancel()
+        }
         setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
       }
     },
@@ -544,50 +753,61 @@ export function ProvidersTab() {
       externalIntegrations,
       getIntegrationCopy,
       handleIntegrationEnabled,
+      handleIntegrationOAuthCallback,
       integrationPayloads,
+      releaseLoopback,
       showIntegrationError,
       showToast,
       t,
     ],
   )
 
-  const handleIntegrationOAuthCallback = useCallback(
-    async ({ integrationId, state, code, error }: IntegrationOAuthCallback) => {
-      const integration = externalIntegrations.find(
-        item => item.id === integrationId,
-      )
+  const cancelAuthorization = useCallback(() => {
+    releaseLoopback()
+    setAwaitingAuthorization(null)
+  }, [releaseLoopback])
 
-      if (!integration) {
+  useEffect(() => {
+    retryAuthorizationRef.current = integrationId =>
+      handleSetupIntegration(integrationId, true)
+  }, [handleSetupIntegration])
+
+  const handleSubmitCallbackAddress = useCallback(
+    (integrationId: string, address: string) => {
+      const callback = parseOAuthCallbackAddress(integrationId, address)
+      if (!callback) {
+        showToast(t.settings.chatgpt.invalidAddress, "error", {
+          reportable: false,
+        })
         return
       }
-
-      const { title: integrationName } = getIntegrationCopy(integration)
-
-      setAwaitingAuthorization(null)
-
-      if (!state) {
-        showIntegrationError({ code: "AUTHORIZATION_EXPIRED" }, integrationName)
-        return
-      }
-
-      setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
-
-      try {
-        await completeIntegrationOAuth(integrationId, { state, code, error })
-        await handleIntegrationEnabled(integration)
-      } catch (err) {
-        showIntegrationError(err, integrationName)
-      } finally {
-        setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
-      }
+      void handleIntegrationOAuthCallback(callback)
     },
-    [
-      externalIntegrations,
-      getIntegrationCopy,
-      handleIntegrationEnabled,
-      showIntegrationError,
-    ],
+    [handleIntegrationOAuthCallback, showToast, t],
   )
+
+  useEffect(() => {
+    if (!awaitingAuthorization) {
+      return
+    }
+    const awaited = externalIntegrations.find(
+      item => item.id === awaitingAuthorization,
+    )
+    if (awaited?.status === ExternalIntegrationStatus.ON) {
+      releaseLoopback()
+      setAwaitingAuthorization(null)
+    }
+  }, [awaitingAuthorization, externalIntegrations, releaseLoopback])
+
+  useEffect(() => {
+    if (awaitingAuthorization !== CHATGPT_ID || !isWeb()) {
+      return
+    }
+    // Sign-in may finish in the tab the provider redirected to.
+    const refresh = () => void fetchExternalIntegrations(true)
+    window.addEventListener("focus", refresh)
+    return () => window.removeEventListener("focus", refresh)
+  }, [awaitingAuthorization, fetchExternalIntegrations])
 
   useEffect(() => {
     if (!isWeb() || externalIntegrations.length === 0) {
@@ -805,12 +1025,16 @@ export function ProvidersTab() {
     return () => clearTimeout(timer)
   }, [externalIntegrations, searchParams])
 
-  const renderIntegrationCard = (integration: ExternalIntegration) => {
+  const renderIntegrationCard = (
+    integration: ExternalIntegration,
+    embedded = false,
+  ) => {
     const schemaEntries = Object.entries(integration.payload_schema ?? {})
     const payload = integrationPayloads[integration.id] ?? {}
     const errors = integrationErrors[integration.id] ?? {}
     const isExpanded = expandedIntegrations[integration.id] ?? false
     const isEnabled = integration.status === ExternalIntegrationStatus.ON
+    const isExpired = integration.status === ExternalIntegrationStatus.EXPIRED
     const isLoading = !!isSetupLoading[integration.id]
     const disableLoading = !!isDisableLoading[integration.id]
     const isAwaitingAuthorization = awaitingAuthorization === integration.id
@@ -1068,11 +1292,7 @@ export function ProvidersTab() {
           >
             <LoadingSpinner size="sm" />
             <span>{t.settings.integrationAwaitingAuthorization}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAwaitingAuthorization(null)}
-            >
+            <Button variant="ghost" size="sm" onClick={cancelAuthorization}>
               {t.common.cancel}
             </Button>
           </div>
@@ -1092,7 +1312,7 @@ export function ProvidersTab() {
             </span>
           </Button>
         )}
-        {isEnabled && (
+        {(isEnabled || isExpired) && (
           <Button
             variant="destructive"
             size="sm"
@@ -1138,18 +1358,33 @@ export function ProvidersTab() {
 
     const iconSrc = `icons/external-integrations/${integration.id}.png`
     const isHighlighted = highlighted === integration.id
+    const Container = embedded ? "div" : Card
+    const Header = embedded ? "div" : CardHeader
+    const Content = embedded ? "div" : CardContent
+    const methodName = getIntegrationMethodName(t, integration.id, integration)
+    const headerTitle = integration.family
+      ? embedded
+        ? methodName
+        : getIntegrationFamilyName(t, integration.family)
+      : title
 
     return (
-      <Card
+      <Container
         key={integration.id}
         data-testid={`integration-card-${integration.id}`}
         className={cn(
           "self-start",
+          embedded &&
+            "relative rounded-md p-3 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border last:after:hidden",
           isUnavailable ? "opacity-60" : undefined,
-          isHighlighted ? "ring-2 ring-yellow-500 animate-pulse" : undefined,
+          isHighlighted
+            ? embedded
+              ? "bg-accent/40 ring-1 ring-inset ring-yellow-500/60"
+              : "ring-2 ring-yellow-500 animate-pulse"
+            : undefined,
         )}
       >
-        <CardHeader>
+        <Header className={embedded ? "space-y-1.5 pb-4" : undefined}>
           <div className="flex items-start justify-between gap-3">
             <div
               className={cn(
@@ -1166,7 +1401,10 @@ export function ProvidersTab() {
                 <img
                   src={iconSrc}
                   alt={title}
-                  className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
+                  className={cn(
+                    "object-contain rounded flex-shrink-0 pointer-events-none select-none",
+                    embedded ? "h-8 w-8" : "h-12 w-12",
+                  )}
                   draggable={false}
                   style={{ WebkitUserSelect: "none" }}
                   onLoad={event => {
@@ -1183,7 +1421,24 @@ export function ProvidersTab() {
                   }}
                 />
                 <div className="min-w-0">
-                  <CardTitle className="text-lg break-words">{title}</CardTitle>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <CardTitle className="text-lg break-words">
+                      {headerTitle}
+                    </CardTitle>
+                    {integration.id === CHATGPT_ID && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                      >
+                        {t.settings.integrationBeta}
+                      </Badge>
+                    )}
+                  </div>
+                  {!embedded && integration.family && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {methodName}
+                    </p>
+                  )}
                   {isUnavailable && (
                     <p className="text-xs text-muted-foreground">
                       {t.common.notAvailableOnPlatform}
@@ -1192,20 +1447,35 @@ export function ProvidersTab() {
                 </div>
               </div>
               <div className="flex items-center space-x-1 flex-shrink-0">
+                {integration.platforms && (
+                  <IntegrationPlatformsBadge
+                    platforms={integration.platforms}
+                  />
+                )}
                 <Badge
                   className={cn(
                     "hidden sm:flex",
                     isEnabled
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                      : isExpired
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
                   )}
                 >
-                  {isEnabled ? t.common.enabled : t.common.disabled}
+                  {isEnabled
+                    ? t.common.enabled
+                    : isExpired
+                      ? t.settings.integrationExpired
+                      : t.common.disabled}
                 </Badge>
                 <span
                   className={cn(
                     "sm:hidden h-2.5 w-2.5 rounded-full flex-shrink-0",
-                    isEnabled ? "bg-green-500" : "bg-red-500",
+                    isEnabled
+                      ? "bg-green-500"
+                      : isExpired
+                        ? "bg-amber-500"
+                        : "bg-red-500",
                   )}
                 />
                 {isExpanded ? (
@@ -1219,7 +1489,7 @@ export function ProvidersTab() {
           {description && (
             <CardDescription className="pt-2">{description}</CardDescription>
           )}
-        </CardHeader>
+        </Header>
         <AnimatePresence initial={false}>
           {isExpanded && !isUnavailable && (
             <motion.div
@@ -1230,7 +1500,12 @@ export function ProvidersTab() {
               transition={{ duration: 0.2, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <CardContent className="space-y-4">
+              <Content
+                className={cn(
+                  "space-y-4",
+                  !embedded && integration.id === CHATGPT_ID && "pb-3",
+                )}
+              >
                 {integration.id === LOCAL_MODELS_ID ? (
                   <LocalModelsIntegration
                     enabled={isEnabled}
@@ -1242,18 +1517,92 @@ export function ProvidersTab() {
                     renderActions={renderActions}
                     onServerModeChange={handleLocalModelsModeChange}
                   />
+                ) : DEVICE_FLOW_INTEGRATIONS.has(integration.id) ? (
+                  <>
+                    {!isEnabled && (
+                      <DeviceAuthorizationPanel
+                        integrationId={integration.id}
+                        integrationName={title}
+                        authorization={
+                          deviceAuthorizations[integration.id] ?? null
+                        }
+                        onConnected={async () => {
+                          clearDeviceAuthorization(integration.id)
+                          await handleIntegrationEnabled(integration)
+                        }}
+                        onError={error => {
+                          clearDeviceAuthorization(integration.id)
+                          showIntegrationError(error, title)
+                        }}
+                        onCancel={() =>
+                          clearDeviceAuthorization(integration.id)
+                        }
+                      />
+                    )}
+                    {renderActions({
+                      setup:
+                        !isEnabled && !deviceAuthorizations[integration.id],
+                    })}
+                  </>
+                ) : integration.id === CHATGPT_ID ? (
+                  <>
+                    <ChatGPTIntegrationPanel
+                      enabled={isEnabled}
+                      expired={isExpired}
+                      awaiting={isAwaitingAuthorization}
+                      loading={isLoading}
+                      onContinue={() => handleSetupIntegration(integration.id)}
+                      onSubmitAddress={address =>
+                        handleSubmitCallbackAddress(integration.id, address)
+                      }
+                    />
+                    {(isEnabled || isExpired || isAwaitingAuthorization) &&
+                      renderActions({ setup: false })}
+                  </>
                 ) : (
                   <>
                     {renderFields()}
                     {renderActions({ setup: true })}
                   </>
                 )}
-              </CardContent>
+              </Content>
             </motion.div>
           )}
         </AnimatePresence>
-      </Card>
+      </Container>
     )
+  }
+
+  const renderAIProviders = (items: ExternalIntegration[]) => {
+    const families = new Map<string, ExternalIntegration[]>()
+    for (const integration of items) {
+      const key = integration.family
+        ? `family:${integration.family.id}`
+        : `integration:${integration.id}`
+      families.set(key, [...(families.get(key) ?? []), integration])
+    }
+    return [...families.entries()].map(([key, methods]) => {
+      if (methods.length === 1) return renderIntegrationCard(methods[0])
+      const family = methods[0].family!
+      return (
+        <Card
+          key={key}
+          className="self-start"
+          data-testid={`ai-family-${family.id}`}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-lg">
+                {getIntegrationFamilyName(t, family)}
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+            {methods.map(method => renderIntegrationCard(method, true))}
+          </CardContent>
+        </Card>
+      )
+    })
   }
 
   return (
@@ -1273,9 +1622,7 @@ export function ProvidersTab() {
       ) : (
         INTEGRATION_CATEGORY_ORDER.map(category => {
           const items = externalIntegrations.filter(
-            integration =>
-              integration.type === category &&
-              (integration.id !== LOCAL_MODELS_ID || integration.available),
+            integration => integration.type === category,
           )
 
           if (items.length === 0) {
@@ -1291,7 +1638,11 @@ export function ProvidersTab() {
                 {t.settings.integrationCategories[category]}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-                {items.map(integration => renderIntegrationCard(integration))}
+                {category === ExternalIntegrationType.AI_PROVIDER
+                  ? renderAIProviders(items)
+                  : items.map(integration =>
+                      renderIntegrationCard(integration),
+                    )}
               </div>
             </div>
           )

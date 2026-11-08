@@ -237,6 +237,7 @@ class DeferredComponents:
             ExternalIntegrationId.OPENROUTER: True,
             ExternalIntegrationId.OPENAI: True,
             ExternalIntegrationId.OPENAI_COMPATIBLE: True,
+            ExternalIntegrationId.CHATGPT: True,
         }
         if INCLUDE_CONNECTIONS:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True

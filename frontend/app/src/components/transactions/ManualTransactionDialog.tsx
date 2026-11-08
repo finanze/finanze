@@ -33,6 +33,8 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
 import { DataSource, EntityOrigin, type Entity } from "@/types"
 import { getCurrencySymbol, cn } from "@/lib/utils"
+import { resolveExternalProvider } from "@/lib/externalLabeling"
+import { getIntegrationName } from "@/lib/integrations"
 import { formatIban } from "@/lib/formatters"
 import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
 import {
@@ -1224,14 +1226,20 @@ export function ManualTransactionDialog({
     useAppContext()
   const externalSettings = settings.labeling?.external
   const externalAutoRun = Boolean(externalSettings?.autoRun)
-  const externalProvider = externalSettings?.provider ?? ""
+  const externalEntry = resolveExternalProvider(
+    externalSettings,
+    externalIntegrations,
+  )
+  const externalProvider = externalEntry?.provider ?? ""
   const externalIntegration = externalIntegrations.find(
     integration => integration.id === externalProvider,
   )
-  const externalEnabled =
-    Boolean(externalSettings?.enabled) &&
-    externalIntegration?.available !== false
-  const externalProviderName = externalIntegration?.name ?? externalProvider
+  const externalEnabled = Boolean(externalEntry)
+  const externalProviderName = getIntegrationName(
+    t,
+    externalProvider,
+    externalIntegration,
+  )
   const [formState, setFormState] = useState<ManualTransactionFormState>(() => {
     const today = format(new Date(), "yyyy-MM-dd")
     const productType = SUPPORTED_PRODUCT_TYPES[0]
@@ -1275,8 +1283,8 @@ export function ManualTransactionDialog({
   }, [isOpen, externalAutoRun])
 
   useEffect(() => {
-    if (isOpen && externalEnabled) void fetchExternalIntegrations()
-  }, [isOpen, externalEnabled, fetchExternalIntegrations])
+    if (isOpen && externalSettings?.enabled) void fetchExternalIntegrations()
+  }, [isOpen, externalSettings?.enabled, fetchExternalIntegrations])
   const lockProductAndType =
     mode === "edit" &&
     isDomainTxType(formState.type) &&

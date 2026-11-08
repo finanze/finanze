@@ -16,6 +16,12 @@ export interface AIModelValidation {
   upstream_provider?: string | null
 }
 
+export interface AIModelPricing {
+  input_per_million: number
+  output_per_million: number
+  currency: string
+}
+
 export enum AIServerKind {
   OLLAMA = "OLLAMA",
   LM_STUDIO = "LM_STUDIO",

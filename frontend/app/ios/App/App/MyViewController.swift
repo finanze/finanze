@@ -9,6 +9,7 @@ class MyViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(ImageProcessorPlugin())
         bridge?.registerPluginInstance(DeviceCountryPlugin())
         bridge?.registerPluginInstance(LightHapticsPlugin())
+        bridge?.registerPluginInstance(LoopbackCallbackPlugin())
         #if CONNECTIONS
         bridge?.registerPluginInstance(LoginWebViewPlugin())
         bridge?.registerPluginInstance(TlsHttpPlugin())

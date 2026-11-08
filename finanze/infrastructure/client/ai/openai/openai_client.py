@@ -9,10 +9,8 @@ from domain.ai import (
     AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
-    AIGenerationStatus,
     AIModel,
     AIModelCapability,
-    AIUsage,
 )
 from domain.exception.exceptions import (
     AIProviderError,
@@ -27,6 +25,7 @@ from infrastructure.client.ai.http_ai_client import (
     HttpAIClient,
     to_dezimal,
 )
+from infrastructure.client.ai.responses_api import parse_response_output
 from infrastructure.client.http.http_response import HttpResponse
 
 INSUFFICIENT_QUOTA = "insufficient_quota"
@@ -197,35 +196,7 @@ class OpenAIClient(HttpAIClient):
             body["max_output_tokens"] = request.max_output_tokens
 
         response = await self._send("POST", "/responses", credentials, json=body)
-
-        texts, refusals = [], []
-        for item in response.get("output") or []:
-            if item.get("type") != "message":
-                continue
-            for part in item.get("content") or []:
-                if part.get("type") == "output_text":
-                    texts.append(part.get("text") or "")
-                elif part.get("type") == "refusal":
-                    refusals.append(part.get("refusal") or "")
-
-        if refusals:
-            generation_status = AIGenerationStatus.REFUSED
-        elif response.get("status") == "incomplete":
-            generation_status = AIGenerationStatus.INCOMPLETE
-        else:
-            generation_status = AIGenerationStatus.COMPLETED
-        usage = response.get("usage") or {}
-        return AIGeneration(
-            status=generation_status,
-            text="".join(texts) or None,
-            refusal="".join(refusals) or None,
-            usage=AIUsage(
-                input_tokens=usage.get("input_tokens") or 0,
-                output_tokens=usage.get("output_tokens") or 0,
-            )
-            if usage
-            else None,
-        )
+        return parse_response_output(response)
 
     async def _should_retry(self, response: HttpResponse) -> bool:
         if response.status == 429 and await self._is_quota_error(response):

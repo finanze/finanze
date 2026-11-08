@@ -803,6 +803,7 @@ export enum ExternalIntegrationType {
 export enum ExternalIntegrationStatus {
   ON = "ON",
   OFF = "OFF",
+  EXPIRED = "EXPIRED",
 }
 
 export interface ExternalIntegration {
@@ -813,20 +814,49 @@ export interface ExternalIntegration {
   available: boolean
   payload_schema?: Record<string, string> | null
   optional_fields?: string[] | null
+  family?: ExternalIntegrationFamily | null
+  platforms?: IntegrationPlatform[] | null
 }
+
+export interface ExternalIntegrationFamily {
+  id: string
+  name: string
+}
+
+export type IntegrationPlatform = "DESKTOP" | "SELF_HOSTED" | "MOBILE"
 
 export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
 }
 
+export interface ExternalIntegrationDeviceAuthorization {
+  flow_id: string
+  user_code: string
+  verification_uri: string
+  expires_in: number
+  interval: number
+}
+
 export interface ExternalIntegrationConnectionResult {
   link?: string | null
+  device?: ExternalIntegrationDeviceAuthorization | null
+}
+
+export enum ExternalIntegrationConnectionStatus {
+  PENDING = "PENDING",
+  CONNECTED = "CONNECTED",
+}
+
+export interface ExternalIntegrationConnectionPoll {
+  status: ExternalIntegrationConnectionStatus
+  interval?: number | null
 }
 
 export interface CompleteIntegrationOAuthRequest {
   state: string
   code?: string | null
   error?: string | null
+  client_id?: string | null
 }
 
 export enum ExternalEntityStatus {

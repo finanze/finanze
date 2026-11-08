@@ -539,6 +539,7 @@
     "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
     "AUTHORIZATION_DENIED": "Access to {integration} was denied or the required permissions were not granted.",
     "AUTHORIZATION_EXPIRED": "The {integration} authorization expired or is no longer valid. Please try again.",
+    "AUTHORIZATION_RETRY_REQUIRED": "{integration} did not accept the sign-in. Please try again.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -557,7 +558,13 @@
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
-    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
+    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one.",
+    "NOT_ENTITLED": "Your account does not have access to {integration}. Check that your plan is active and that your organization allows it.",
+    "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again.",
+    "RUNTIME_NOT_FOUND": "The program required by {integration} was not found on this computer. Install it or enter the full path to its executable.",
+    "RUNTIME_OUTDATED": "The program required by {integration} is too old. Update it and try again.",
+    "RUNTIME_NOT_AUTHENTICATED": "The program required by {integration} is not signed in. Sign in to it on this computer and try again.",
+    "REAUTHENTICATION_REQUIRED": "Your {integration} sign-in expired. Sign in again in Integrations."
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -1129,6 +1136,7 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
+        "name": "Google Sheets",
         "description": "Configure your Google Sheets API to enable data import and export.",
         "help": "How to get the credentials",
         "hint": {
@@ -1266,6 +1274,7 @@
         }
       },
       "ENABLE_BANKING": {
+        "name": "Enable Banking",
         "description": "Connect bank accounts across Europe through Enable Banking's PSD2 access.",
         "help": "How to set up Enable Banking",
         "hint": {
@@ -1348,7 +1357,7 @@
         }
       },
       "OPENROUTER": {
-        "description": "Connect OpenRouter to get automatic label suggestions for your account movements using the model you choose.",
+        "description": "Connect to OpenRouter to access models from multiple providers through one API. Usage is billed by OpenRouter.",
         "help": "How to get an API key",
         "hint": {
           "title": "Get an OpenRouter API key",
@@ -1370,7 +1379,7 @@
         }
       },
       "OPENAI": {
-        "description": "Connect OpenAI to get automatic label suggestions for your account movements using GPT models.",
+        "description": "Connect to OpenAI to use GPT models through the OpenAI API. Usage is billed by OpenAI.",
         "help": "How to get an API key",
         "hint": {
           "title": "Get an OpenAI API key",
@@ -1392,7 +1401,8 @@
         }
       },
       "OPENAI_COMPATIBLE": {
-        "description": "Connect any OpenAI-compatible server, such as Ollama, LM Studio, vLLM or llama.cpp, to label your movements with models you host yourself.",
+        "name": "Custom AI",
+        "description": "Connect to an OpenAI-compatible API, such as Ollama, LM Studio, vLLM or llama.cpp, running locally or on a server you host.",
         "help": "How to connect",
         "hint": {
           "title": "Connect an OpenAI-compatible server",
@@ -1405,7 +1415,8 @@
         }
       },
       "LOCAL_MODELS": {
-        "description": "Run small AI models privately, on this device or on your own llama.cpp server. Download them from here and use them to label your movements.",
+        "name": "Local models",
+        "description": "Run AI models privately on this device or on your own llama.cpp server. Download supported models here.",
         "help": "How it works",
         "hint": {
           "title": "Local models",
@@ -1425,14 +1436,85 @@
             }
           ]
         }
+      },
+      "GITHUB_COPILOT": {
+        "description": "Use models included in your GitHub Copilot plan. GitHub bills usage in AI credits according to each model's token prices, and requests are processed by GitHub and the model provider. Desktop and self-hosted only."
+      },
+      "CLAUDE_AGENT": {
+        "name": "Claude Agent",
+        "description": "Use Claude through Claude Code installed and signed in on this computer. Usage counts toward your Claude plan limits, and requests are processed by Anthropic. Desktop and self-hosted only.",
+        "help": "How to set it up",
+        "hint": {
+          "title": "Set up Claude Agent",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Install "
+            },
+            {
+              "type": "link",
+              "label": "Claude Code",
+              "url": "https://code.claude.com/docs/en/setup"
+            },
+            {
+              "type": "text",
+              "value": " on this computer, run claude in a terminal and sign in with your Claude account. Finanze reuses that sign-in and never asks for your credentials or an API key. Fill in the path only if Claude Code is not found automatically."
+            }
+          ]
+        }
+      },
+      "CHATGPT": {
+        "description": "Sign in with your ChatGPT account to use the models included in your ChatGPT plan. Requires ChatGPT Plus or Pro, usage counts toward your plan limits, and requests are processed by OpenAI."
       }
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationAwaitingAuthorization": "Waiting for authorization in your browser...",
+    "integrationExpired": "Sign-in expired",
+    "integrationBeta": "Beta",
+    "aiProviderFamilies": {
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "OPENROUTER": "OpenRouter",
+      "GITHUB_COPILOT": "GitHub Copilot",
+      "LOCAL_MODELS": "Local Models",
+      "CUSTOM": "Custom AI"
+    },
+    "aiProviderMethods": {
+      "OPENAI": "API key",
+      "CHATGPT": "ChatGPT plan",
+      "CLAUDE_AGENT": "Claude CLI",
+      "OPENROUTER": "API key",
+      "GITHUB_COPILOT": "GitHub plan",
+      "LOCAL_MODELS": "Local runtime or server",
+      "OPENAI_COMPATIBLE": "Compatible API"
+    },
+    "aiPlatforms": {
+      "DESKTOP": "Desktop",
+      "SELF_HOSTED": "Self-hosted",
+      "MOBILE": "Mobile"
+    },
+    "aiPlatformsLabel": "Supported platforms:",
+    "aiConnectedMethods": "{count}/{total} connected",
+    "chatgpt": {
+      "continue": "Continue with ChatGPT",
+      "usingPlan": "Using your ChatGPT plan",
+      "manageUsage": "Manage usage",
+      "expired": "Your ChatGPT sign-in expired. Continue with ChatGPT to sign in again.",
+      "pasteLabel": "Didn't return to Finanze? Paste the address shown in your browser after signing in.",
+      "pastePlaceholder": "http://127.0.0.1:…/auth/callback?code=…",
+      "finish": "Finish",
+      "invalidAddress": "That address doesn't contain a sign-in response. Copy the full address from your browser."
+    },
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
     "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",
+    "deviceAuthorization": {
+      "intro": "You will get a one-time code to sign in with your {integration} account. You can revoke access at any time from your account settings.",
+      "instructions": "Enter this code at {site} to authorize Finanze:",
+      "copyAndOpen": "Copy code and open {site}",
+      "waiting": "Waiting for authorization, code expires in {time}"
+    },
     "localModels": {
       "builtInMode": "Built-in engine",
       "serverMode": "My llama.cpp server",
@@ -2391,7 +2473,11 @@
       "matched": "{count} movements selected",
       "summary": "{rules} labeled by rules · {external} labeled by suggestions",
       "done": "Movements relabeled",
-      "externalFailed": "Movements relabeled, but suggestions could not be retrieved"
+      "externalFailed": "Movements relabeled, but suggestions could not be retrieved",
+      "providerUsed": "Provider used: {provider} ({model})",
+      "fallbackUsed": "Fallback used: {provider} ({model})",
+      "externalModelUnavailable": "the selected model is no longer available, your existing suggestions were kept. Choose another model in the suggestions settings.",
+      "externalReauthRequired": "the sign-in to the suggestions provider expired. Sign in again in Integrations."
     },
     "automation": {
       "rulesTitle": "Rules",
@@ -2410,7 +2496,7 @@
       "connected": "Connected",
       "notConnected": "Not connected",
       "unavailableHere": "Not available on this device",
-      "providerUnavailable": "{provider} is not available on this device, so suggestions are skipped here. They keep working on devices that support it. Choose another provider to also get suggestions here.",
+      "providerUnavailable": "{provider} is unavailable on this platform and this entry will be skipped. Other ready priorities can still run. Its settings are kept for supported platforms.",
       "connectProvider": "Configure it in integrations",
       "connectRequired": "Connect the provider or turn off external suggestions to save.",
       "model": "Model",
@@ -2429,7 +2515,24 @@
       "modelInvalid": "Model not found or not supported",
       "upstreamProvider": "Provider",
       "upstreamProviderPlaceholder": "Provider (optional)",
-      "upstreamProviderHint": "Optionally route requests to a specific provider, e.g. openai/flex. Requests will only go to that provider, without fallbacks.",
+      "upstreamProviderHint": "Pins this entry to one upstream provider. The next labeling priority can still be used if this entry fails.",
+      "priorityTitle": "Provider priority",
+      "platformPriorityNotice": "Providers are tried in order. Methods unavailable on this platform or requiring sign-in are skipped. A provider failure can also move labeling to the next entry.",
+      "addProvider": "Add provider",
+      "editProvider": "Edit {provider}",
+      "removeProvider": "Remove {provider}",
+      "reorderProvider": "Reorder {provider}",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "preferredHere": "Preferred here",
+      "priorityStates": {
+        "connected": "Ready as fallback",
+        "notConnected": "Not connected",
+        "expired": "Sign-in expired",
+        "unavailableHere": "Unavailable here"
+      },
+      "noEligibleProvider": "No configured provider is ready on this platform. Your priority list is preserved.",
+      "duplicateProvider": "Each provider, model and upstream combination must be unique.",
       "minConfidence": "Minimum confidence (%)",
       "minConfidenceHint": "Suggestions below this confidence are discarded.",
       "minConfidenceNotApplicable": "This model does not report confidence, so every suggestion is applied.",
@@ -2452,6 +2555,8 @@
       "noModelsMatch": "No models match your search.",
       "modelsError": "Could not load the models from the provider.",
       "modelUnavailable": "The selected model ({model}) is no longer available. Choose another one.",
+      "tokenPrice": "{input} / {output} per 1M",
+      "tokenPriceHint": "Price per 1M input / output tokens",
       "manageModels": "Manage models",
       "modelLoaded": "Loaded",
       "modelFailed": "Failed to start",

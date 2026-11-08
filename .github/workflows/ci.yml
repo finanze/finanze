@@ -11,16 +11,16 @@ concurrency:
 jobs:
   test:
     name: Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install dependencies
         run: |
@@ -33,16 +33,16 @@ jobs:
 
   format-check:
     name: Format Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python linting dependencies
         run: |
@@ -61,7 +61,7 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
 
@@ -79,16 +79,16 @@ jobs:
 
   e2e:
     name: E2E Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python dependencies
         run: |
@@ -101,7 +101,7 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
 
@@ -115,7 +115,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('e2e/standard/pnpm-lock.yaml') }}
@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: e2e/standard/test-results/
@@ -150,7 +150,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -158,7 +158,7 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
 

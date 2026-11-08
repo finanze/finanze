@@ -61,6 +61,9 @@ from application.use_cases.fetch_external_financial_data import (
 )
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.forecast import ForecastImpl
+from application.use_cases.forward_integration_oauth_callback import (
+    ForwardIntegrationOAuthCallbackImpl,
+)
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_available_external_entities import (
     GetAvailableExternalEntitiesImpl,
@@ -127,6 +130,9 @@ from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
+from application.use_cases.poll_external_integration_connection import (
+    PollExternalIntegrationConnectionImpl,
+)
 from application.use_cases.create_label import CreateLabelImpl
 from application.use_cases.create_labeling_rule import CreateLabelingRuleImpl
 from application.use_cases.delete_label import DeleteLabelImpl
@@ -166,6 +172,7 @@ from application.use_cases.restore_recurring_movement import (
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
+from domain.platform import Distribution
 from domain.telemetry import TelemetryContext
 from domain.user_login import LoginRequest
 from infrastructure.client.cloud.backup.backup_client import BackupClient
@@ -173,10 +180,36 @@ from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
     HttpFileTransferStrategy,
 )
 from infrastructure.client.ai.openai.openai_client import OpenAIClient
+from infrastructure.client.ai.chatgpt.chatgpt_client import ChatGPTClient
+from infrastructure.client.ai.chatgpt.chatgpt_oauth import ChatGPTOAuth
 from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
     OpenAICompatibleClient,
 )
 from infrastructure.client.ai.openrouter.openrouter_client import OpenRouterClient
+from infrastructure.agent_runtime.runtime_pool import AgentRuntimePool
+from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeSandbox
+from infrastructure.client.ai.github_copilot.copilot_runtime_provisioner import (
+    CopilotRuntimeProvisioner,
+)
+from infrastructure.client.ai.github_copilot.github_copilot_client import (
+    GITHUB_DEVICE_SCOPE,
+    PROVIDER as GITHUB_COPILOT_RUNTIME,
+    GitHubCopilotClient,
+    resolve_github_copilot_client_id,
+)
+from infrastructure.client.ai.github_copilot.github_device_flow import (
+    GitHubDeviceFlow,
+)
+from infrastructure.client.ai.claude_agent.claude_agent_client import (
+    ClaudeAgentClient,
+)
+from infrastructure.client.ai.claude_agent.claude_cli_locator import (
+    CLI_PATH_ENV as CLAUDE_CLI_PATH_ENV,
+    ClaudeCliLocator,
+)
+from infrastructure.client.ai.claude_agent.claude_model_discovery import (
+    ClaudeModelDiscovery,
+)
 from infrastructure.local_models.huggingface_catalog_client import (
     HuggingFaceCatalogClient,
 )
@@ -339,6 +372,9 @@ from infrastructure.calculations.loan_calculator import LoanCalculator
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
+from infrastructure.repository.host_identity.host_identity_repository import (
+    HostIdentityRepository,
+)
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
@@ -413,6 +449,7 @@ class FinanzeServer:
         self._db_client = None
         self._financial_entity_fetchers = None
         self._local_model_runtime = None
+        self._agent_runtime_pool = None
         self._error_reporter = NoopErrorReporter()
         self._log = logging.getLogger(__name__)
 
@@ -472,6 +509,9 @@ class FinanzeServer:
 
         settings_repository = SettingsRepository(db_client, FileLegacyConfigSource())
         mcp_config_repository = McpConfigRepository(db_client)
+        external_integration_repository = ExternalIntegrationRepository(
+            client=db_client
+        )
         sheets_initiator = SheetsServiceLoader()
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
@@ -502,7 +542,36 @@ class FinanzeServer:
             ExternalIntegrationId.LOCAL_MODELS: LocalModelsAIClient(
                 local_model_runtime, llama_router, local_model_catalog
             ),
+            ExternalIntegrationId.CHATGPT: ChatGPTClient(
+                ChatGPTOAuth(HostIdentityRepository(db_client), args.port),
+                external_integration_repository,
+            ),
         }
+        agent_runtime_sandbox = AgentRuntimeSandbox(
+            args.data_dir / Path("agent_runtimes")
+        )
+        await agent_runtime_sandbox.cleanup_stale()
+        agent_runtime_pool = AgentRuntimePool()
+        self._agent_runtime_pool = agent_runtime_pool
+        ai_clients[ExternalIntegrationId.GITHUB_COPILOT] = GitHubCopilotClient(
+            GitHubDeviceFlow(resolve_github_copilot_client_id(), GITHUB_DEVICE_SCOPE),
+            CopilotRuntimeProvisioner(
+                agent_runtime_sandbox.runtime_dir(GITHUB_COPILOT_RUNTIME)
+            ),
+            agent_runtime_pool,
+            agent_runtime_sandbox,
+            external_integration_repository,
+        )
+        if detect_distribution() != Distribution.DOCKER or os.getenv(
+            CLAUDE_CLI_PATH_ENV
+        ):
+            ai_clients[ExternalIntegrationId.CLAUDE_AGENT] = ClaudeAgentClient(
+                ClaudeCliLocator(),
+                ClaudeModelDiscovery(),
+                agent_runtime_pool,
+                agent_runtime_sandbox,
+                client_app=f"finanze/{resolve_version()}",
+            )
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -598,9 +667,6 @@ class FinanzeServer:
         last_fetches_repository = LastFetchesRepository(client=db_client)
         fetch_pointers_repository = FetchPointersRepository(client=db_client)
         tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
-        external_integration_repository = ExternalIntegrationRepository(
-            client=db_client
-        )
         periodic_flow_repository = PeriodicFlowRepository(client=db_client)
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)
@@ -697,6 +763,7 @@ class FinanzeServer:
             sheets_initiator,
             cloud_register,
             self._error_reporter,
+            agent_runtime_port=agent_runtime_pool,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -954,6 +1021,13 @@ class FinanzeServer:
                 external_integration_repository,
                 external_integrations,
             )
+        )
+        poll_external_integration_connection = PollExternalIntegrationConnectionImpl(
+            external_integration_repository,
+            external_integrations,
+        )
+        forward_integration_oauth_callback = ForwardIntegrationOAuthCallbackImpl(
+            external_integrations
         )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
@@ -1406,6 +1480,8 @@ class FinanzeServer:
             delete_local_model_uc=delete_local_model,
             list_hugging_face_quants_uc=list_hugging_face_quants,
             import_local_model_uc=import_local_model,
+            poll_external_integration_connection_uc=poll_external_integration_connection,
+            forward_integration_oauth_callback_uc=forward_integration_oauth_callback,
         )
 
         self._log.info("Setting up MCP server...")
@@ -1564,8 +1640,17 @@ class FinanzeServer:
             await self._error_reporter.flush()
             await self._close_financial_entity_fetchers()
             await self._stop_local_models()
+            await self._stop_agent_runtimes()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    async def _stop_agent_runtimes(self):
+        if self._agent_runtime_pool is None:
+            return
+        try:
+            await self._agent_runtime_pool.release_all()
+        except Exception:
+            self._log.warning("Error stopping agent runtimes", exc_info=True)
 
     async def _stop_local_models(self):
         if self._local_model_runtime is None:

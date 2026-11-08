@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 
 from domain.external_integration import ExternalIntegrationPayload
 
@@ -8,5 +9,5 @@ class ConnectableIntegration(metaclass=abc.ABCMeta):
     async def setup(self, payload: ExternalIntegrationPayload):
         raise NotImplementedError
 
-    async def teardown(self):
+    async def teardown(self, payload: Optional[ExternalIntegrationPayload] = None):
         pass
