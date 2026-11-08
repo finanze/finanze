@@ -1748,6 +1748,7 @@
     "stacked": "Apilado",
     "lines": "Líneas",
     "showTotal": "Total",
+    "fitYAxis": "Ajustar eje Y",
     "selectAll": "Seleccionar todo",
     "clearAll": "Limpiar todo",
     "ranges": {

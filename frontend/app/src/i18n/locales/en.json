@@ -1749,6 +1749,7 @@
     "stacked": "Stacked",
     "lines": "Lines",
     "showTotal": "Total",
+    "fitYAxis": "Fit Y axis",
     "selectAll": "Select all",
     "clearAll": "Clear all",
     "ranges": {
