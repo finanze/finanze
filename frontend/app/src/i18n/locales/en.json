@@ -217,6 +217,8 @@
     "assets": "assets",
     "entry": "entry",
     "byAsset": "Per asset",
+    "viewEvolution": "View evolution",
+    "showAllFunds": "Show all funds",
     "byType": "Per type",
     "sortBy": "",
     "sortAmount": "Amount",

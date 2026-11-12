@@ -217,6 +217,8 @@
     "assets": "beni",
     "entry": "voce",
     "byAsset": "Per bene",
+    "viewEvolution": "Vedi evoluzione",
+    "showAllFunds": "Mostra tutti i fondi",
     "byType": "Per tipo",
     "sortBy": "",
     "sortAmount": "Importo",

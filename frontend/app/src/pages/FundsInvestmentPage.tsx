@@ -18,6 +18,7 @@ import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
+  getFundAssetKey,
   getStockAndFundPositions,
   getEntitiesWithProductType,
   calculateInvestmentDistribution,
@@ -52,6 +53,7 @@ import {
   ChevronDown,
   BarChart3,
   Loader2,
+  LineChart,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
@@ -163,11 +165,17 @@ function FundsInvestmentPageContent({
   const [fundsChartView, setFundsChartView] = useState<"asset" | "type">(
     "asset",
   )
+  const [selectedFund, setSelectedFund] = useState<{
+    key: string
+    name: string
+  } | null>(null)
+  const evolutionRef = useRef<HTMLDivElement | null>(null)
   const gainsQuery = useMemo<GainsTimelineQuery>(
     () => ({
       assets: [
         {
           product_type: ProductType.FUND,
+          asset_keys: selectedFund ? [selectedFund.key] : undefined,
           portfolio_names:
             selectedPortfolios.length > 0 ? selectedPortfolios : undefined,
         },
@@ -176,8 +184,24 @@ function FundsInvestmentPageContent({
       calculation_mode: "HYBRID",
       entities: selectedEntities.length > 0 ? selectedEntities : undefined,
     }),
-    [settings.general.defaultCurrency, selectedEntities, selectedPortfolios],
+    [
+      settings.general.defaultCurrency,
+      selectedEntities,
+      selectedPortfolios,
+      selectedFund,
+    ],
   )
+
+  const handleViewFundEvolution = useCallback((position: StockFundPosition) => {
+    const key = getFundAssetKey(position)
+    setSelectedFund(prev =>
+      prev?.key === key ? null : { key, name: position.name },
+    )
+    evolutionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    })
+  }, [])
 
   // Get all fund positions
   const allFundPositions = useMemo<FundPositionWithEntity[]>(() => {
@@ -692,6 +716,7 @@ function FundsInvestmentPageContent({
   const handleClearAllFilters = () => {
     setSelectedEntities([])
     setSelectedPortfolios([])
+    setSelectedFund(null)
   }
 
   return (
@@ -891,10 +916,29 @@ function FundsInvestmentPageContent({
                     ]}
                     orbitBubbles={orbitBubbleData}
                   />
-                  <InvestmentEvolutionTimeline
-                    query={gainsQuery}
-                    currency={settings.general.defaultCurrency}
-                  />
+                  <div ref={evolutionRef} className="min-w-0">
+                    <InvestmentEvolutionTimeline
+                      query={gainsQuery}
+                      currency={settings.general.defaultCurrency}
+                      className="h-full"
+                      titleAddon={
+                        selectedFund && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFund(null)}
+                            aria-label={t.investments.showAllFunds}
+                            title={t.investments.showAllFunds}
+                            className="inline-flex max-w-[12rem] items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                          >
+                            <span className="truncate">
+                              {selectedFund.name}
+                            </span>
+                            <X className="h-3 w-3 shrink-0" />
+                          </button>
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1236,6 +1280,23 @@ function FundsInvestmentPageContent({
                             />
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          data-no-expand
+                          onClick={() => handleViewFundEvolution(position)}
+                          aria-label={t.investments.viewEvolution}
+                          aria-pressed={
+                            selectedFund?.key === getFundAssetKey(position)
+                          }
+                          title={t.investments.viewEvolution}
+                          className={cn(
+                            "p-1.5 rounded-md text-muted-foreground transition-colors hover:text-foreground hover:bg-muted",
+                            selectedFund?.key === getFundAssetKey(position) &&
+                              "text-primary bg-primary/10",
+                          )}
+                        >
+                          <LineChart className="h-4 w-4" />
+                        </button>
                         <ChevronDown
                           className={cn(
                             "hidden sm:block h-4 w-4 text-muted-foreground transition-transform duration-200",

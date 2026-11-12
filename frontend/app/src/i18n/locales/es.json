@@ -215,6 +215,8 @@
     "assets": "activos",
     "entry": "entrada",
     "byAsset": "Por activo",
+    "viewEvolution": "Ver evolución",
+    "showAllFunds": "Ver todos los fondos",
     "byType": "Por tipo",
     "sortBy": "",
     "sortAmount": "Importe",

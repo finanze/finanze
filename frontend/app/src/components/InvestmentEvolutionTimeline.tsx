@@ -58,6 +58,7 @@ interface InvestmentEvolutionTimelineProps {
   className?: string
   /** Products without a meaningful cost basis (crypto, commodities) chart value only. */
   supportsGains?: boolean
+  titleAddon?: ReactNode
 }
 
 function formatDateValue(date: Date): string {
@@ -672,6 +673,7 @@ export function InvestmentEvolutionTimeline({
   currency,
   className,
   supportsGains = true,
+  titleAddon,
 }: InvestmentEvolutionTimelineProps) {
   const { t } = useI18n()
   const isDesktop = useIsDesktop()
@@ -711,6 +713,7 @@ export function InvestmentEvolutionTimeline({
             {t.evolutionChart.title}
             <BetaNotice />
             <WarningsNotice warnings={warnings} />
+            {titleAddon}
           </h3>
           <Button
             type="button"
@@ -752,6 +755,7 @@ export function InvestmentEvolutionTimeline({
                   {t.evolutionChart.title}
                   <BetaNotice />
                   <WarningsNotice warnings={warnings} />
+                  {titleAddon}
                 </h3>
               )}
               <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">

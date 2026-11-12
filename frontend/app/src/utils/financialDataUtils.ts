@@ -675,6 +675,13 @@ export interface StockFundPosition {
   issuer?: string | null
 }
 
+// Mirrors the backend gains timeline fund key: COALESCE(NULLIF(isin, ''), name)
+export function getFundAssetKey(
+  position: Pick<StockFundPosition, "isin" | "name">,
+): string {
+  return position.isin || position.name
+}
+
 export interface CryptoPosition {
   symbol: string
   name: string
