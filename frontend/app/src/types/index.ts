@@ -392,6 +392,7 @@ export enum ImportErrorType {
   VALIDATION_ERROR = "VALIDATION_ERROR",
   UNEXPECTED_COLUMN = "UNEXPECTED_COLUMN",
   UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
+  DUPLICATED = "DUPLICATED",
 }
 
 export interface ImportError {
@@ -485,6 +486,8 @@ export enum ImportResultCode {
 
   // Failure
   UNSUPPORTED_FILE_FORMAT = "UNSUPPORTED_FILE_FORMAT",
+  PDF_NO_TEXT_LAYER = "PDF_NO_TEXT_LAYER",
+  NO_TABLE_FOUND = "NO_TABLE_FOUND",
   INVALID_TEMPLATE = "INVALID_TEMPLATE",
 
   // Import not configured
@@ -1447,6 +1450,21 @@ export interface TemplateFeatureDefinition {
   template_type: TemplateType | null
 }
 
+export interface SuggestedTemplateField {
+  field: string
+  name: string
+}
+
+export interface TemplateFieldsSuggestion {
+  headers: string[]
+  fields: SuggestedTemplateField[]
+  number_format?: NumberFormat | null
+  date_format?: string | null
+  detected_currency?: string | null
+  missing_required_fields?: string[]
+  matching_templates?: string[]
+}
+
 export enum NumberFormat {
   EUROPEAN = "EUROPEAN",
   ENGLISH = "ENGLISH",
@@ -1456,6 +1474,8 @@ export enum FileFormat {
   CSV = "CSV",
   TSV = "TSV",
   XLSX = "XLSX",
+  HTML = "HTML",
+  PDF = "PDF",
 }
 
 export interface TemplateConfigPayload {
@@ -1470,7 +1490,15 @@ export interface FileExportRequest {
   data?: ProductType[] | null
   datetime_format?: string | null
   date_format?: string | null
+  from_date?: string | null
+  to_date?: string | null
   template?: TemplateConfigPayload | null
+}
+
+export interface EphemeralTemplateFieldPayload {
+  field: string
+  name?: string | null
+  default?: any
 }
 
 export interface FileImportRequest {
@@ -1479,7 +1507,8 @@ export interface FileImportRequest {
   product: ProductType
   datetime_format?: string | null
   date_format?: string | null
-  templateId: string
+  templateId?: string | null
+  templateFields?: EphemeralTemplateFieldPayload[] | null
   templateParams?: Record<string, string> | null
   preview?: boolean
 }

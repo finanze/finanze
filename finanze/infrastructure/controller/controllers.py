@@ -95,6 +95,7 @@ from domain.use_cases.delete_pending_flow import DeletePendingFlow
 from domain.use_cases.settle_pending_flow import SettlePendingFlow
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
 from domain.use_cases.search_crypto_assets import SearchCryptoAssets
+from domain.use_cases.suggest_template_fields import SuggestTemplateFields
 from domain.use_cases.update_contributions import UpdateContributions
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
@@ -323,6 +324,9 @@ from infrastructure.controller.routes.update_tracked_loans import update_tracked
 from infrastructure.controller.routes.upload_backup import upload_backup
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.search_crypto_assets import search_crypto_assets
+from infrastructure.controller.routes.suggest_template_fields import (
+    suggest_template_fields,
+)
 
 
 async def register_routes(
@@ -405,6 +409,7 @@ async def register_routes(
     delete_template_uc: DeleteTemplate,
     get_templates_uc: GetTemplates,
     get_template_fields_uc: GetTemplateFields,
+    suggest_template_fields_uc: SuggestTemplateFields,
     upload_backup_uc: UploadBackup,
     import_backup_uc: ImportBackup,
     get_backups_uc: GetBackups,
@@ -891,6 +896,10 @@ async def register_routes(
     @app.route("/api/v1/templates/fields", methods=["GET"])
     async def get_template_fields_route():
         return await get_template_fields(get_template_fields_uc)
+
+    @app.route("/api/v1/templates/suggest", methods=["POST"])
+    async def suggest_template_fields_route():
+        return await suggest_template_fields(suggest_template_fields_uc)
 
     @app.route("/api/v1/calculations/savings", methods=["POST"])
     async def calculate_savings_route():

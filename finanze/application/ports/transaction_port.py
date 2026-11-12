@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from domain.fetch_record import DataSource
+from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
     AccountTxSelection,
@@ -11,6 +12,7 @@ from domain.transactions import (
     BaseTx,
     TransactionQueryRequest,
     Transactions,
+    TxRefKey,
 )
 
 
@@ -24,6 +26,9 @@ class TransactionPort(metaclass=abc.ABCMeta):
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        product_types: Optional[list[ProductType]] = None,
     ) -> Transactions:
         raise NotImplementedError
 
@@ -81,6 +86,10 @@ class TransactionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def get_refs_by_entity(self, entity_id: UUID) -> set[str]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_ref_keys(self, entity_ids: list[UUID]) -> set[TxRefKey]:
         raise NotImplementedError
 
     @abc.abstractmethod

@@ -113,6 +113,7 @@ from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
 from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
+from application.use_cases.suggest_template_fields import SuggestTemplateFieldsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
@@ -422,6 +423,8 @@ from infrastructure.repository.virtual.virtual_import_repository import (
 from infrastructure.sheets.sheets_adapter import SheetsAdapter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from infrastructure.table.csv_file_table_adapter import CSVFileTableAdapter
+from infrastructure.table.html_file_table_adapter import HTMLFileTableAdapter
+from infrastructure.table.pdf_file_table_adapter import PDFFileTableAdapter
 from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
 from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
@@ -646,6 +649,8 @@ class FinanzeServer:
                 FileFormat.CSV: csv_tsv_adapter,
                 FileFormat.TSV: csv_tsv_adapter,
                 FileFormat.XLSX: XLSXFileTableAdapter(),
+                FileFormat.HTML: HTMLFileTableAdapter(),
+                FileFormat.PDF: PDFFileTableAdapter(),
             }
         )
 
@@ -1208,6 +1213,9 @@ class FinanzeServer:
         delete_template = DeleteTemplateImpl(template_repository)
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
+        suggest_template_fields = SuggestTemplateFieldsImpl(
+            table_rw_adapter, template_parser, template_repository
+        )
 
         get_labels = GetLabelsImpl(label_repository)
         create_label = CreateLabelImpl(label_repository)
@@ -1444,6 +1452,7 @@ class FinanzeServer:
             delete_template,
             get_templates,
             get_template_fields,
+            suggest_template_fields,
             upload_backup,
             import_backup,
             get_backups,

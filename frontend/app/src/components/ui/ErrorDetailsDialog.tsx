@@ -36,6 +36,8 @@ export function ErrorDetailsDialog({
         return t.importErrors.validationError
       case ImportErrorType.UNEXPECTED_COLUMN:
         return t.importErrors.unexpectedColumn
+      case ImportErrorType.DUPLICATED:
+        return t.importErrors.duplicated
       default:
         return t.importErrors.unknownError
     }
@@ -137,6 +139,29 @@ export function ErrorDetailsDialog({
                 <li key={index}>{column}</li>
               ))}
             </ul>
+          </div>
+        )
+
+      case ImportErrorType.DUPLICATED:
+        return (
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div>
+              {t.importErrors.duplicatedMessage
+                .replace("{entry}", error.entry)
+                .replace(
+                  "{ref}",
+                  (error.detail as { field: string; value: string }[])?.[0]
+                    ?.value ?? "",
+                )}
+            </div>
+            {error.row && (
+              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                {t.importErrors.validationErrorRow.replace(
+                  "{row}",
+                  error.row.join(", "),
+                )}
+              </div>
+            )}
           </div>
         )
 

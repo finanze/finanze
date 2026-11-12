@@ -159,6 +159,11 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/client/financial/enablebanking/",
   // Infrastructure - table, templating, interests, keychain, backup processor, file storage (mobile)
   "finanze/infrastructure/table/xlsx_file_table_adapter.py",
+  "finanze/infrastructure/table/html_file_table_adapter.py",
+  "finanze/infrastructure/table/pdf_file_table_adapter.py",
+  "finanze/infrastructure/table/html_table_reader.py",
+  "finanze/infrastructure/table/spreadsheetml_reader.py",
+  "finanze/domain/template_header_aliases.py",
   "finanze/infrastructure/templating/",
   "finanze/infrastructure/client/interests/",
   "finanze/infrastructure/client/keychain/",
@@ -239,6 +244,8 @@ const LAZY_PATTERNS = [
   "finanze/application/use_cases/update_template.py",
   "finanze/application/use_cases/delete_template.py",
   "finanze/application/use_cases/get_template_fields.py",
+  "finanze/domain/use_cases/suggest_template_fields.py",
+  "finanze/application/use_cases/suggest_template_fields.py",
   "finanze/application/use_cases/save_backup_settings.py",
   // Route handlers (original 9)
   "finanze/infrastructure/controller/routes/add_entity_login.py",
@@ -293,6 +300,7 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/controller/routes/update_template.py",
   "finanze/infrastructure/controller/routes/delete_template.py",
   "finanze/infrastructure/controller/routes/get_template_fields_route.py",
+  "finanze/infrastructure/controller/routes/suggest_template_fields.py",
   "finanze/infrastructure/controller/routes/save_backup_settings.py",
   // Labeling, cashflow, and external labeling providers
   "finanze/domain/cashflow.py",

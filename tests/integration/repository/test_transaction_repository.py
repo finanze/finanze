@@ -1,6 +1,6 @@
 import sqlite3
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime
 from uuid import uuid4
 
 import pytest
@@ -570,3 +570,129 @@ async def test_get_by_filters_sorts_before_pagination(
 def test_transaction_query_rejects_invalid_sorting(options):
     with pytest.raises(ValidationError):
         TransactionQueryRequest(**options)
+
+
+@pytest.mark.asyncio
+async def test_get_all_filters_by_date_range_and_skips_unneeded_tables(setup):
+    repository, connection = setup
+    entity = Entity(
+        id=uuid4(),
+        name="Bank",
+        natural_id=None,
+        type=EntityType.FINANCIAL_INSTITUTION,
+        origin=EntityOrigin.MANUAL,
+        icon_url=None,
+    )
+    connection.execute(
+        "INSERT INTO entities (id, name, type, origin) VALUES (?, ?, ?, ?)",
+        (str(entity.id), entity.name, entity.type.value, entity.origin.value),
+    )
+    connection.commit()
+
+    acc_early = AccountTx(
+        id=uuid4(),
+        ref="acc-early",
+        name="Early",
+        amount=Dezimal(10),
+        currency="EUR",
+        type=TxType.INFLOW,
+        date=datetime(2026, 1, 9, 23, 59, 59, tzinfo=tzlocal()),
+        entity=entity,
+        source=DataSource.MANUAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+    )
+    acc_start = replace(
+        acc_early,
+        id=uuid4(),
+        ref="acc-start",
+        date=datetime(2026, 1, 10, 0, 0, 0, tzinfo=tzlocal()),
+    )
+    acc_end = replace(
+        acc_early,
+        id=uuid4(),
+        ref="acc-end",
+        date=datetime(2026, 1, 20, 23, 59, 59, tzinfo=tzlocal()),
+    )
+    acc_late = replace(
+        acc_early,
+        id=uuid4(),
+        ref="acc-late",
+        date=datetime(2026, 1, 21, 0, 0, 0, tzinfo=tzlocal()),
+    )
+    stock_in = StockTx(
+        id=uuid4(),
+        ref="stk-in",
+        name="Stock in range",
+        amount=Dezimal(100),
+        currency="EUR",
+        type=TxType.BUY,
+        date=datetime(2026, 1, 15, 14, 30, 0, tzinfo=tzlocal()),
+        entity=entity,
+        source=DataSource.MANUAL,
+        product_type=ProductType.STOCK_ETF,
+        shares=Dezimal(1),
+        price=Dezimal(100),
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+    )
+    fund_in = FundTx(
+        id=uuid4(),
+        ref="fnd-in",
+        name="Fund in range",
+        amount=Dezimal(200),
+        currency="EUR",
+        type=TxType.BUY,
+        date=datetime(2026, 1, 18, 9, 0, 0, tzinfo=tzlocal()),
+        entity=entity,
+        source=DataSource.MANUAL,
+        product_type=ProductType.FUND,
+        isin="IE00B4L5Y983",
+        shares=Dezimal(2),
+        price=Dezimal(100),
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        net_amount=Dezimal(200),
+    )
+    await repository.save(
+        Transactions(
+            account=[acc_early, acc_start, acc_end, acc_late],
+            investment=[stock_in, fund_in],
+        )
+    )
+
+    bounded = await repository.get_all(
+        from_date=date(2026, 1, 10),
+        to_date=date(2026, 1, 20),
+    )
+    assert [tx.ref for tx in bounded.account] == ["acc-start", "acc-end"]
+    assert [tx.ref for tx in bounded.investment] == ["stk-in", "fnd-in"]
+
+    statements = []
+    connection.set_trace_callback(statements.append)
+    try:
+        only_account = await repository.get_all(
+            from_date=date(2026, 1, 10),
+            to_date=date(2026, 1, 20),
+            product_types=[ProductType.ACCOUNT],
+        )
+    finally:
+        connection.set_trace_callback(None)
+    assert [tx.ref for tx in only_account.account] == ["acc-start", "acc-end"]
+    assert only_account.investment == []
+    assert not any("FROM investment_transactions" in s for s in statements)
+
+    statements.clear()
+    connection.set_trace_callback(statements.append)
+    try:
+        only_stock = await repository.get_all(
+            from_date=date(2026, 1, 10),
+            to_date=date(2026, 1, 20),
+            product_types=[ProductType.STOCK_ETF],
+        )
+    finally:
+        connection.set_trace_callback(None)
+    assert only_stock.account == []
+    assert [tx.ref for tx in only_stock.investment] == ["stk-in"]
+    assert not any("FROM account_transactions" in s for s in statements)

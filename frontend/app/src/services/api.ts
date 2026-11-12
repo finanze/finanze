@@ -50,6 +50,7 @@ import {
   TemplateCreatePayload,
   TemplateUpdatePayload,
   TemplateFeatureDefinition,
+  TemplateFieldsSuggestion,
   FileExportRequest,
   FileImportRequest,
   MoneyEvents,
@@ -84,6 +85,7 @@ import type {
 import {
   EntitiesPosition,
   PositionQueryRequest,
+  ProductType,
   UpdatePositionRequest,
 } from "../types/position"
 import type {
@@ -241,7 +243,11 @@ export async function importFile(
     formData.append("dateFormat", request.date_format)
   }
   formData.append("numberFormat", request.number_format)
-  formData.append("templateId", request.templateId)
+  if (request.templateId) {
+    formData.append("templateId", request.templateId)
+  } else if (request.templateFields && request.templateFields.length > 0) {
+    formData.append("templateFields", JSON.stringify(request.templateFields))
+  }
   if (
     request.templateParams &&
     Object.keys(request.templateParams).length > 0
@@ -267,6 +273,18 @@ export async function getTemplateFields(): Promise<
   Record<string, TemplateFeatureDefinition[]>
 > {
   return (await getApiClient()).get("/templates/fields")
+}
+
+export async function suggestTemplateFields(
+  file: File,
+  feature: Feature,
+  product: ProductType,
+): Promise<TemplateFieldsSuggestion> {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("feature", feature)
+  formData.append("product", product)
+  return (await getApiClient()).post("/templates/suggest", formData)
 }
 
 export async function createTemplate(

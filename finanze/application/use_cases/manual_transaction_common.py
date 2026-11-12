@@ -3,9 +3,8 @@ from uuid import UUID, uuid4
 
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
-from domain.dezimal import Dezimal
 from domain.entity import Feature
-from domain.transactions import BaseTx, TxType
+from domain.transactions import BaseTx, compute_net_amount
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
 
@@ -17,41 +16,7 @@ class ManualTransactionVirtualImportHelper:
         if not hasattr(tx, "net_amount"):
             return tx
 
-        incoming_types = {
-            TxType.SELL,
-            TxType.DIVIDEND,
-            TxType.INTEREST,
-            TxType.REPAYMENT,
-            TxType.RIGHT_SELL,
-            TxType.TRANSFER_IN,
-            TxType.SWITCH_TO,
-            TxType.SWAP_TO,
-            TxType.INFLOW,
-        }
-        outgoing_types = {
-            TxType.BUY,
-            TxType.INVESTMENT,
-            TxType.SUBSCRIPTION,
-            TxType.FEE,
-            TxType.RIGHT_ISSUE,
-            TxType.TRANSFER_OUT,
-            TxType.SWITCH_FROM,
-            TxType.SWAP_FROM,
-            TxType.OUTFLOW,
-        }
-
-        fees = getattr(tx, "fees", None) or Dezimal(0)
-        retentions = getattr(tx, "retentions", None) or Dezimal(0)
-
-        if tx.type == TxType.SPLIT:
-            tx.net_amount = tx.amount - fees - retentions
-        elif tx.type in incoming_types:
-            tx.net_amount = tx.amount - fees - retentions
-        elif tx.type in outgoing_types:
-            tx.net_amount = tx.amount + fees + retentions
-        else:
-            tx.net_amount = tx.amount - fees - retentions
-
+        tx.net_amount = compute_net_amount(tx)
         return tx
 
     async def refresh(self, entity_id: UUID, has_transactions: bool):

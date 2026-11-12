@@ -11,7 +11,12 @@ import {
   resetAllMocks,
   mockImportFile,
   mockGetTemplates,
+  mockSuggestTemplateFields,
+  buildImportResult,
+  buildImportedTransactionData,
 } from "./setup"
+import { NumberFormat, TemplateType } from "@/types"
+import { ProductType } from "@/types/position"
 
 function createTestFile(name = "data.csv", type = "text/csv") {
   return new File(["col1,col2\nval1,val2"], name, { type })
@@ -41,11 +46,79 @@ describe("file import dialog", () => {
     expect(screen.getByText("Import data from file")).toBeInTheDocument()
   })
 
-  it("shows feature, file, and format selectors", async () => {
+  it("shows feature, file, and format selectors with homogeneous required stars and no star on Template", async () => {
     await openImportDialog()
-    expect(screen.getAllByText("Positions").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Transactions").length).toBeGreaterThan(0)
-    expect(screen.getByText("File")).toBeInTheDocument()
+    const dialogHeading = screen.getByText("Import data from file")
+    const motionWrapper = dialogHeading.closest("div.max-w-3xl")
+    expect(motionWrapper).not.toBeNull()
+    expect(motionWrapper?.className).toContain("w-full")
+    expect(motionWrapper?.className).toContain("min-w-0")
+
+    const featureLabel = screen.getByText("What to import?")
+    expect(featureLabel.querySelector("span")?.className).toContain(
+      "text-red-500",
+    )
+    const featureButtons = Array.from(
+      featureLabel.parentElement!.querySelectorAll("button"),
+    ).map(btn => btn.textContent?.trim())
+    expect(featureButtons).toEqual(["Transactions", "Positions"])
+
+    const fileLabel = screen.getByText("File")
+    expect(fileLabel.querySelector("span")?.className).toContain("text-red-500")
+
+    const templateLabel = screen.getByText("Template")
+    expect(templateLabel.querySelector("span")).toBeNull()
+    expect(templateLabel.textContent).toBe("Template")
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("Transactions").at(-1)!)
+    })
+
+    const productLabel = screen.getByText("Product")
+    expect(productLabel.querySelector("span")?.className).toContain(
+      "text-red-500",
+    )
+    expect(screen.getByText("Template").querySelector("span")).toBeNull()
+  })
+
+  it("opens the import dialog with the file filled when dropping or selecting on the import card", async () => {
+    mockGetTemplates.mockResolvedValue([])
+    renderExportPage()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: /Import/i }))
+    })
+
+    expect(screen.queryByText(/Supported formats/)).not.toBeInTheDocument()
+
+    const cardDropZone = screen
+      .getByText("Drop a file here or click to browse")
+      .closest("div[class*='border-dashed']")!
+
+    const droppedFile = createTestFile("card-dropped.csv")
+    await act(async () => {
+      fireEvent.drop(cardDropZone, {
+        dataTransfer: { files: [droppedFile] },
+      })
+    })
+
+    expect(screen.getByText("Import data from file")).toBeInTheDocument()
+    expect(screen.getByText("card-dropped.csv")).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    })
+
+    const cardInput = document.getElementById(
+      "file-import-card-input",
+    ) as HTMLInputElement
+    const pickedFile = createTestFile("card-picked.csv")
+    await act(async () => {
+      fireEvent.change(cardInput, { target: { files: [pickedFile] } })
+    })
+
+    expect(screen.getByText("Import data from file")).toBeInTheDocument()
+    expect(screen.getByText("card-picked.csv")).toBeInTheDocument()
   })
 
   it("shows validation errors when submitting without required fields", async () => {
@@ -56,7 +129,7 @@ describe("file import dialog", () => {
     })
 
     expect(
-      screen.getByText("Select a feature to continue."),
+      screen.getByText("Select what to import to continue."),
     ).toBeInTheDocument()
     expect(screen.getByText("Choose a file to import.")).toBeInTheDocument()
     expect(mockImportFile).not.toHaveBeenCalled()
@@ -129,5 +202,215 @@ describe("file import dialog", () => {
     })
 
     expect(screen.queryByText("Import data from file")).not.toBeInTheDocument()
+  })
+
+  it("analyzes a file for template-less auto-import, allows format overrides, previews, and confirms import", async () => {
+    mockSuggestTemplateFields.mockResolvedValue({
+      headers: ["Fecha", "Concepto", "Importe", "Saldo"],
+      fields: [
+        { field: "date", name: "Fecha" },
+        { field: "name", name: "Concepto" },
+        { field: "amount", name: "Importe" },
+      ],
+      missing_required_fields: ["currency"],
+      matching_templates: [],
+      number_format: NumberFormat.EUROPEAN,
+      date_format: "%d/%m/%Y",
+      detected_currency: "USD",
+    })
+    mockImportFile
+      .mockResolvedValueOnce(
+        buildImportResult({ data: buildImportedTransactionData() }),
+      )
+      .mockResolvedValueOnce(
+        buildImportResult({ data: buildImportedTransactionData() }),
+      )
+
+    await openImportDialog()
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("Transactions").at(-1)!)
+    })
+    await act(async () => {
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Account" }).at(-1)!,
+      )
+    })
+
+    const fileInput = document.getElementById(
+      "file-import-input",
+    ) as HTMLInputElement
+    const statementFile = createTestFile("statement.csv")
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [statementFile] } })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Ready to import")).toBeInTheDocument()
+    })
+    expect(
+      screen.getByText("3 of 4 columns recognized automatically."),
+    ).toBeInTheDocument()
+    expect(screen.getByText("Detected from file")).toBeInTheDocument()
+    expect(
+      (document.getElementById("file-import-currency") as HTMLSelectElement)
+        .value,
+    ).toBe("USD")
+    expect(
+      screen.getByText(/Dates: DD\/MM\/YYYY · Decimals: 1\.000,00/),
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }))
+    })
+    expect(
+      screen.getByText("Select an entity to continue."),
+    ).toBeInTheDocument()
+    expect(mockImportFile).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(document.getElementById("file-import-entity")!)
+    })
+    expect(screen.getByText("Bank A")).toBeInTheDocument()
+    expect(screen.queryByText("CryptoEx C")).not.toBeInTheDocument()
+    await act(async () => {
+      fireEvent.click(screen.getByText("Bank A"))
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Format options"))
+    })
+    await act(async () => {
+      fireEvent.change(document.getElementById("file-import-date-format")!, {
+        target: { value: "%d-%m-%Y" },
+      })
+    })
+    await act(async () => {
+      fireEvent.change(
+        document.getElementById("file-import-datetime-format")!,
+        {
+          target: { value: "%d-%m-%Y %H:%M:%S" },
+        },
+      )
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }))
+    })
+
+    await waitFor(() => {
+      expect(mockImportFile).toHaveBeenCalledTimes(1)
+    })
+    expect(mockImportFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: "TRANSACTIONS",
+        product: ProductType.ACCOUNT,
+        number_format: NumberFormat.EUROPEAN,
+        date_format: "%d-%m-%Y",
+        datetime_format: "%d-%m-%Y %H:%M:%S",
+        templateId: null,
+        templateParams: { entity: "Bank A" },
+        templateFields: [
+          { field: "date", name: "Fecha" },
+          { field: "name", name: "Concepto" },
+          { field: "amount", name: "Importe" },
+          { field: "currency", name: "currency", default: "USD" },
+        ],
+      }),
+      statementFile,
+    )
+
+    expect(screen.getByText("Review simulated import")).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Import data" }))
+    })
+
+    await waitFor(() => {
+      expect(mockImportFile).toHaveBeenCalledTimes(2)
+    })
+    expect(mockImportFile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        feature: "TRANSACTIONS",
+        product: ProductType.ACCOUNT,
+        preview: false,
+        templateId: null,
+        templateParams: { entity: "Bank A" },
+      }),
+      statementFile,
+    )
+  })
+
+  it("auto-selects a matching template, allows crypto exchange entities for crypto, and surfaces file analysis errors", async () => {
+    mockGetTemplates.mockResolvedValue([
+      {
+        id: "tpl-crypto",
+        name: "Crypto Trades CSV",
+        type: TemplateType.IMPORT,
+        feature: "TRANSACTIONS",
+        products: [ProductType.CRYPTO],
+        fields: [{ field: "date", type: "DATETIME" }],
+      },
+    ])
+    mockSuggestTemplateFields.mockResolvedValueOnce({
+      headers: ["date", "symbol", "amount"],
+      fields: [{ field: "date", name: "date" }],
+      missing_required_fields: [],
+      matching_templates: ["tpl-crypto"],
+      number_format: NumberFormat.ENGLISH,
+      date_format: "ISO",
+      detected_currency: null,
+    })
+
+    renderExportPage()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: /Import/i }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Import\.\.\./ }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("Transactions").at(-1)!)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Crypto" }).at(-1)!)
+    })
+
+    const fileInput = document.getElementById(
+      "file-import-input",
+    ) as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: { files: [createTestFile("trades.csv")] },
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Matches template “Crypto Trades CSV”."),
+      ).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      fireEvent.click(document.getElementById("file-import-entity")!)
+    })
+    expect(screen.getByText("Bank A")).toBeInTheDocument()
+    expect(screen.getByText("CryptoEx C")).toBeInTheDocument()
+
+    const pdfErr = Object.assign(new Error("Scanned PDF"), {
+      code: "PDF_NO_TEXT_LAYER",
+    })
+    mockSuggestTemplateFields.mockRejectedValueOnce(pdfErr)
+    await act(async () => {
+      fireEvent.change(document.getElementById("file-import-input")!, {
+        target: { files: [createTestFile("scanned.pdf", "application/pdf")] },
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/scanned images or vector outlines/i),
+      ).toBeInTheDocument()
+    })
   })
 })

@@ -564,6 +564,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "POST",
+            "/api/v1/templates/suggest",
+            "suggest_template_fields",
+            "suggest_template_fields",
+            lz.suggest_tmpl_fields,
+        ),
+        (
+            "POST",
             "/api/v1/cloud/backup/settings",
             "save_backup_settings",
             "save_backup_settings",

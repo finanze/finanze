@@ -106,6 +106,8 @@ class LazyComponents:
             DeriveCryptoAddressesImpl,
         )
         from infrastructure.table.csv_file_table_adapter import CSVFileTableAdapter
+        from infrastructure.table.html_file_table_adapter import HTMLFileTableAdapter
+        from infrastructure.table.pdf_file_table_adapter import PDFFileTableAdapter
         from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
         from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
         from infrastructure.templating.templated_data_generator import (
@@ -330,6 +332,9 @@ class LazyComponents:
         from application.use_cases.update_template import UpdateTemplateImpl
         from application.use_cases.delete_template import DeleteTemplateImpl
         from application.use_cases.get_template_fields import GetTemplateFieldsImpl
+        from application.use_cases.suggest_template_fields import (
+            SuggestTemplateFieldsImpl,
+        )
         from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
 
         d = self._deferred
@@ -416,6 +421,8 @@ class LazyComponents:
                 FileFormat.CSV: csv_tsv_adapter,
                 FileFormat.TSV: csv_tsv_adapter,
                 FileFormat.XLSX: XLSXFileTableAdapter(),
+                FileFormat.HTML: HTMLFileTableAdapter(),
+                FileFormat.PDF: PDFFileTableAdapter(),
             }
         )
 
@@ -776,6 +783,9 @@ class LazyComponents:
         self.up_tmpl = UpdateTemplateImpl(temp_repo)
         self.del_tmpl = DeleteTemplateImpl(temp_repo)
         self.get_tmpl_fields = GetTemplateFieldsImpl()
+        self.suggest_tmpl_fields = SuggestTemplateFieldsImpl(
+            table_rw_adapter, template_parser, temp_repo
+        )
 
         self.save_bkp_settings = SaveBackupSettingsImpl(
             d.cloud_register, d.cloud_register

@@ -1,4 +1,5 @@
 import abc
+from typing import Any
 
 from domain.export import FileFormat
 from domain.file_upload import FileUpload
@@ -10,5 +11,5 @@ class TableRWPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def parse(self, upload: FileUpload) -> list[list[str]]:
+    async def parse(self, upload: FileUpload) -> list[list[Any]]:
         raise NotImplementedError

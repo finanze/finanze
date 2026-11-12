@@ -87,6 +87,11 @@ def _generate_default_template(
                 ]
 
             for specific_field in feature_fields:
+                if (
+                    specific_field.template_type
+                    and specific_field.template_type != TemplateType.EXPORT
+                ):
+                    continue
                 if specific_field.field not in fields_set:
                     fields_set.add(specific_field.field)
                     fields.append(

@@ -36,6 +36,18 @@ def _content_type_for_format(export_format: FileFormat) -> str:
     raise ValueError(f"Unsupported export format: {export_format}")
 
 
+def _format_export_filename(request: FileExportRequest, timestamp: str) -> str:
+    parts = ["export", request.feature.lower()]
+    if request.from_date and request.to_date:
+        parts.extend([request.from_date.isoformat(), request.to_date.isoformat()])
+    elif request.from_date:
+        parts.extend(["from", request.from_date.isoformat()])
+    elif request.to_date:
+        parts.extend(["until", request.to_date.isoformat()])
+    parts.append(timestamp)
+    return f"{'_'.join(parts)}.{request.format.name.lower()}"
+
+
 class ExportFileImpl(ExportFile):
     def __init__(
         self,
@@ -68,7 +80,7 @@ class ExportFileImpl(ExportFile):
                 raise ExportException("No data available for export")
 
             timestamp = datetime.now(tzlocal()).strftime("%Y%m%d_%H%M%S")
-            filename = f"export_{request.feature.lower()}_{timestamp}.{request.format.name.lower()}"
+            filename = _format_export_filename(request, timestamp)
 
             content_type = _content_type_for_format(request.format)
 
@@ -142,7 +154,12 @@ class ExportFileImpl(ExportFile):
     async def _build_transaction_rows(
         self, products, disabled_entities, template, request
     ):
-        txs = await self._transaction_port.get_all(excluded_entities=disabled_entities)
+        txs = await self._transaction_port.get_all(
+            excluded_entities=disabled_entities,
+            from_date=request.from_date,
+            to_date=request.to_date,
+            product_types=products or None,
+        )
         data = txs.account + txs.investment
         params = TemplatedDataProcessorParams(
             template=template,

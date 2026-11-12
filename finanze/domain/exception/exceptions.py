@@ -323,6 +323,14 @@ class UnsupportedFileFormat(Exception):
     pass
 
 
+class PdfNoTextLayer(UnsupportedFileFormat):
+    pass
+
+
+class NoTableFound(UnsupportedFileFormat):
+    pass
+
+
 class CalculationInputError(Exception):
     def __init__(self, details: str):
         self.details = details
