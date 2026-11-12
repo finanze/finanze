@@ -21,6 +21,7 @@ import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getStockAndFundPositions,
+  getStockAssetKey,
   getEntitiesWithProductType,
   calculateInvestmentDistribution,
   convertCurrency,
@@ -36,6 +37,8 @@ import {
   ChevronDown,
   ChartCandlestick,
   ExternalLink,
+  LineChart,
+  X,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
@@ -349,11 +352,18 @@ function StocksViewContent({
   const [equityTypeFilter, setEquityTypeFilter] = useState<
     "all" | "STOCK" | "ETF"
   >("all")
+  const [selectedStock, setSelectedStock] = useState<{
+    key: string
+    name: string
+  } | null>(null)
+  const [isEvolutionExpanded, setIsEvolutionExpanded] = useState(false)
+  const evolutionRef = useRef<HTMLDivElement | null>(null)
   const gainsQuery = useMemo<GainsTimelineQuery>(
     () => ({
       assets: [
         {
           product_type: ProductType.STOCK_ETF,
+          asset_keys: selectedStock ? [selectedStock.key] : undefined,
           equity_types:
             equityTypeFilter === "all"
               ? undefined
@@ -368,7 +378,24 @@ function StocksViewContent({
       calculation_mode: "HYBRID",
       entities: selectedEntities.length > 0 ? selectedEntities : undefined,
     }),
-    [defaultCurrency, equityTypeFilter, selectedEntities],
+    [defaultCurrency, equityTypeFilter, selectedEntities, selectedStock],
+  )
+
+  const handleViewStockEvolution = useCallback(
+    (position: StockFundPosition) => {
+      const key = getStockAssetKey(position)
+      if (selectedStock?.key === key) {
+        setSelectedStock(null)
+        return
+      }
+      setSelectedStock({ key, name: position.name })
+      setIsEvolutionExpanded(true)
+      evolutionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    },
+    [selectedStock],
   )
 
   const handleEquityTypeToggle = useCallback((type: "STOCK" | "ETF") => {
@@ -811,10 +838,32 @@ function StocksViewContent({
                     }}
                     orbitBubbles={orbitBubbleData}
                   />
-                  <InvestmentEvolutionTimeline
-                    query={gainsQuery}
-                    currency={defaultCurrency}
-                  />
+                  <div ref={evolutionRef} className="min-w-0">
+                    <InvestmentEvolutionTimeline
+                      query={gainsQuery}
+                      currency={defaultCurrency}
+                      className="h-full"
+                      expanded={isEvolutionExpanded}
+                      onExpandedChange={setIsEvolutionExpanded}
+                      titleAddon={
+                        selectedStock && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStock(null)}
+                            aria-label={t.investments.showAllStocks}
+                            title={t.investments.showAllStocks}
+                            data-testid="selected-stock-chip"
+                            className="inline-flex max-w-full lg:max-w-[12rem] items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                          >
+                            <span className="truncate">
+                              {selectedStock.name}
+                            </span>
+                            <X className="h-3 w-3 shrink-0" />
+                          </button>
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -899,6 +948,8 @@ function StocksViewContent({
                 const showActions = isManual
 
                 const isExpanded = expandedCards[item.key] ?? false
+                const isStockSelected =
+                  selectedStock?.key === getStockAssetKey(position)
 
                 const rawShares = position.shares
                 const numericShares =
@@ -979,15 +1030,9 @@ function StocksViewContent({
                         toggleCardExpanded(item.key)
                       }}
                       onKeyDown={e => {
+                        if (e.target !== e.currentTarget) return
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
-                          if (
-                            isExpanded &&
-                            (e.target as HTMLElement).closest(
-                              "[data-source-badge]",
-                            )
-                          )
-                            return
                           toggleCardExpanded(item.key)
                         }
                       }}
@@ -1254,18 +1299,34 @@ function StocksViewContent({
                                   </div>
                                 </div>
                               </div>
-                              {infoSheetUrl && (
-                                <a
-                                  href={infoSheetUrl}
-                                  target="_blank"
-                                  rel="noreferrer noopener"
-                                  data-no-expand
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                {infoSheetUrl && (
+                                  <a
+                                    href={infoSheetUrl}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    data-no-expand
+                                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    {t.investments.openInfoSheet}
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleViewStockEvolution(position)
+                                  }
+                                  aria-pressed={isStockSelected}
+                                  data-testid="stock-evolution-button"
                                   className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
                                 >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                  {t.investments.openInfoSheet}
-                                </a>
-                              )}
+                                  <LineChart className="h-3.5 w-3.5" />
+                                  {isStockSelected
+                                    ? t.investments.showAllStocks
+                                    : t.investments.viewEvolution}
+                                </button>
+                              </div>
                               {showActions && (
                                 <div
                                   className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"

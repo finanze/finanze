@@ -18,6 +18,7 @@ import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
+  getFundAssetKey,
   getStockAndFundPositions,
   getEntitiesWithProductType,
   calculateInvestmentDistribution,
@@ -52,6 +53,7 @@ import {
   ChevronDown,
   BarChart3,
   Loader2,
+  LineChart,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
@@ -163,11 +165,18 @@ function FundsInvestmentPageContent({
   const [fundsChartView, setFundsChartView] = useState<"asset" | "type">(
     "asset",
   )
+  const [selectedFund, setSelectedFund] = useState<{
+    key: string
+    name: string
+  } | null>(null)
+  const [isEvolutionExpanded, setIsEvolutionExpanded] = useState(false)
+  const evolutionRef = useRef<HTMLDivElement | null>(null)
   const gainsQuery = useMemo<GainsTimelineQuery>(
     () => ({
       assets: [
         {
           product_type: ProductType.FUND,
+          asset_keys: selectedFund ? [selectedFund.key] : undefined,
           portfolio_names:
             selectedPortfolios.length > 0 ? selectedPortfolios : undefined,
         },
@@ -176,7 +185,29 @@ function FundsInvestmentPageContent({
       calculation_mode: "HYBRID",
       entities: selectedEntities.length > 0 ? selectedEntities : undefined,
     }),
-    [settings.general.defaultCurrency, selectedEntities, selectedPortfolios],
+    [
+      settings.general.defaultCurrency,
+      selectedEntities,
+      selectedPortfolios,
+      selectedFund,
+    ],
+  )
+
+  const handleViewFundEvolution = useCallback(
+    (position: StockFundPosition) => {
+      const key = getFundAssetKey(position)
+      if (selectedFund?.key === key) {
+        setSelectedFund(null)
+        return
+      }
+      setSelectedFund({ key, name: position.name })
+      setIsEvolutionExpanded(true)
+      evolutionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    },
+    [selectedFund],
   )
 
   // Get all fund positions
@@ -692,6 +723,7 @@ function FundsInvestmentPageContent({
   const handleClearAllFilters = () => {
     setSelectedEntities([])
     setSelectedPortfolios([])
+    setSelectedFund(null)
   }
 
   return (
@@ -891,10 +923,32 @@ function FundsInvestmentPageContent({
                     ]}
                     orbitBubbles={orbitBubbleData}
                   />
-                  <InvestmentEvolutionTimeline
-                    query={gainsQuery}
-                    currency={settings.general.defaultCurrency}
-                  />
+                  <div ref={evolutionRef} className="min-w-0">
+                    <InvestmentEvolutionTimeline
+                      query={gainsQuery}
+                      currency={settings.general.defaultCurrency}
+                      className="h-full"
+                      expanded={isEvolutionExpanded}
+                      onExpandedChange={setIsEvolutionExpanded}
+                      titleAddon={
+                        selectedFund && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFund(null)}
+                            aria-label={t.investments.showAllFunds}
+                            title={t.investments.showAllFunds}
+                            data-testid="selected-fund-chip"
+                            className="inline-flex max-w-full lg:max-w-[12rem] items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                          >
+                            <span className="truncate">
+                              {selectedFund.name}
+                            </span>
+                            <X className="h-3 w-3 shrink-0" />
+                          </button>
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -977,6 +1031,8 @@ function FundsInvestmentPageContent({
 
                 const infoSheetUrl = position.infoSheetUrl?.trim()
                 const isExpanded = expandedCards[item.key] ?? false
+                const isFundSelected =
+                  selectedFund?.key === getFundAssetKey(position)
 
                 const rawShares = position.shares
                 const numericShares =
@@ -1054,15 +1110,9 @@ function FundsInvestmentPageContent({
                         toggleCardExpanded(item.key)
                       }}
                       onKeyDown={e => {
+                        if (e.target !== e.currentTarget) return
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
-                          if (
-                            isExpanded &&
-                            (e.target as HTMLElement).closest(
-                              "[data-source-badge]",
-                            )
-                          )
-                            return
                           toggleCardExpanded(item.key)
                         }
                       }}
@@ -1364,18 +1414,34 @@ function FundsInvestmentPageContent({
                                   </div>
                                 </div>
                               </div>
-                              {infoSheetUrl && (
-                                <a
-                                  href={infoSheetUrl}
-                                  target="_blank"
-                                  rel="noreferrer noopener"
-                                  data-no-expand
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                {infoSheetUrl && (
+                                  <a
+                                    href={infoSheetUrl}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    data-no-expand
+                                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    {t.investments.openInfoSheet}
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleViewFundEvolution(position)
+                                  }
+                                  aria-pressed={isFundSelected}
+                                  data-testid="fund-evolution-button"
                                   className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
                                 >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                  {t.investments.openInfoSheet}
-                                </a>
-                              )}
+                                  <LineChart className="h-3.5 w-3.5" />
+                                  {isFundSelected
+                                    ? t.investments.showAllFunds
+                                    : t.investments.viewEvolution}
+                                </button>
+                              </div>
                               {showActions && (
                                 <div
                                   className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"

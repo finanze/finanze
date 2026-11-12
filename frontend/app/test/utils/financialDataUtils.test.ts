@@ -8,6 +8,8 @@ import {
   computeForecastKpis,
   getCryptoPositions,
   getCurrencyDisplayValue,
+  getFundAssetKey,
+  getStockAssetKey,
   getCryptoRateKey,
   getTotalCreditCardUsed,
   getWalletAssets,
@@ -623,5 +625,30 @@ describe("getCryptoPositions with fetcher-priced (Zerion) positions", () => {
 
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ symbol: "ETH", amount: 3, value: 6000 })
+  })
+})
+
+describe("getFundAssetKey", () => {
+  it("uses the ISIN when present", () => {
+    expect(getFundAssetKey({ isin: "IE00B03HCZ61", name: "Vanguard" })).toBe(
+      "IE00B03HCZ61",
+    )
+  })
+
+  it("falls back to the name when the ISIN is missing or empty", () => {
+    expect(getFundAssetKey({ name: "Vanguard" })).toBe("Vanguard")
+    expect(getFundAssetKey({ isin: "", name: "Vanguard" })).toBe("Vanguard")
+  })
+})
+
+describe("getStockAssetKey", () => {
+  it("prefers the ISIN, then the ticker, then the name", () => {
+    expect(
+      getStockAssetKey({ isin: "US0378331005", symbol: "AAPL", name: "Apple" }),
+    ).toBe("US0378331005")
+    expect(getStockAssetKey({ isin: "", symbol: "AAPL", name: "Apple" })).toBe(
+      "AAPL",
+    )
+    expect(getStockAssetKey({ symbol: "", name: "Apple" })).toBe("Apple")
   })
 })
