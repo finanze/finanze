@@ -59,6 +59,8 @@ interface InvestmentEvolutionTimelineProps {
   /** Products without a meaningful cost basis (crypto, commodities) chart value only. */
   supportsGains?: boolean
   titleAddon?: ReactNode
+  expanded?: boolean
+  onExpandedChange?: (expanded: boolean) => void
 }
 
 function formatDateValue(date: Date): string {
@@ -674,10 +676,13 @@ export function InvestmentEvolutionTimeline({
   className,
   supportsGains = true,
   titleAddon,
+  expanded,
+  onExpandedChange,
 }: InvestmentEvolutionTimelineProps) {
   const { t } = useI18n()
   const isDesktop = useIsDesktop()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [internalExpanded, setInternalExpanded] = useState(false)
+  const isExpanded = expanded ?? internalExpanded
   const [range, setRange] = useState<RangeKey>(INITIAL_RANGE)
   const [customFrom, setCustomFrom] = useState("")
   const [customTo, setCustomTo] = useState("")
@@ -698,6 +703,12 @@ export function InvestmentEvolutionTimeline({
     setCustomTo("")
   }
 
+  const toggleExpanded = () => {
+    const next = !isExpanded
+    if (expanded === undefined) setInternalExpanded(next)
+    onExpandedChange?.(next)
+  }
+
   return (
     <section
       className={cn(
@@ -713,7 +724,6 @@ export function InvestmentEvolutionTimeline({
             {t.evolutionChart.title}
             <BetaNotice />
             <WarningsNotice warnings={warnings} />
-            {titleAddon}
           </h3>
           <Button
             type="button"
@@ -725,7 +735,7 @@ export function InvestmentEvolutionTimeline({
               isExpanded ? t.evolutionChart.hide : t.evolutionChart.show
             }
             data-testid="evolution-timeline-toggle"
-            onClick={() => setIsExpanded(expanded => !expanded)}
+            onClick={toggleExpanded}
           >
             {isExpanded ? (
               <ChevronUp className="h-4 w-4" />
@@ -737,6 +747,9 @@ export function InvestmentEvolutionTimeline({
             </span>
           </Button>
         </div>
+      )}
+      {!isDesktop && titleAddon && (
+        <div className="mt-2 flex min-w-0 px-6">{titleAddon}</div>
       )}
       <AnimatePresence initial={false}>
         {shouldRenderChart && (

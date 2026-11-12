@@ -9,6 +9,7 @@ import {
   getCryptoPositions,
   getCurrencyDisplayValue,
   getFundAssetKey,
+  getStockAssetKey,
   getCryptoRateKey,
   getTotalCreditCardUsed,
   getWalletAssets,
@@ -637,5 +638,17 @@ describe("getFundAssetKey", () => {
   it("falls back to the name when the ISIN is missing or empty", () => {
     expect(getFundAssetKey({ name: "Vanguard" })).toBe("Vanguard")
     expect(getFundAssetKey({ isin: "", name: "Vanguard" })).toBe("Vanguard")
+  })
+})
+
+describe("getStockAssetKey", () => {
+  it("prefers the ISIN, then the ticker, then the name", () => {
+    expect(
+      getStockAssetKey({ isin: "US0378331005", symbol: "AAPL", name: "Apple" }),
+    ).toBe("US0378331005")
+    expect(getStockAssetKey({ isin: "", symbol: "AAPL", name: "Apple" })).toBe(
+      "AAPL",
+    )
+    expect(getStockAssetKey({ symbol: "", name: "Apple" })).toBe("Apple")
   })
 })
