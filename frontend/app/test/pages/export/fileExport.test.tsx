@@ -199,9 +199,10 @@ describe("file export dialog", () => {
     expect(
       screen.getByRole("button", { name: "ISO (YYYY-MM-DD)" }),
     ).toHaveAttribute("aria-pressed", "true")
-    expect(
-      screen.getByRole("button", { name: "ISO (YYYY-MM-DDTHH:mm:ss)" }),
-    ).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "ISO 8601" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
     expect(document.getElementById("file-export-date-format")).toBeNull()
     expect(document.getElementById("file-export-datetime-format")).toBeNull()
 

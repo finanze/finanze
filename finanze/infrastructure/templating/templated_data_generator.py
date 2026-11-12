@@ -46,7 +46,9 @@ def _format_field_value(value: Any, params: TemplatedDataProcessorParams):
 
     elif isinstance(value, datetime):
         datetime_format = params.datetime_format
-        value = value.replace(tzinfo=UTC).astimezone(tzlocal())
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        value = value.astimezone(tzlocal())
         if not datetime_format:
             return value.isoformat()
         return value.strftime(datetime_format)

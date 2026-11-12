@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-from dateutil.tz import tzlocal
+from dateutil.tz import tzlocal, tzoffset
 
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
@@ -906,6 +906,73 @@ class TestTransactionsRoundTrip:
 
         assert isinstance(result.transactions, Transactions)
         assert result.transactions.account[0].net_amount == Dezimal(10)
+
+    @pytest.mark.asyncio
+    async def test_round_trip_keeps_instant_of_non_utc_aware_dates(self):
+        bank = _entity("Bank")
+        late_evening = datetime(2025, 2, 3, 23, 30, tzinfo=tzoffset(None, 5 * 3600))
+        original = AccountTx(
+            id=uuid4(),
+            ref="acc-tz",
+            name="Late dinner",
+            amount=Dezimal("42"),
+            currency="EUR",
+            type=TxType.OUTFLOW,
+            date=late_evening,
+            entity=bank,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal(0),
+            retentions=Dezimal(0),
+        )
+
+        result = await self._round_trip(ProductType.ACCOUNT, [original])
+
+        assert result.errors == []
+        assert result.transactions.account[0].date == late_evening
+
+    @pytest.mark.asyncio
+    async def test_custom_datetime_format_uses_local_wall_time_of_aware_dates(self):
+        bank = _entity("Bank")
+        aware = datetime(2025, 2, 3, 23, 30, tzinfo=tzoffset(None, 5 * 3600))
+        naive_utc = datetime(2025, 2, 4, 8, 15)
+        txs = [
+            AccountTx(
+                id=uuid4(),
+                ref=ref,
+                name=ref,
+                amount=Dezimal("1"),
+                currency="EUR",
+                type=TxType.OUTFLOW,
+                date=value,
+                entity=bank,
+                source=DataSource.REAL,
+                product_type=ProductType.ACCOUNT,
+                fees=Dezimal(0),
+                retentions=Dezimal(0),
+            )
+            for ref, value in (("aware", aware), ("naive", naive_utc))
+        ]
+
+        rows = await TemplatedDataGenerator().process(
+            txs,
+            TemplatedDataProcessorParams(
+                template=None,
+                number_format=NumberFormat.ENGLISH,
+                feature=Feature.TRANSACTIONS,
+                products=[ProductType.ACCOUNT],
+                datetime_format="%Y-%m-%d %H:%M",
+                date_format=None,
+            ),
+        )
+
+        date_index = rows[0].index("date")
+        assert rows[1][date_index] == aware.astimezone(tzlocal()).strftime(
+            "%Y-%m-%d %H:%M"
+        )
+        assert rows[2][date_index] == naive_utc.replace(tzinfo=timezone.utc).astimezone(
+            tzlocal()
+        ).strftime("%Y-%m-%d %H:%M")
 
 
 BANK_ACCOUNT_FIELDS = [

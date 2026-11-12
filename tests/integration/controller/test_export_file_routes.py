@@ -375,4 +375,4 @@ class TestExportFileRouteFormatsAndTemplates:
         assert len(values) == 2
         assert values[1][1] == "End of Feb Dinner"
         assert str(values[1][2]) == "45.75"
-        assert values[1][0].startswith("2026/")
+        assert values[1][0] == "2026/02/28 23:45"

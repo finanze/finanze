@@ -1888,7 +1888,6 @@
       "templateFeatureHint": "Selecciona primero qué quieres exportar para ver sus plantillas.",
       "templateInfo": "Las plantillas te ayudan a limitar las columnas exportadas.",
       "formatLabel": "Formato",
-      "formatHint": "Selecciona el formato del archivo.",
       "numberFormatLabel": "Formato numérico",
       "numberFormatHint": "Elige cómo se separan los miles y los decimales.",
       "numberFormats": {
@@ -1908,7 +1907,7 @@
       "datetimeFormats": {
         "customHint": "Usa %Y, %m, %d, %H, %M, %S (p. ej. %Y-%m-%dT%H:%M:%S). Déjalo vacío para ISO.",
         "presets": {
-          "iso": "ISO (YYYY-MM-DDTHH:mm:ss)",
+          "iso": "ISO 8601",
           "ymdSpace": "YYYY-MM-DD HH:mm:ss",
           "dmySlash": "DD/MM/YYYY HH:mm:ss",
           "mdySlash": "MM/DD/YYYY HH:mm:ss",
@@ -1916,7 +1915,6 @@
           "custom": "Personalizado"
         }
       },
-      "datetimeHint": "Si los dejas vacíos, se usarán formatos ISO por defecto (p. ej. %Y-%m-%d y %Y-%m-%dT%H:%M:%S).",
       "exportAction": "Exportar",
       "formats": {
         "CSV": "CSV",

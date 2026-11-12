@@ -1888,7 +1888,6 @@
       "templateFeatureHint": "Seleziona prima cosa vuoi esportare per vedere i suoi modelli.",
       "templateInfo": "I modelli aiutano a limitare le colonne esportate.",
       "formatLabel": "Formato",
-      "formatHint": "Seleziona il formato del file.",
       "numberFormatLabel": "Formato decimale",
       "numberFormatHint": "Scegli come vengono separati migliaia e decimali.",
       "numberFormats": {
@@ -1908,7 +1907,7 @@
       "datetimeFormats": {
         "customHint": "Usa %Y, %m, %d, %H, %M, %S (es. %Y-%m-%dT%H:%M:%S). Lascia vuoto per ISO.",
         "presets": {
-          "iso": "ISO (YYYY-MM-DDTHH:mm:ss)",
+          "iso": "ISO 8601",
           "ymdSpace": "YYYY-MM-DD HH:mm:ss",
           "dmySlash": "DD/MM/YYYY HH:mm:ss",
           "mdySlash": "MM/DD/YYYY HH:mm:ss",
@@ -1916,7 +1915,6 @@
           "custom": "Personalizzato"
         }
       },
-      "datetimeHint": "Se lasciati vuoti, verranno usati per impostazione predefinita i formati ISO (es. %Y-%m-%d e %Y-%m-%dT%H:%M:%S).",
       "exportAction": "Esporta",
       "formats": {
         "CSV": "CSV",

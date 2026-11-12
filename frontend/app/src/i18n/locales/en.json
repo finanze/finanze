@@ -1889,7 +1889,6 @@
       "templateFeatureHint": "Select what to export first to view its templates.",
       "templateInfo": "Templates help you narrow the exported columns.",
       "formatLabel": "Format",
-      "formatHint": "Select the file format.",
       "numberFormatLabel": "Decimal format",
       "numberFormatHint": "Choose how thousands and decimals are separated.",
       "numberFormats": {
@@ -1909,7 +1908,7 @@
       "datetimeFormats": {
         "customHint": "Use %Y, %m, %d, %H, %M, %S (e.g. %Y-%m-%dT%H:%M:%S). Leave empty for ISO.",
         "presets": {
-          "iso": "ISO (YYYY-MM-DDTHH:mm:ss)",
+          "iso": "ISO 8601",
           "ymdSpace": "YYYY-MM-DD HH:mm:ss",
           "dmySlash": "DD/MM/YYYY HH:mm:ss",
           "mdySlash": "MM/DD/YYYY HH:mm:ss",
@@ -1917,7 +1916,6 @@
           "custom": "Custom"
         }
       },
-      "datetimeHint": "If left empty, ISO formats (e.g. %Y-%m-%d and %Y-%m-%dT%H:%M:%S) will be used by default.",
       "exportAction": "Export",
       "formats": {
         "CSV": "CSV",
