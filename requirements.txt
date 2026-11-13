@@ -26,6 +26,7 @@ yfinance==1.7.0
 openpyxl==3.1.5
 xlrd==2.0.2
 pypdf==7.0.1
+pypdfium2==5.15.2
 Pillow==12.3.0
 httpx==0.28.1
 base58==2.1.1

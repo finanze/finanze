@@ -412,10 +412,22 @@ export interface ImportedData {
   transactions?: Transactions
 }
 
+export interface AIImportMetadata {
+  provider: string
+  model: string
+  rows: number
+  requests: number
+  pages?: number | null
+  images: boolean
+}
+
 export interface ImportResult {
   code: ImportResultCode
   data?: any
   errors?: ImportError[]
+  previewToken?: string
+  ai?: AIImportMetadata
+  detail?: string
 }
 
 export interface EntitiesResponse {
@@ -489,6 +501,13 @@ export enum ImportResultCode {
   PDF_NO_TEXT_LAYER = "PDF_NO_TEXT_LAYER",
   NO_TABLE_FOUND = "NO_TABLE_FOUND",
   INVALID_TEMPLATE = "INVALID_TEMPLATE",
+  PREVIEW_EXPIRED = "PREVIEW_EXPIRED",
+
+  // AI extraction
+  AI_UNAVAILABLE = "AI_UNAVAILABLE",
+  AI_VISION_UNSUPPORTED = "AI_VISION_UNSUPPORTED",
+  AI_EXTRACTION_EMPTY = "AI_EXTRACTION_EMPTY",
+  AI_FILE_TOO_LARGE = "AI_FILE_TOO_LARGE",
 
   // Import not configured
   DISABLED = "DISABLED",
@@ -1511,6 +1530,9 @@ export interface FileImportRequest {
   templateFields?: EphemeralTemplateFieldPayload[] | null
   templateParams?: Record<string, string> | null
   preview?: boolean
+  useAi?: boolean
+  aiInstructions?: string | null
+  previewToken?: string | null
 }
 
 // Money Events

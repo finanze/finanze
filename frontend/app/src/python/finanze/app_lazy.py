@@ -110,6 +110,13 @@ class LazyComponents:
         from infrastructure.table.pdf_file_table_adapter import PDFFileTableAdapter
         from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
         from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
+        from infrastructure.ai_import.ai_import_extractor_adapter import (
+            AIImportExtractorAdapter,
+        )
+        from infrastructure.ai_import.import_document import ImportDocumentReader
+        from infrastructure.ai_import.capacitor_pdf_page_renderer import (
+            CapacitorPdfPageRenderer,
+        )
         from infrastructure.templating.templated_data_generator import (
             TemplatedDataGenerator,
         )
@@ -143,6 +150,7 @@ class LazyComponents:
         from infrastructure.client.ai.openrouter.openrouter_client import (
             OpenRouterClient,
         )
+        from infrastructure.client.ai.ai_model_presets import AI_MODEL_PRESETS
         from infrastructure.labeling.ai_labeling_presets import (
             LABELING_BATCH_SIZES,
             LABELING_PRESETS,
@@ -192,12 +200,8 @@ class LazyComponents:
         from application.use_cases.update_transaction_labels import (
             UpdateTransactionLabelsImpl,
         )
-        from application.use_cases.get_external_labeling_providers import (
-            GetExternalLabelingProvidersImpl,
-        )
-        from application.use_cases.get_external_labeling_models import (
-            GetExternalLabelingModelsImpl,
-        )
+        from application.use_cases.get_ai_providers import GetAIProvidersImpl
+        from application.use_cases.get_ai_models import GetAIModelsImpl
         from application.use_cases.validate_ai_model import ValidateAIModelImpl
         from application.use_cases.get_ai_server_info import GetAIServerInfoImpl
         from application.use_cases.ignore_recurring_movement import (
@@ -592,6 +596,15 @@ class LazyComponents:
             template_parser,
             d.tx_handler,
             transaction_labeler,
+            ai_import_extractor=AIImportExtractorAdapter(
+                config_port=d.settings_repository,
+                external_integration_port=d.ext_int_repo,
+                clients=ai_clients,
+                document_reader=ImportDocumentReader(
+                    table_rw_adapter, page_renderer=CapacitorPdfPageRenderer()
+                ),
+            ),
+            preview_store=d.import_preview_store,
         )
         self.export_file = ExportFileImpl(
             d.position_repo,
@@ -834,12 +847,10 @@ class LazyComponents:
         self.update_transaction_labels = UpdateTransactionLabelsImpl(
             d.tx_repo, tx_label_repo, label_repo, transaction_labeler, d.tx_handler
         )
-        self.get_external_labeling_providers = GetExternalLabelingProvidersImpl(
-            d.ext_int_repo, external_labeling_providers
+        self.get_ai_providers = GetAIProvidersImpl(
+            d.ext_int_repo, ai_clients, AI_MODEL_PRESETS
         )
-        self.get_external_labeling_models = GetExternalLabelingModelsImpl(
-            d.ext_int_repo, external_labeling_providers
-        )
+        self.get_ai_models = GetAIModelsImpl(d.ext_int_repo, ai_clients)
         self.validate_ai_model = ValidateAIModelImpl(d.ext_int_repo, ai_clients)
         self.get_ai_server_info = GetAIServerInfoImpl(d.ext_int_repo, ai_clients)
         self.ignore_recurring_movement = IgnoreRecurringMovementImpl(

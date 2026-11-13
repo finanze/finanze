@@ -148,6 +148,9 @@ class DeferredComponents:
         from application.use_cases.user_login import UserLoginImpl
         from application.use_cases.change_user_password import ChangeUserPasswordImpl
         from application.use_cases.user_logout import UserLogoutImpl
+        from infrastructure.ai_import.memory_import_preview_store import (
+            MemoryImportPreviewStore,
+        )
 
         core = self._core
 
@@ -182,12 +185,14 @@ class DeferredComponents:
         self.change_pw = ChangeUserPasswordImpl(
             core.db_manager, core.data_manager, self.settings_repository
         )
+        self.import_preview_store = MemoryImportPreviewStore()
         self.logout = UserLogoutImpl(
             core.db_manager,
             self.settings_repository,
             self.sheets_initiator,
             self.cloud_register,
             core.error_reporter,
+            import_preview_store=self.import_preview_store,
         )
 
         if INCLUDE_CONNECTIONS:

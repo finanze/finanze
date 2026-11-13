@@ -1,10 +1,13 @@
 import logging
 from asyncio import Lock
 from datetime import datetime
+from typing import Optional
 from uuid import UUID, uuid4
 
+from application.ports.ai_import_extractor import AIImportExtractor
 from application.ports.entity_port import EntityPort
 from application.ports.file_rw_port import TableRWPort
+from application.ports.import_preview_store import ImportPreviewStore
 from application.ports.position_port import PositionPort
 from application.ports.template_parser_port import TemplateParserPort
 from application.ports.template_port import TemplatePort
@@ -14,6 +17,7 @@ from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
 from domain.entity import Entity, Feature
+from domain.export import NumberFormat
 from domain.exception.exceptions import (
     ExecutionConflict,
     InvalidTemplateDefaultValue,
@@ -24,11 +28,14 @@ from domain.exception.exceptions import (
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.importing import (
+    AIImportFailed,
+    AIImportRequest,
     ImportCandidate,
     ImportedData,
     ImportError,
     ImportErrorType,
     ImportFileRequest,
+    ImportPreview,
     ImportResult,
     ImportResultCode,
     PositionImportResult,
@@ -103,6 +110,8 @@ class ImportFileImpl(ImportFile):
         template_parser: TemplateParserPort,
         transaction_handler_port: TransactionHandlerPort,
         transaction_labeler: TransactionLabeler,
+        ai_import_extractor: Optional[AIImportExtractor] = None,
+        preview_store: Optional[ImportPreviewStore] = None,
     ):
         self._position_port = position_port
         self._transaction_port = transaction_port
@@ -113,6 +122,8 @@ class ImportFileImpl(ImportFile):
         self._template_parser = template_parser
         self._transaction_handler_port = transaction_handler_port
         self._transaction_labeler = transaction_labeler
+        self._ai_import_extractor = ai_import_extractor
+        self._preview_store = preview_store
         self._lock = Lock()
         self._log = logging.getLogger(__name__)
 
@@ -199,33 +210,101 @@ class ImportFileImpl(ImportFile):
             return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
         return ephemeral, request.template_params or {}, table, None
 
+    async def _extract_with_ai(self, request: ImportFileRequest):
+        importable_fields = _importable_product_fields(request.feature, request.product)
+        if not importable_fields:
+            return None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+        if self._ai_import_extractor is None:
+            return None, None, ImportResult(ImportResultCode.AI_UNAVAILABLE)
+        try:
+            extraction = await self._ai_import_extractor.extract(
+                AIImportRequest(
+                    file=request.file,
+                    feature=request.feature,
+                    product=request.product,
+                    fields=importable_fields,
+                    instructions=request.ai_instructions,
+                )
+            )
+        except AIImportFailed as e:
+            self._log.warning(f"AI import failed with {e.code.value}: {e.detail}")
+            return None, None, ImportResult(e.code, detail=e.detail)
+
+        template = Template(
+            id=None,
+            name="",
+            feature=request.feature,
+            type=TemplateType.IMPORT,
+            fields=[TemplatedField(field=f, name=f) for f in extraction.fields],
+            products=[request.product],
+        )
+        if not extraction.rows or not _validate_ephemeral_template(
+            template, importable_fields
+        ):
+            return None, None, ImportResult(ImportResultCode.AI_EXTRACTION_EMPTY)
+
+        candidate = ImportCandidate(
+            name=request.file.filename,
+            source=DataSource.MANUAL,
+            params=TemplatedDataParserParams(
+                template=template,
+                number_format=NumberFormat.ENGLISH,
+                feature=request.feature,
+                product=request.product,
+                datetime_format=None,
+                date_format=None,
+                params=request.template_params or {},
+            ),
+            data=[list(extraction.fields), *extraction.rows],
+        )
+        return candidate, extraction.metadata, None
+
+    async def _resolve_candidate(self, request: ImportFileRequest):
+        if request.preview_token:
+            stored = (
+                self._preview_store.take(request.preview_token)
+                if self._preview_store
+                else None
+            )
+            if stored is None:
+                return None, None, ImportResult(ImportResultCode.PREVIEW_EXPIRED)
+            return stored.candidate, stored.ai, None
+
+        if request.file is None:
+            return None, None, ImportResult(ImportResultCode.UNSUPPORTED_FILE_FORMAT)
+
+        if request.use_ai:
+            return await self._extract_with_ai(request)
+
+        template, params, table, err = await self._resolve_template_and_table(request)
+        if err is not None:
+            return None, None, err
+
+        parser_params = TemplatedDataParserParams(
+            template=template,
+            number_format=request.number_format,
+            feature=request.feature,
+            product=request.product,
+            datetime_format=request.datetime_format,
+            date_format=request.date_format,
+            params=params,
+        )
+        candidate = ImportCandidate(
+            name=request.file.filename,
+            source=DataSource.MANUAL,
+            params=parser_params,
+            data=table,
+        )
+        return candidate, None, None
+
     async def execute(self, request: ImportFileRequest) -> ImportResult:
         if self._lock.locked():
             raise ExecutionConflict()
 
         async with self._lock:
-            template, params, table, err = await self._resolve_template_and_table(
-                request
-            )
+            candidate, ai_metadata, err = await self._resolve_candidate(request)
             if err is not None:
                 return err
-
-            parser_params = TemplatedDataParserParams(
-                template=template,
-                number_format=request.number_format,
-                feature=request.feature,
-                product=request.product,
-                datetime_format=request.datetime_format,
-                date_format=request.date_format,
-                params=params,
-            )
-
-            candidate = ImportCandidate(
-                name=request.file.filename,
-                source=DataSource.MANUAL,
-                params=parser_params,
-                data=table,
-            )
 
             existing_entities = await self._entity_port.get_all()
             existing_entities_by_name = {
@@ -234,8 +313,19 @@ class ImportFileImpl(ImportFile):
 
             async with self._transaction_handler_port.start():
                 result = await self._process_candidate(
-                    request, candidate, existing_entities_by_name
+                    candidate, request.preview, existing_entities_by_name
                 )
+
+            if ai_metadata is not None:
+                result.ai = ai_metadata
+                if (
+                    request.preview
+                    and result.code == ImportResultCode.COMPLETED
+                    and self._preview_store is not None
+                ):
+                    result.preview_token = self._preview_store.save(
+                        ImportPreview(candidate=candidate, ai=ai_metadata)
+                    )
 
             imported_txs = result.data.transactions if result.data else None
             if not request.preview and imported_txs and imported_txs.account:
@@ -326,12 +416,11 @@ class ImportFileImpl(ImportFile):
 
     async def _process_candidate(
         self,
-        request: ImportFileRequest,
         candidate: ImportCandidate,
+        preview: bool,
         existing_entities_by_name: dict[str, Entity],
     ) -> ImportResult:
-        feature = request.feature
-        preview = request.preview
+        feature = candidate.params.feature
         now = datetime.now(tzlocal())
         import_id = uuid4()
         virtual_entries: list[VirtualDataImport] = []
@@ -388,7 +477,7 @@ class ImportFileImpl(ImportFile):
                 errors=[
                     ImportError(
                         type=ImportErrorType.UNEXPECTED_ERROR,
-                        entry=request.file.filename,
+                        entry=candidate.name,
                         detail=[f"Unsupported feature: {feature.value}"],
                     )
                 ],

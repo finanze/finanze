@@ -1,4 +1,4 @@
-import type { AIModelPricing } from "./ai"
+import type { AIProviderEntry } from "./ai"
 import type { AccountTx, LabelOrigin, TxType } from "./transactions"
 
 export enum LabelCategory {
@@ -155,43 +155,9 @@ export interface RelabelResult {
   external?: LabelingResult | null
 }
 
-export interface ExternalLabelingModel {
-  id: string
-  name: string
-  description?: string | null
-  probabilistic: boolean
-  size?: number | null
-  loaded?: boolean
-  load_failed?: boolean
-  pricing?: AIModelPricing | null
-}
-
-export interface ExternalLabelingProviderDetails {
-  id: string
-  connected: boolean
-  recommended_models: ExternalLabelingModel[]
-  custom_models: boolean
-  upstream_providers: boolean
-  dynamic_models?: boolean
-}
-
-export interface ExternalLabelingProviders {
-  providers: ExternalLabelingProviderDetails[]
-}
-
-export interface ExternalLabelingModels {
-  models: ExternalLabelingModel[]
-}
-
-export interface ExternalLabelingProviderEntry {
-  provider: string
-  model: string
-  upstreamProvider?: string | null
-}
-
 export interface ExternalLabelingSettings {
   enabled: boolean
-  providers: ExternalLabelingProviderEntry[]
+  providers: AIProviderEntry[]
   autoRun: boolean
   minConfidence: number
   maxPerRun: number

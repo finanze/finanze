@@ -10,19 +10,18 @@ import {
 } from "@testing-library/react"
 import { ExternalLabelingCard } from "@/components/labels/ExternalLabelingCard"
 import {
+  AIInputModality,
   LocalModelSource,
   LocalModelState,
   LocalRuntimeMode,
   LocalRuntimeSource,
+  type AIProviderDetails,
   type LocalModel,
   type LocalModelsOverview,
 } from "@/types/ai"
 import { LabelOrigin } from "@/types/transactions"
 import { ExternalIntegrationStatus, ExternalIntegrationType } from "@/types"
-import type {
-  ExternalLabelingProviderDetails,
-  ExternalLabelingSettings,
-} from "@/types/labeling"
+import type { ExternalLabelingSettings } from "@/types/labeling"
 import en from "@/i18n/locales/en.json"
 import es from "@/i18n/locales/es.json"
 import itTranslations from "@/i18n/locales/it.json"
@@ -72,8 +71,8 @@ vi.mock("@/context/AppContext", () => ({
 }))
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }))
 vi.mock("@/services/api", () => ({
-  getExternalLabelingProviders,
-  getExternalLabelingModels,
+  getAIProviders: getExternalLabelingProviders,
+  getAIModels: getExternalLabelingModels,
   validateAIModel,
   getLocalModels,
   downloadLocalModel,
@@ -87,7 +86,7 @@ vi.mock("@/hooks/useModalBackHandler", () => ({ useModalBackHandler: vi.fn() }))
 const external = en.labels.external
 const localCopy = en.settings.localModels
 
-const LOCAL_PROVIDER: ExternalLabelingProviderDetails = {
+const LOCAL_PROVIDER: AIProviderDetails = {
   id: "LOCAL_MODELS",
   connected: true,
   recommended_models: [],
@@ -96,7 +95,7 @@ const LOCAL_PROVIDER: ExternalLabelingProviderDetails = {
   dynamic_models: true,
 }
 
-const COMPATIBLE_PROVIDER: ExternalLabelingProviderDetails = {
+const COMPATIBLE_PROVIDER: AIProviderDetails = {
   id: "OPENAI_COMPATIBLE",
   connected: true,
   recommended_models: [],
@@ -105,7 +104,7 @@ const COMPATIBLE_PROVIDER: ExternalLabelingProviderDetails = {
   dynamic_models: true,
 }
 
-const COPILOT_PROVIDER: ExternalLabelingProviderDetails = {
+const COPILOT_PROVIDER: AIProviderDetails = {
   id: "GITHUB_COPILOT",
   connected: true,
   recommended_models: [],
@@ -153,7 +152,7 @@ const overview = (models: LocalModel[]): LocalModelsOverview => ({
 })
 
 const renderCard = (
-  provider: ExternalLabelingProviderDetails,
+  provider: AIProviderDetails,
   model: string | null = null,
 ) => {
   appContext.current = {
@@ -228,7 +227,9 @@ describe("ExternalLabelingCard models", () => {
         name: itTranslations.labels.external.moreSettings,
       }),
     )
-    fireEvent.click(screen.getAllByRole("switch")[1])
+    const switches = screen.getAllByRole("switch")
+    expect(switches[1]).toHaveAttribute("id", "external-custom-toggle")
+    fireEvent.click(switches[2])
     fireEvent.click(
       screen.getByRole("button", { name: itTranslations.common.save }),
     )
@@ -462,7 +463,7 @@ describe("ExternalLabelingCard models", () => {
     expect(screen.getByTestId("external-entry-editor")).not.toBeDisabled()
   })
 
-  it("adds at most three entries and supports keyboard ordering", async () => {
+  it("adds at most five entries and supports keyboard ordering", async () => {
     renderPriorities()
     const add = await screen.findByTestId("external-add-provider")
     fireEvent.click(add)
@@ -481,7 +482,6 @@ describe("ExternalLabelingCard models", () => {
         "api-model",
       ),
     )
-    expect(add).toBeDisabled()
     fireEvent.keyDown(
       within(screen.getByTestId("external-priority-2")).getByRole("button", {
         name: external.reorderProvider.replace("{provider}", "OPENAI"),
@@ -491,6 +491,15 @@ describe("ExternalLabelingCard models", () => {
     expect(screen.getByTestId("external-priority-1")).toHaveTextContent(
       "api-model",
     )
+    expect(add).not.toBeDisabled()
+    fireEvent.click(add)
+    fireEvent.click(screen.getByTestId("external-provider-option-OPENAI"))
+    fireEvent.click(add)
+    fireEvent.click(screen.getByTestId("external-provider-option-CHATGPT"))
+    await waitFor(() =>
+      expect(screen.getByTestId("external-priority-4")).toBeInTheDocument(),
+    )
+    expect(add).toBeDisabled()
   })
 
   it("keeps edits when changing the active priority", async () => {
@@ -880,5 +889,189 @@ describe("ExternalLabelingCard models", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     )
     expect(getExternalLabelingModels).toHaveBeenCalledTimes(3)
+  })
+
+  it("asks the catalog for labeling eligibility and shows input badges", async () => {
+    getExternalLabelingModels.mockResolvedValue({
+      models: [
+        {
+          id: "vision",
+          name: "Vision",
+          probabilistic: false,
+          eligible: true,
+          input_modalities: [
+            AIInputModality.TEXT,
+            AIInputModality.IMAGE,
+            AIInputModality.DOCUMENT,
+          ],
+        },
+        { id: "embed", name: "Embed", probabilistic: false, eligible: false },
+      ],
+    })
+    renderCard(COMPATIBLE_PROVIDER, "vision")
+
+    const options = await screen.findByTestId("external-model-options")
+    expect(getExternalLabelingProviders).toHaveBeenCalledWith("LABELING")
+    expect(getExternalLabelingModels).toHaveBeenCalledWith(
+      "OPENAI_COMPATIBLE",
+      "LABELING",
+    )
+    expect(
+      within(options).getByText(en.settings.aiModalities.IMAGE),
+    ).toBeTruthy()
+    expect(
+      within(options).getByText(en.settings.aiModalities.DOCUMENT),
+    ).toBeTruthy()
+    expect(
+      within(options).getByText(en.settings.aiModalities.notEligible),
+    ).toBeTruthy()
+    expect(within(options).getByRole("radio", { name: /Embed/ })).toBeDisabled()
+  })
+})
+
+describe("ExternalLabelingCard default AI models", () => {
+  const shared = [
+    { provider: "OPENROUTER", model: "router-model", upstreamProvider: null },
+  ]
+  const renderShared = () => {
+    const configured = settings("OPENROUTER")
+    configured.labeling.external.providers = []
+    appContext.current = {
+      settings: { ...configured, ai: { providers: shared } },
+      saveSettings: vi.fn(),
+      externalIntegrations: [
+        {
+          id: "OPENROUTER",
+          name: "OpenRouter",
+          type: ExternalIntegrationType.AI_PROVIDER,
+          status: ExternalIntegrationStatus.ON,
+          available: true,
+        },
+      ],
+      fetchExternalIntegrations: vi.fn(),
+    }
+    getExternalLabelingProviders.mockResolvedValue({
+      providers: [
+        {
+          id: "OPENROUTER",
+          connected: true,
+          recommended_models: [
+            { id: "router-model", name: "router-model", probabilistic: false },
+          ],
+          custom_models: true,
+          upstream_providers: false,
+        },
+      ],
+    })
+    render(<ExternalLabelingCard />)
+  }
+
+  it("shows the default list read-only until labeling gets its own", async () => {
+    renderShared()
+
+    const row = await screen.findByTestId("external-priority-0")
+    expect(row).toHaveTextContent("router-model")
+    expect(row).toHaveTextContent(external.preferredHere)
+    expect(screen.getByTestId("external-editor")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    )
+    expect(
+      screen.queryByTestId("external-add-provider"),
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId("external-custom-toggle")).not.toBeChecked()
+
+    fireEvent.click(screen.getByTestId("external-edit-default"))
+    expect(navigate).toHaveBeenCalledWith("/settings?tab=ai&focus=AI_MODELS")
+  })
+
+  it("customizing starts from the default list and can be reverted", async () => {
+    renderShared()
+
+    fireEvent.click(await screen.findByTestId("external-custom-toggle"))
+    expect(screen.getByTestId("external-custom-loading")).toBeInTheDocument()
+    expect(
+      screen.queryByTestId("external-custom-toggle"),
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId("external-editor")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    )
+    expect(screen.getByTestId("external-priority-0")).toHaveTextContent(
+      "router-model",
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId("external-editor")).not.toHaveAttribute(
+        "aria-disabled",
+      ),
+    )
+    expect(
+      screen.queryByTestId("external-custom-loading"),
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId("external-custom-toggle")).toBeChecked()
+    expect(screen.getByTestId("external-priority-0")).toHaveTextContent(
+      "router-model",
+    )
+    fireEvent.click(screen.getByTestId("external-add-provider"))
+    expect(
+      screen.getByTestId("external-provider-option-OPENROUTER"),
+    ).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" })
+    fireEvent.click(screen.getByRole("button", { name: en.common.save }))
+    await waitFor(() =>
+      expect(appContext.current.saveSettings).toHaveBeenCalledWith({
+        labeling: { external: expect.objectContaining({ providers: shared }) },
+      }),
+    )
+
+    fireEvent.click(screen.getByTestId("external-custom-toggle"))
+    expect(
+      await screen.findByTestId("external-edit-default"),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId("external-editor")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    )
+    expect(
+      screen.queryByRole("button", { name: en.common.save }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("customizing drops default models that can't label", async () => {
+    const decisions = {
+      provider: "OPENROUTER",
+      model: "embed-model",
+      upstreamProvider: null,
+    }
+    shared.push(decisions)
+    validateAIModel.mockResolvedValue({
+      valid: false,
+      name: "Embed",
+      capabilities: [],
+    })
+    try {
+      renderShared()
+
+      fireEvent.click(await screen.findByTestId("external-custom-toggle"))
+
+      await waitFor(() =>
+        expect(screen.getByTestId("external-editor")).not.toHaveAttribute(
+          "aria-disabled",
+        ),
+      )
+      expect(screen.queryByTestId("external-priority-1")).toBeNull()
+      expect(screen.getByTestId("external-priority-0")).toHaveTextContent(
+        "router-model",
+      )
+      expect(validateAIModel).toHaveBeenCalledWith(
+        "OPENROUTER",
+        "embed-model",
+        "LABELING",
+        null,
+      )
+      expect(validateAIModel).toHaveBeenCalledTimes(1)
+    } finally {
+      shared.pop()
+    }
   })
 })

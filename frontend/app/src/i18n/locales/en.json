@@ -564,6 +564,12 @@
     "PDF_NO_TEXT_LAYER": "This PDF contains scanned images or vector outlines without selectable text. Export the statement as CSV, Excel, or a text-based PDF.",
     "NO_TABLE_FOUND": "No data table could be found in this file.",
     "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one.",
+    "PREVIEW_EXPIRED": "This preview expired. Run the import again.",
+    "AI_UNAVAILABLE": "No AI model could process the file. Check your AI models in Integrations and try again.",
+    "AI_VISION_UNSUPPORTED": "None of your AI models can read images or scanned documents. Add a model with image support in Integrations.",
+    "AI_EXTRACTION_EMPTY": "AI didn't find any rows to import in this file.",
+    "AI_FILE_TOO_LARGE": "The file is too large to be processed with AI.",
+    "EXECUTION_CONFLICT": "Another import is already running. Wait for it to finish.",
     "NOT_ENTITLED": "Your account does not have access to {integration}. Check that your plan is active and that your organization allows it.",
     "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again.",
     "RUNTIME_NOT_FOUND": "The program required by {integration} was not found on this computer. Install it or enter the full path to its executable.",
@@ -1662,6 +1668,31 @@
       "CRYPTO_MARKET_PROVIDER": "Crypto market data",
       "AI_PROVIDER": "AI providers",
       "DATA_SOURCE": "Data sources"
+    },
+    "aiModels": {
+      "title": "AI models",
+      "description": "Default priority list for every AI feature, such as labeling suggestions and file imports. Each feature skips the models that can't do what it needs.",
+      "priorityNotice": "Models are tried in order. Methods unavailable on this platform or requiring sign-in are skipped, and a failure moves the task to the next entry.",
+      "privacyNotice": "Each feature only sends the data it needs to the model that runs it.",
+      "customModelNotice": "Some models can be slow and expensive. Faster and cheaper models are recommended for most tasks.",
+      "empty": "Add the models your AI features should use.",
+      "settingsLink": "Choose which AI models features use, in Settings"
+    },
+    "aiTab": {
+      "title": "AI & MCP",
+      "titleNoMcp": "AI"
+    },
+    "aiTaskProviders": {
+      "customize": "Use custom models for this feature",
+      "defaultHint": "Using your default AI models in order. The ones that can't do this task are skipped.",
+      "customHint": "Starts from your default models without the ones that can't do this task. Changes only apply here.",
+      "noDefault": "You have no default AI models yet.",
+      "editDefault": "Edit default models"
+    },
+    "aiModalities": {
+      "IMAGE": "Images",
+      "DOCUMENT": "PDF",
+      "notEligible": "Not suitable for this task"
     }
   },
   "dashboard": {
@@ -1990,6 +2021,29 @@
         "detected": "Detected from the file"
       },
       "importAction": "Preview",
+      "ai": {
+        "toggle": "Extract with AI",
+        "hint": "Use your AI models to read statements, receipts, screenshots or scanned documents.",
+        "disclosure": "The file content will be sent to your configured AI models.",
+        "instructionsLabel": "Notes for the AI (optional)",
+        "instructionsPlaceholder": "E.g. ignore card holds, amounts are in USD",
+        "suggest": "This file can't be read automatically. Try extracting it with AI.",
+        "extractedBy": "Extracted with {model}",
+        "settings": {
+          "title": "AI extraction",
+          "description": "Choose which AI models read your files when you import them with AI, and add notes that apply to every AI import.",
+          "priorityNotice": "Models are tried in order. Images and scanned PDFs skip the models that can't read them, and a failure moves the import to the next entry.",
+          "privacyNotice": "The content of the imported file is sent to the model. Nothing else from your data is shared.",
+          "instructionsLabel": "Notes for every AI import (optional)",
+          "instructionsHint": "Combined with the notes you write when importing a specific file."
+        }
+      },
+      "background": {
+        "continue": "Continue in background",
+        "running": "Importing...",
+        "ready": "Your file import is ready to review.",
+        "review": "Review"
+      },
       "errors": {
         "featureRequired": "Select what to import to continue.",
         "productRequired": "Select a product to continue.",
@@ -2031,10 +2085,6 @@
       "cardTitle": {
         "EXPORT": "Export templates",
         "IMPORT": "Import templates"
-      },
-      "cardDescription": {
-        "EXPORT": "Create templates for exporting your data in a consistent format.",
-        "IMPORT": "Create templates for importing external data quickly and easily."
       },
       "cardEmpty": "No templates yet.",
       "cardCountLabel": "{count} templates",

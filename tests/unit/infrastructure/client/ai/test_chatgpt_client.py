@@ -9,6 +9,7 @@ from domain.ai import (
     AIClientFeature,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIJsonSchema,
     AIMessage,
     AIMessageRole,
@@ -193,6 +194,7 @@ class TestFeatures:
         assert _client().features() == {
             AIClientFeature.GENERATION,
             AIClientFeature.MODEL_LISTING,
+            AIClientFeature.ATTACHMENTS,
         }
 
 
@@ -227,6 +229,30 @@ class TestModels:
         await client.get_model("gpt-6-mini", _payload())
 
         assert len(api.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_input_modalities_default_to_text_and_image(self):
+        api = FakeApi()
+        api.models = (
+            200,
+            {
+                "models": [
+                    {"slug": "gpt-6-sol", "visibility": "list"},
+                    {
+                        "slug": "gpt-6-text",
+                        "visibility": "list",
+                        "input_modalities": ["text", "audio"],
+                    },
+                ]
+            },
+        )
+
+        models = await _client(api=api).list_models(_payload())
+
+        assert [model.input_modalities for model in models] == [
+            {AIInputModality.TEXT, AIInputModality.IMAGE},
+            {AIInputModality.TEXT},
+        ]
 
 
 class TestGenerate:

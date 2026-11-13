@@ -562,6 +562,12 @@
     "PDF_NO_TEXT_LAYER": "Este PDF contiene imágenes escaneadas o trazados vectoriales sin texto seleccionable. Exporta los movimientos en CSV, Excel o un PDF con texto.",
     "NO_TABLE_FOUND": "No se ha encontrado ninguna tabla de datos en este archivo.",
     "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra.",
+    "PREVIEW_EXPIRED": "Esta previsualización ha caducado. Vuelve a lanzar la importación.",
+    "AI_UNAVAILABLE": "Ningún modelo de IA pudo procesar el archivo. Revisa tus modelos de IA en Integraciones e inténtalo de nuevo.",
+    "AI_VISION_UNSUPPORTED": "Ninguno de tus modelos de IA puede leer imágenes o documentos escaneados. Añade un modelo con soporte de imágenes en Integraciones.",
+    "AI_EXTRACTION_EMPTY": "La IA no encontró filas para importar en este archivo.",
+    "AI_FILE_TOO_LARGE": "El archivo es demasiado grande para procesarlo con IA.",
+    "EXECUTION_CONFLICT": "Ya hay otra importación en curso. Espera a que termine.",
     "NOT_ENTITLED": "Tu cuenta no tiene acceso a {integration}. Comprueba que tu plan está activo y que tu organización lo permite.",
     "RUNTIME_FAILED": "No se pudo iniciar {integration} en este dispositivo. Comprueba tu conexión e inténtalo de nuevo.",
     "RUNTIME_NOT_FOUND": "No se ha encontrado en este ordenador el programa que necesita {integration}. Instálalo o indica la ruta completa a su ejecutable.",
@@ -1660,6 +1666,31 @@
       "CRYPTO_MARKET_PROVIDER": "Datos de mercado cripto",
       "AI_PROVIDER": "Proveedores de IA",
       "DATA_SOURCE": "Fuentes de datos"
+    },
+    "aiModels": {
+      "title": "Modelos de IA",
+      "description": "Lista de prioridad por defecto para todas las funciones con IA, como las sugerencias de etiquetado o la importación de archivos. Cada función omite los modelos que no pueden hacer lo que necesita.",
+      "priorityNotice": "Los modelos se prueban en orden. Se omiten los métodos no disponibles en esta plataforma o que requieren iniciar sesión, y si uno falla la tarea pasa al siguiente.",
+      "privacyNotice": "Cada función solo envía los datos que necesita al modelo que la ejecuta.",
+      "customModelNotice": "Algunos modelos pueden ser lentos y caros. Para la mayoría de tareas se recomiendan modelos más rápidos y baratos.",
+      "empty": "Añade los modelos que deben usar tus funciones con IA.",
+      "settingsLink": "Elige qué modelos de IA usan las funciones, en Ajustes"
+    },
+    "aiTab": {
+      "title": "IA y MCP",
+      "titleNoMcp": "IA"
+    },
+    "aiTaskProviders": {
+      "customize": "Usar modelos personalizados en esta función",
+      "defaultHint": "Usa tus modelos de IA por defecto en orden. Se omiten los que no pueden hacer esta tarea.",
+      "customHint": "Parte de tus modelos por defecto sin los que no pueden hacer esta tarea. Los cambios solo se aplican aquí.",
+      "noDefault": "Todavía no tienes modelos de IA por defecto.",
+      "editDefault": "Editar modelos por defecto"
+    },
+    "aiModalities": {
+      "IMAGE": "Imágenes",
+      "DOCUMENT": "PDF",
+      "notEligible": "No apto para esta tarea"
     }
   },
   "dashboard": {
@@ -1989,6 +2020,29 @@
         "detected": "Detectado en el archivo"
       },
       "importAction": "Previsualizar",
+      "ai": {
+        "toggle": "Extraer con IA",
+        "hint": "Usa tus modelos de IA para leer extractos, tickets, capturas o documentos escaneados.",
+        "disclosure": "El contenido del archivo se enviará a tus modelos de IA configurados.",
+        "instructionsLabel": "Notas para la IA (opcional)",
+        "instructionsPlaceholder": "Ej. ignora las retenciones de tarjeta, los importes están en USD",
+        "suggest": "Este archivo no se puede leer automáticamente. Prueba a extraerlo con IA.",
+        "extractedBy": "Extraído con {model}",
+        "settings": {
+          "title": "Extracción con IA",
+          "description": "Elige qué modelos de IA leen tus archivos cuando los importas con IA y añade notas que se aplican a todas las importaciones con IA.",
+          "priorityNotice": "Los modelos se prueban en orden. Las imágenes y los PDF escaneados omiten los modelos que no pueden leerlos, y un fallo pasa la importación a la siguiente entrada.",
+          "privacyNotice": "El contenido del archivo importado se envía al modelo. No se comparte nada más de tus datos.",
+          "instructionsLabel": "Notas para todas las importaciones con IA (opcional)",
+          "instructionsHint": "Se combinan con las notas que escribas al importar un archivo concreto."
+        }
+      },
+      "background": {
+        "continue": "Continuar en segundo plano",
+        "running": "Importando...",
+        "ready": "La importación del archivo está lista para revisar.",
+        "review": "Revisar"
+      },
       "errors": {
         "featureRequired": "Selecciona qué quieres importar para continuar.",
         "productRequired": "Selecciona un producto para continuar.",
@@ -2030,10 +2084,6 @@
       "cardTitle": {
         "EXPORT": "Plantillas de exportación",
         "IMPORT": "Plantillas de importación"
-      },
-      "cardDescription": {
-        "EXPORT": "Crea plantillas para exportar tus datos de manera consistente y rápida.",
-        "IMPORT": "Crea plantillas para traer datos externos de manera rápida y sencilla."
       },
       "cardEmpty": "Todavía no tienes plantillas.",
       "cardCountLabel": "{count} plantillas",

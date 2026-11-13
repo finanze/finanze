@@ -56,10 +56,38 @@ PREFERENCES = FakePreferences()
 BACKUP_PLUGIN = FakeBackupProcessorPlugin()
 
 
+class FakePdfRendererPlugin:
+    def __init__(self):
+        self.calls: list[dict] = []
+        self.pages: list[bytes] = []
+        self.error: Exception | None = None
+
+    def reset(self):
+        self.calls.clear()
+        self.pages = []
+        self.error = None
+
+    async def renderPages(self, options):
+        self.calls.append(options)
+        if self.error:
+            raise self.error
+        return {
+            "pages": [
+                {"data": base64.b64encode(page).decode("ascii")} for page in self.pages
+            ],
+            "pageCount": len(self.pages),
+        }
+
+
+PDF_RENDERER_PLUGIN = FakePdfRendererPlugin()
+
+
 def _install_fake_pyodide():
     js_module = types.ModuleType("js")
     js_module.jsBridge = SimpleNamespace(preferences=PREFERENCES)
-    js_module.window = SimpleNamespace(BackupProcessor=BACKUP_PLUGIN)
+    js_module.window = SimpleNamespace(
+        BackupProcessor=BACKUP_PLUGIN, PdfRenderer=PDF_RENDERER_PLUGIN
+    )
 
     pyodide_module = types.ModuleType("pyodide")
     ffi_module = types.ModuleType("pyodide.ffi")
@@ -89,3 +117,10 @@ def backup_plugin():
     BACKUP_PLUGIN.reset()
     yield BACKUP_PLUGIN
     BACKUP_PLUGIN.reset()
+
+
+@pytest.fixture
+def pdf_renderer_plugin():
+    PDF_RENDERER_PLUGIN.reset()
+    yield PDF_RENDERER_PLUGIN
+    PDF_RENDERER_PLUGIN.reset()

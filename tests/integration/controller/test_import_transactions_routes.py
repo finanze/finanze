@@ -1037,3 +1037,73 @@ class TestTemplatelessHtmlAndPdfFileImport:
             },
         )
         assert (await bad_resp.get_json())["code"] == "PDF_NO_TEXT_LAYER"
+
+
+class TestRealStatementPdfImport:
+    @staticmethod
+    async def _import(ctx, name, form):
+        resp = await ctx.http.post(
+            f"{IMPORT_URL}?preview=false",
+            form={
+                "feature": "TRANSACTIONS",
+                "product": "ACCOUNT",
+                "templateParams": json.dumps({"entity": f"Real {name}"}),
+                **form,
+            },
+            files={
+                "file": FileStorage(
+                    stream=io.BytesIO((RESOURCES / "statements" / name).read_bytes()),
+                    filename=name,
+                    content_type="application/pdf",
+                )
+            },
+        )
+        assert resp.status_code == 200
+        return await resp.get_json()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "name, number_format, count",
+        [("b100.pdf", "EUROPEAN", 31), ("ing.pdf", "ENGLISH", 34)],
+    )
+    async def test_imports_every_movement_of_landscape_and_rotated_statements(
+        self, ctx, name, number_format, count
+    ):
+        body = await self._import(ctx, name, {"numberFormat": number_format})
+
+        assert body["code"] == "COMPLETED"
+        assert _error_types(body) == ["UNEXPECTED_COLUMN"]
+        assert len(await ctx.txs()) == count
+
+    @pytest.mark.asyncio
+    async def test_imports_statement_whose_header_is_only_on_the_first_page(self, ctx):
+        body = await self._import(
+            ctx,
+            "myinvestor.pdf",
+            {
+                "numberFormat": "EUROPEAN",
+                "templateFields": json.dumps(
+                    [
+                        {"field": "date", "name": "Fecha operación"},
+                        {"field": "name", "name": "Concepto"},
+                        {"field": "amount", "name": "Importe"},
+                        {"field": "currency", "name": "currency", "default": "EUR"},
+                    ]
+                ),
+            },
+        )
+
+        assert body["code"] == "COMPLETED"
+        assert _error_types(body) == [
+            "UNEXPECTED_COLUMN",
+            "MISSING_FIELD",
+            "MISSING_FIELD",
+        ]
+        response = await ctx.http.get("/api/v1/transactions?limit=200")
+        txs = (await response.get_json())["transactions"]
+        assert len(txs) == 115
+        by_name = {tx["name"]: tx for tx in txs}
+        assert by_name["SEGOFINANCE"]["type"] == "INFLOW"
+        assert by_name["SEGOFINANCE"]["amount"] == 1.34
+        assert by_name["Transferencia desde MyInvestor"]["type"] == "OUTFLOW"
+        assert by_name["Transferencia desde MyInvestor"]["amount"] == 4990.0

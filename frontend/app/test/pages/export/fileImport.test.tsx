@@ -412,5 +412,173 @@ describe("file import dialog", () => {
         screen.getByText(/scanned images or vector outlines/i),
       ).toBeInTheDocument()
     })
+    expect(
+      screen.getByText(
+        "This file can't be read automatically. Try extracting it with AI.",
+      ),
+    ).toBeInTheDocument()
+  })
+
+  async function selectAccountTransactions() {
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("Transactions").at(-1)!)
+    })
+    await act(async () => {
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Account" }).at(-1)!,
+      )
+    })
+  }
+
+  async function selectImage(name = "receipt.png") {
+    const image = createTestFile(name, "image/png")
+    await act(async () => {
+      fireEvent.change(document.getElementById("file-import-input")!, {
+        target: { files: [image] },
+      })
+    })
+    return image
+  }
+
+  async function selectBankA() {
+    await act(async () => {
+      fireEvent.click(document.getElementById("file-import-entity")!)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText("Bank A"))
+    })
+  }
+
+  it("extracts images with AI and confirms the stored preview by token", async () => {
+    mockImportFile
+      .mockResolvedValueOnce(
+        buildImportResult({
+          data: buildImportedTransactionData(),
+          previewToken: "token-1",
+          ai: {
+            provider: "OPENAI",
+            model: "gpt",
+            rows: 1,
+            requests: 1,
+            images: true,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        buildImportResult({ data: buildImportedTransactionData() }),
+      )
+    await openImportDialog()
+    await selectAccountTransactions()
+    const image = await selectImage()
+
+    expect(
+      (document.getElementById("file-import-use-ai") as HTMLButtonElement)
+        .dataset.state,
+    ).toBe("checked")
+    expect(mockSuggestTemplateFields).not.toHaveBeenCalled()
+    expect(screen.queryByText("Template")).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }))
+    })
+    expect(
+      screen.getByText("Select an entity to continue."),
+    ).toBeInTheDocument()
+    expect(mockImportFile).not.toHaveBeenCalled()
+
+    await selectBankA()
+    expect(
+      document.getElementById("file-import-ai-instructions"),
+    ).not.toBeInTheDocument()
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("file-import-ai-instructions-toggle"))
+    })
+    await act(async () => {
+      fireEvent.change(
+        document.getElementById("file-import-ai-instructions")!,
+        { target: { value: "Ignore holds" } },
+      )
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }))
+    })
+
+    await waitFor(() => {
+      expect(mockImportFile).toHaveBeenCalledTimes(1)
+    })
+    expect(mockImportFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useAi: true,
+        aiInstructions: "Ignore holds",
+        templateParams: { entity: "Bank A" },
+      }),
+      image,
+    )
+    expect(mockImportFile.mock.calls[0][0].templateFields).toBeUndefined()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Import data" }))
+    })
+
+    await waitFor(() => {
+      expect(mockImportFile).toHaveBeenCalledTimes(2)
+    })
+    expect(mockImportFile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        preview: false,
+        previewToken: "token-1",
+        useAi: true,
+      }),
+      null,
+    )
+  })
+
+  it("continues an AI import in background and offers a review", async () => {
+    let resolveImport: (value: unknown) => void = () => {}
+    mockImportFile.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveImport = resolve
+      }),
+    )
+    await openImportDialog()
+    await selectAccountTransactions()
+    await selectImage()
+    await selectBankA()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("file-import-background"))
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Import data from file"),
+      ).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId("file-import-running")).toHaveTextContent(
+      "Importing...",
+    )
+    expect(
+      screen.queryByRole("button", { name: "Import..." }),
+    ).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveImport(
+        buildImportResult({
+          data: buildImportedTransactionData(),
+          previewToken: "token-2",
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Review" }))
+    })
+    expect(screen.getByText("Review simulated import")).toBeInTheDocument()
   })
 })

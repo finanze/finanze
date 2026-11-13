@@ -14,6 +14,13 @@ class AIClientFeature(str, Enum):
     MODEL_LISTING = "MODEL_LISTING"
     CUSTOM_MODELS = "CUSTOM_MODELS"
     SERVER_INFO = "SERVER_INFO"
+    ATTACHMENTS = "ATTACHMENTS"
+
+
+class AIInputModality(str, Enum):
+    TEXT = "TEXT"
+    IMAGE = "IMAGE"
+    DOCUMENT = "DOCUMENT"
 
 
 class AIModelCapability(str, Enum):
@@ -44,11 +51,15 @@ class AIGenerationStatus(str, Enum):
 
 class AITask(str, Enum):
     LABELING = "LABELING"
+    IMPORTING = "IMPORTING"
 
 
 AI_TASK_REQUIREMENTS: dict[AITask, list[set[AIModelCapability]]] = {
     AITask.LABELING: [
         {AIModelCapability.DECISIONS},
+        {AIModelCapability.STRUCTURED_OUTPUT},
+    ],
+    AITask.IMPORTING: [
         {AIModelCapability.STRUCTURED_OUTPUT},
     ],
 }
@@ -66,6 +77,14 @@ class AIModelPricing:
 
 
 @dataclass
+class AIVisionLimits:
+    max_images: Optional[int] = None
+    max_image_bytes: Optional[int] = None
+    max_image_pixels: Optional[int] = None
+    media_types: Optional[list[str]] = None
+
+
+@dataclass
 class AIModel:
     id: str
     name: str
@@ -74,6 +93,51 @@ class AIModel:
     loaded: bool = False
     load_failed: bool = False
     pricing: Optional[AIModelPricing] = None
+    # None means the provider does not report which inputs the model accepts.
+    input_modalities: Optional[set[AIInputModality]] = None
+    vision_limits: Optional[AIVisionLimits] = None
+
+
+@dataclass
+class AICatalogModel:
+    id: str
+    name: str
+    description: Optional[str] = None
+    probabilistic: bool = False
+    size: Optional[int] = None
+    loaded: bool = False
+    load_failed: bool = False
+    pricing: Optional[AIModelPricing] = None
+    input_modalities: Optional[list[AIInputModality]] = None
+    eligible: Optional[bool] = None
+
+
+@dataclass
+class AIModelPreset:
+    model: AICatalogModel
+    tasks: set[AITask] = field(default_factory=set)
+    reasoning_effort: Optional[AIReasoningEffort] = None
+
+
+@dataclass
+class AIProviderDetails:
+    id: ExternalIntegrationId
+    connected: bool
+    recommended_models: list[AICatalogModel] = field(default_factory=list)
+    custom_models: bool = True
+    upstream_providers: bool = False
+    dynamic_models: bool = False
+    attachments: bool = False
+
+
+@dataclass
+class AIProviders:
+    providers: list[AIProviderDetails]
+
+
+@dataclass
+class AIModels:
+    models: list[AICatalogModel]
 
 
 @dataclass
@@ -139,9 +203,17 @@ class AIServerInfo:
 
 
 @dataclass
+class AIAttachment:
+    mime_type: str
+    data: bytes
+    name: Optional[str] = None
+
+
+@dataclass
 class AIMessage:
     role: AIMessageRole
     content: str
+    attachments: list[AIAttachment] = field(default_factory=list)
 
 
 @dataclass

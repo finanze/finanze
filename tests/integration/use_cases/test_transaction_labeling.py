@@ -38,13 +38,15 @@ from domain.labeling import (
     UpdateTransactionLabelsRequest,
 )
 from domain.settings import (
+    AIConfig,
     AssetConfig,
     CryptoAssetConfig,
     ExternalLabelingConfig,
+    AIProviderEntry,
     ExternalLabelingExamplesConfig,
-    ExternalLabelingProviderEntry,
     LabelingConfig,
     Settings,
+    SettingsSection,
 )
 from domain.transactions import (
     AccountTx,
@@ -418,9 +420,7 @@ async def test_classify_external_stores_confident_suggestions(env):
             ExternalLabelingConfig(
                 enabled=True,
                 providers=[
-                    ExternalLabelingProviderEntry(
-                        provider="OPENROUTER", model="~typesafe/jev-latest"
-                    )
+                    AIProviderEntry(provider="OPENROUTER", model="~typesafe/jev-latest")
                 ],
                 minConfidence=70,
                 examples=ExternalLabelingExamplesConfig(enabled=True, count=5),
@@ -504,11 +504,7 @@ async def test_classify_external_examples_only_from_selected_origins(env):
             return_value=_settings(
                 ExternalLabelingConfig(
                     enabled=True,
-                    providers=[
-                        ExternalLabelingProviderEntry(
-                            provider="OPENROUTER", model="m/x"
-                        )
-                    ],
+                    providers=[AIProviderEntry(provider="OPENROUTER", model="m/x")],
                     examples=ExternalLabelingExamplesConfig(
                         enabled=True, count=5, origins=origins
                     ),
@@ -540,9 +536,7 @@ async def test_classify_external_disabled_or_auto_run_off_does_nothing(env):
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
-                providers=[
-                    ExternalLabelingProviderEntry(provider="OPENROUTER", model="m/x")
-                ],
+                providers=[AIProviderEntry(provider="OPENROUTER", model="m/x")],
                 autoRun=False,
             )
         )
@@ -560,9 +554,7 @@ async def test_classify_external_errors_are_swallowed(env):
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
-                providers=[
-                    ExternalLabelingProviderEntry(provider="OPENROUTER", model="m/x")
-                ],
+                providers=[AIProviderEntry(provider="OPENROUTER", model="m/x")],
             )
         )
     )
@@ -590,11 +582,82 @@ def _priorities(env, *providers):
         ExternalLabelingConfig(
             enabled=True,
             providers=[
-                ExternalLabelingProviderEntry(provider=provider, model=f"model-{index}")
+                AIProviderEntry(provider=provider, model=f"model-{index}")
                 for index, provider in enumerate(providers)
             ],
         )
     )
+
+
+def _shared_priorities(env, shared: list[str], override: list[str]):
+    settings = _settings(
+        ExternalLabelingConfig(
+            enabled=True,
+            providers=[
+                AIProviderEntry(provider=provider, model="override")
+                for provider in override
+            ],
+        )
+    )
+    settings.ai = AIConfig(
+        providers=[
+            AIProviderEntry(provider=provider, model="shared") for provider in shared
+        ]
+    )
+    env.config_port.load_sections.return_value = settings
+
+
+@pytest.mark.asyncio
+async def test_classify_external_uses_shared_providers_without_override(env):
+    _shared_priorities(env, ["OPENROUTER"], [])
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert (result.external_provider, result.external_model) == (
+        "OPENROUTER",
+        "shared",
+    )
+    sections = env.config_port.load_sections.await_args.args[0]
+    assert sections == {SettingsSection.LABELING, SettingsSection.AI}
+    assert await env.labeler.external_availability_error() is None
+
+
+@pytest.mark.asyncio
+async def test_classify_external_override_replaces_shared_providers(env):
+    _shared_priorities(env, ["OPENAI"], ["OPENROUTER"])
+    disconnected = AsyncMock(spec=ExternalTxLabelingProvider)
+    env.labeler._providers[ExternalIntegrationId.OPENAI] = disconnected
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert (result.external_provider, result.external_model) == (
+        "OPENROUTER",
+        "override",
+    )
+    disconnected.label.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_classify_external_without_any_provider_does_nothing(env):
+    _shared_priorities(env, [], [])
+    tx = env.account_tx("Pending", "15")
+    await env.save(tx)
+
+    result = await env.labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_error is None
+    env.provider.label.assert_not_awaited()
+    assert await env.labeler.external_availability_error() is None
 
 
 @pytest.mark.asyncio
@@ -824,9 +887,7 @@ async def test_classify_external_with_openai_provider(env):
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
-                providers=[
-                    ExternalLabelingProviderEntry(provider="OPENAI", model="gpt-6-luna")
-                ],
+                providers=[AIProviderEntry(provider="OPENAI", model="gpt-6-luna")],
             )
         )
     )
@@ -877,9 +938,7 @@ async def test_classify_external_with_openai_decisions(env):
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
-                providers=[
-                    ExternalLabelingProviderEntry(provider="OPENAI", model="gpt-6-luna")
-                ],
+                providers=[AIProviderEntry(provider="OPENAI", model="gpt-6-luna")],
             )
         )
     )
@@ -933,9 +992,7 @@ async def test_relabel_reports_openai_quota_error_details(env):
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
-                providers=[
-                    ExternalLabelingProviderEntry(provider="OPENAI", model="gpt-6-luna")
-                ],
+                providers=[AIProviderEntry(provider="OPENAI", model="gpt-6-luna")],
             )
         )
     )
@@ -958,7 +1015,7 @@ def _external_config(**kwargs) -> Settings:
         ExternalLabelingConfig(
             enabled=True,
             providers=[
-                ExternalLabelingProviderEntry(
+                AIProviderEntry(
                     provider="OPENROUTER", model="m/x", upstreamProvider=upstream
                 )
             ],
@@ -1196,9 +1253,7 @@ async def test_github_copilot_labels_and_relabel_keeps_them_after_delisting(
             ExternalLabelingConfig(
                 enabled=True,
                 providers=[
-                    ExternalLabelingProviderEntry(
-                        provider="GITHUB_COPILOT", model="gpt-5-mini"
-                    )
+                    AIProviderEntry(provider="GITHUB_COPILOT", model="gpt-5-mini")
                 ],
             )
         )
@@ -1311,9 +1366,7 @@ async def test_claude_agent_labels_and_relabel_keeps_them_after_retirement(
             ExternalLabelingConfig(
                 enabled=True,
                 providers=[
-                    ExternalLabelingProviderEntry(
-                        provider="CLAUDE_AGENT", model="claude-haiku-5-5"
-                    )
+                    AIProviderEntry(provider="CLAUDE_AGENT", model="claude-haiku-5-5")
                 ],
             )
         )

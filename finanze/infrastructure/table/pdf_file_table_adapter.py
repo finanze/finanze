@@ -1,4 +1,5 @@
 import re
+from collections import ChainMap
 from dataclasses import field
 from io import BytesIO
 from typing import Any
@@ -192,16 +193,26 @@ def _page_has_graphics_or_images(page: Any) -> bool:
     return False
 
 
-def _extract_page_spans(page: Any, reader: PdfReader) -> list[PdfSpan]:
-    contents = page.get("/Contents")
-    if contents is not None:
-        contents = contents.get_object()
-    if not isinstance(contents, (ArrayObject, StreamObject)):
-        return []
+def _viewer_transform(page: Any, rotation: int) -> list[float] | None:
+    if rotation == 0:
+        return None
+    box = page.mediabox
+    x0, y0 = float(box.left), float(box.bottom)
+    width, height = float(box.width), float(box.height)
+    if rotation == 90:
+        return [0.0, -1.0, 1.0, 0.0, -y0, width + x0]
+    if rotation == 180:
+        return [-1.0, 0.0, 0.0, -1.0, width + x0, height + y0]
+    return [0.0, 1.0, -1.0, 0.0, height + y0, -x0]
 
-    fonts = page._layout_mode_fonts()
-    ops = iter(ContentStream(contents, reader, "bytes").operations)
+
+def _collect_tj_ops(
+    operations: list[tuple[Any, bytes]], fonts: Any, viewer: list[float] | None
+) -> list[Any]:
+    ops = iter(operations)
     state_mgr = _pdf_fwp.TextStateManager()
+    if viewer is not None:
+        state_mgr.transform_stack = ChainMap(state_mgr.new_transform(*viewer))
     tj_ops = []
     for operands, op in ops:
         if op in (b"BT", b"q"):
@@ -215,8 +226,40 @@ def _extract_page_spans(page: Any, reader: PdfReader) -> list[PdfSpan]:
             tj_ops.extend(tjs)
         elif op == b"Tf":
             _pdf_fwp.set_font_operation(state_mgr, fonts, operands)
+        elif op == b"cm":
+            state_mgr.add_cm(*operands)
         else:
             state_mgr.set_state_param(op, operands)
+    return tj_ops
+
+
+def _text_amount(tj_ops: list[Any], rotated: bool) -> int:
+    return sum(len((tj.text or "").strip()) for tj in tj_ops if tj.rotated == rotated)
+
+
+def _extract_page_spans(page: Any, reader: PdfReader) -> list[PdfSpan]:
+    contents = page.get("/Contents")
+    if contents is not None:
+        contents = contents.get_object()
+    if not isinstance(contents, (ArrayObject, StreamObject)):
+        return []
+
+    fonts = page._layout_mode_fonts()
+    operations = ContentStream(contents, reader, "bytes").operations
+    page_rotation = (page.rotation or 0) % 360
+    rotations = [page_rotation] + [r for r in (0, 90, 180, 270) if r != page_rotation]
+    tj_ops: list[Any] = []
+    best_upright = -1
+    for rotation in rotations:
+        candidate = _collect_tj_ops(
+            operations, fonts, _viewer_transform(page, rotation)
+        )
+        upright = _text_amount(candidate, rotated=False)
+        if upright > best_upright:
+            best_upright = upright
+            tj_ops = candidate
+        if upright >= _text_amount(candidate, rotated=True):
+            break
 
     if not tj_ops:
         return []
@@ -506,7 +549,7 @@ def _assign_col(span: PdfSpan, boundaries: list[int]) -> int:
 
 
 def _reconstruct_section_rows(
-    cols: list[_HeaderCol], data_lines: list[_PdfLine]
+    cols: list[_HeaderCol], data_lines: list[_PdfLine], require_anchor: bool = False
 ) -> list[list[str]]:
     filtered_lines = [
         line for line in data_lines if not _PAGE_FOOTER_RE.match(_line_text(line))
@@ -557,6 +600,8 @@ def _reconstruct_section_rows(
         )
     ]
     if not anchor_indices:
+        if require_anchor:
+            return []
         return [cells for _, _, cells in mapped_lines]
 
     anchors_y = [mapped_lines[idx][0] for idx in anchor_indices]
@@ -654,16 +699,86 @@ def _filter_summary_rows(
     return kept
 
 
+def _section_lines(
+    lines: list[_PdfLine], start: int, end: int, band_height: int
+) -> tuple[list[_PdfLine], bool]:
+    section: list[_PdfLine] = []
+    for line in lines[start:end]:
+        if (
+            section
+            and len(line.spans) <= 2
+            and line.height >= band_height + 25
+            and not any(_looks_like_data_token(s.text) for s in line.spans)
+        ):
+            return section, False
+        section.append(line)
+    return section, True
+
+
+def _continuation_rows(
+    cols: list[_HeaderCol], lines: list[_PdfLine]
+) -> list[list[str]]:
+    rows = _reconstruct_section_rows(cols, lines, require_anchor=True)
+    date_cols = {
+        idx
+        for idx, col in enumerate(cols)
+        if header_alias_score("date", col.text) is not None
+    }
+    min_filled = max(2, (len(cols) + 1) // 2)
+    return [
+        row
+        for row in rows
+        if sum(1 for cell in row if cell.strip()) >= min_filled
+        and (not date_cols or any(_is_date_cell(row[idx]) for idx in date_cols))
+        and any(
+            _is_number_cell(cell)
+            for idx, cell in enumerate(row)
+            if idx not in date_cols
+        )
+    ]
+
+
 def reconstruct_pdf_table(document: PdfDocument) -> list[list[str]]:
     groups: dict[tuple[str, ...], dict[str, Any]] = {}
     first_page_preamble: list[list[str]] = []
     captured_preamble = False
+    open_band: tuple[_HeaderBand, int] | None = None
 
     for page in document.pages:
         lines = _group_page_lines(page.spans)
         if not lines:
             continue
         bands = _find_header_bands(lines)
+
+        if open_band is not None:
+            band, band_height = open_band
+            stronger = next(
+                (
+                    idx
+                    for idx, candidate in enumerate(bands)
+                    if candidate.import_matches >= band.import_matches
+                ),
+                len(bands),
+            )
+            end = bands[stronger].start_idx if stronger < len(bands) else len(lines)
+            header_lines = {
+                idx
+                for weaker in bands[:stronger]
+                for idx in range(weaker.start_idx, weaker.end_idx + 1)
+            }
+            candidates = [
+                line for idx, line in enumerate(lines[:end]) if idx not in header_lines
+            ]
+            carried, reached_end = _section_lines(
+                candidates, 0, len(candidates), band_height
+            )
+            carried_rows = _continuation_rows(band.cols, carried)
+            if carried_rows:
+                groups[band.signature]["rows"].extend(carried_rows)
+                bands = bands[stronger:]
+            if not carried_rows or not reached_end:
+                open_band = None
+
         if not bands:
             continue
 
@@ -687,21 +802,13 @@ def reconstruct_pdf_table(document: PdfDocument) -> list[list[str]]:
                     ):
                         end_line -= 1
 
-            section_lines: list[_PdfLine] = []
             band_height = max(
                 (lines[i].height for i in range(band.start_idx, band.end_idx + 1)),
                 default=60,
             )
-            for l_idx in range(band.end_idx + 1, end_line):
-                cand_line = lines[l_idx]
-                if (
-                    section_lines
-                    and len(cand_line.spans) <= 2
-                    and cand_line.height >= band_height + 25
-                    and not any(_looks_like_data_token(s.text) for s in cand_line.spans)
-                ):
-                    break
-                section_lines.append(cand_line)
+            section_lines, reached_end = _section_lines(
+                lines, band.end_idx + 1, end_line, band_height
+            )
             section_rows = _reconstruct_section_rows(band.cols, section_lines)
             entry = groups.get(band.signature)
             if entry is None:
@@ -714,6 +821,13 @@ def reconstruct_pdf_table(document: PdfDocument) -> list[list[str]]:
                 if len(section_rows) > 0:
                     if len(band.cols) == len(entry["cols"]):
                         entry["rows"].extend(section_rows)
+            open_band = (
+                (band, band_height)
+                if b_idx == len(bands) - 1
+                and reached_end
+                and len(band.cols) == len(groups[band.signature]["cols"])
+                else None
+            )
 
     if not groups:
         raise NoTableFound("No table found in PDF")

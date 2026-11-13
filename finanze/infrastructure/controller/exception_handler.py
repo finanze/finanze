@@ -8,6 +8,7 @@ from domain.exception.exceptions import (
     INTEGRATION_SETUP_BAD_REQUEST_CODES,
     INTEGRATION_SETUP_UNAUTHORIZED_CODES,
     AddressNotFound,
+    AIProviderError,
     BackupConflict,
     BackupTransferFailed,
     EntityNotFound,
@@ -105,6 +106,12 @@ def handle_invalid_labeling_rule(e: InvalidLabelingRule):
 
 def handle_external_labeling_unavailable(e: ExternalLabelingUnavailable):
     return jsonify({"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}), 502
+
+
+def handle_ai_provider_error(e: AIProviderError):
+    return jsonify(
+        {"code": "AI_PROVIDER_ERROR", "reason": e.code.value, "message": e.details}
+    ), 502
 
 
 def handle_invalid_login_credentials(e):
@@ -212,6 +219,7 @@ def register_exception_handlers(
     app.register_error_handler(
         ExternalLabelingUnavailable, handle_external_labeling_unavailable
     )
+    app.register_error_handler(AIProviderError, handle_ai_provider_error)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
     app.register_error_handler(InvalidUserCredentials, handle_invalid_login_credentials)
     app.register_error_handler(DataEncryptedError, handle_user_not_logged)

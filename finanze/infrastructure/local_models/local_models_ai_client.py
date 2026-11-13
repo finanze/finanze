@@ -12,6 +12,7 @@ from domain.ai import (
     AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
+    AIInputModality,
     AIModel,
     AIModelCapability,
 )
@@ -121,6 +122,7 @@ class LocalModelsAIClient(AIClient):
             size=model.size or (entry.size if entry else None),
             loaded=model.state == LocalModelState.LOADED,
             load_failed=model.state == LocalModelState.FAILED,
+            input_modalities={AIInputModality.TEXT},
         )
 
     async def get_model(

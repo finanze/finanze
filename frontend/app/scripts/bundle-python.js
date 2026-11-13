@@ -78,6 +78,8 @@ const EXCLUDED_PATHS = [
   "domain/use_cases/poll_external_integration_connection.py",
   "application/use_cases/poll_external_integration_connection.py",
   "infrastructure/controller/routes/poll_external_integration_connection.py",
+  "infrastructure/ai_import/pdfium_page_renderer.py",
+  "infrastructure/ai_import/pillow_image_normalizer.py",
 ]
 
 const EXCLUDED_FILES = [
@@ -314,6 +316,10 @@ const LAZY_PATTERNS = [
   "finanze/application/ports/ignored_recurring_movement_port.py",
   "finanze/infrastructure/labeling/",
   "finanze/infrastructure/client/ai/",
+  "finanze/infrastructure/ai_import/ai_import_extractor_adapter.py",
+  "finanze/infrastructure/ai_import/import_document.py",
+  "finanze/infrastructure/ai_import/import_schema.py",
+  "finanze/infrastructure/ai_import/capacitor_pdf_page_renderer.py",
   "finanze/infrastructure/repository/labeling/label_repository.py",
   "finanze/infrastructure/repository/labeling/labeling_rule_repository.py",
   "finanze/infrastructure/repository/labeling/queries.py",
@@ -332,8 +338,8 @@ const LAZY_PATTERNS = [
   "finanze/application/use_cases/preview_labeling_rule.py",
   "finanze/application/use_cases/relabel_transactions.py",
   "finanze/application/use_cases/update_transaction_labels.py",
-  "finanze/application/use_cases/get_external_labeling_providers.py",
-  "finanze/application/use_cases/get_external_labeling_models.py",
+  "finanze/application/use_cases/get_ai_providers.py",
+  "finanze/application/use_cases/get_ai_models.py",
   "finanze/application/use_cases/validate_ai_model.py",
   "finanze/application/use_cases/get_ai_server_info.py",
   "finanze/infrastructure/controller/routes/get_labels.py",
@@ -349,8 +355,8 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/controller/routes/preview_labeling_rule.py",
   "finanze/infrastructure/controller/routes/relabel_transactions.py",
   "finanze/infrastructure/controller/routes/update_transaction_labels.py",
-  "finanze/infrastructure/controller/routes/get_external_labeling_providers.py",
-  "finanze/infrastructure/controller/routes/get_external_labeling_models.py",
+  "finanze/infrastructure/controller/routes/get_ai_providers.py",
+  "finanze/infrastructure/controller/routes/get_ai_models.py",
   "finanze/infrastructure/controller/routes/validate_ai_model.py",
   "finanze/infrastructure/controller/routes/get_ai_server_info.py",
   // Recurring movement ignore/restore writes

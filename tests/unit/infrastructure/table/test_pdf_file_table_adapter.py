@@ -6,6 +6,7 @@ from pypdf.generic import (
     DecodedStreamObject,
     DictionaryObject,
     NameObject,
+    NumberObject,
 )
 
 from domain.exception.exceptions import (
@@ -36,10 +37,12 @@ def _text_cmd(x: int, y: int, size: int, text: str, bold: bool = False) -> str:
     return f"BT {font} {size} Tf 1 0 0 1 {x} {y} Tm ({_pdf_escape(text)}) Tj ET"
 
 
-def _build_pdf(page_streams: list[str]) -> bytes:
+def _build_pdf(page_streams: list[str], rotate: int = 0) -> bytes:
     writer = PdfWriter()
     for stream_content in page_streams:
         page = writer.add_blank_page(width=595, height=842)
+        if rotate:
+            page[NameObject("/Rotate")] = NumberObject(rotate)
         f1 = DictionaryObject(
             {
                 NameObject("/Type"): NameObject("/Font"),
@@ -262,6 +265,147 @@ class TestPDFFileTableAdapter:
                 "45,30 €",
                 "2.454,70 €",
             ],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_continues_tables_on_pages_without_repeated_header(self):
+        page1 = "\n".join(
+            [
+                _text_cmd(40, 760, 14, "Detalle de movimientos", bold=True),
+                _text_cmd(40, 720, 9, "Fecha", bold=True),
+                _text_cmd(120, 720, 9, "Concepto", bold=True),
+                _text_cmd(380, 720, 9, "Importe", bold=True),
+                _text_cmd(480, 720, 9, "Saldo", bold=True),
+                _text_cmd(40, 700, 9, "09/09/2026"),
+                _text_cmd(120, 700, 9, "Suscripcion fondo"),
+                _text_cmd(380, 700, 9, "-14,95"),
+                _text_cmd(480, 700, 9, "1.985,05"),
+                _text_cmd(40, 682, 9, "07/09/2026"),
+                _text_cmd(120, 682, 9, "Transferencia"),
+                _text_cmd(380, 682, 9, "2.000,00"),
+                _text_cmd(480, 682, 9, "2.000,00"),
+            ]
+        )
+        page2 = "\n".join(
+            [
+                _text_cmd(40, 800, 9, "05/09/2026"),
+                _text_cmd(120, 809, 9, "Recibo"),
+                _text_cmd(120, 800, 9, "telefono"),
+                _text_cmd(380, 800, 9, "-13,00"),
+                _text_cmd(480, 800, 9, "0,00"),
+                _text_cmd(40, 782, 9, "01/09/2026"),
+                _text_cmd(120, 782, 9, "Ingreso"),
+                _text_cmd(380, 782, 9, "13,00"),
+                _text_cmd(480, 782, 9, "13,00"),
+                _text_cmd(280, 20, 8, "- 2 -"),
+            ]
+        )
+        page3 = "\n".join(
+            [
+                _text_cmd(40, 760, 14, "Informacion legal", bold=True),
+                _text_cmd(40, 730, 9, "Total depositos garantizados"),
+                _text_cmd(380, 730, 9, "100.000,00"),
+            ]
+        )
+
+        rows = await PDFFileTableAdapter().parse(
+            _upload(_build_pdf([page1, page2, page3]))
+        )
+
+        assert rows == [
+            ["Detalle de movimientos"],
+            ["Fecha", "Concepto", "Importe", "Saldo"],
+            ["09/09/2026", "Suscripcion fondo", "-14,95", "1.985,05"],
+            ["07/09/2026", "Transferencia", "2.000,00", "2.000,00"],
+            ["05/09/2026", "Recibo telefono", "-13,00", "0,00"],
+            ["01/09/2026", "Ingreso", "13,00", "13,00"],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_continues_tables_past_repeated_page_header_boxes(self):
+        page_header = [
+            _text_cmd(130, 800, 7, "TIPO DE CUENTA"),
+            _text_cmd(260, 800, 7, "FILTROS APLICADOS"),
+            _text_cmd(420, 800, 7, "NÚMERO DE CUENTA"),
+            _text_cmd(130, 790, 8, "CUENTA AHORRO", bold=True),
+            _text_cmd(260, 790, 8, "OPERACIÓN: TODOS", bold=True),
+            _text_cmd(420, 790, 8, "ES9121000418450200051332", bold=True),
+        ]
+        page1 = "\n".join(
+            [
+                *page_header,
+                _text_cmd(40, 720, 8, "F.VALOR", bold=True),
+                _text_cmd(120, 720, 8, "TIPO OPERACIÓN", bold=True),
+                _text_cmd(220, 720, 8, "DESCRIPCIÓN", bold=True),
+                _text_cmd(420, 720, 8, "IMPORTE", bold=True),
+                _text_cmd(500, 720, 8, "SALDO", bold=True),
+                _text_cmd(40, 700, 8, "04/11/2026"),
+                _text_cmd(120, 700, 8, "Gasto"),
+                _text_cmd(220, 700, 8, "AHORRO PARA HUCHA"),
+                _text_cmd(420, 700, 8, "-1.400,00"),
+                _text_cmd(500, 700, 8, "0,00"),
+            ]
+        )
+        page2 = "\n".join(
+            [
+                *page_header,
+                _text_cmd(40, 720, 8, "18/08/2026"),
+                _text_cmd(120, 720, 8, "Ingreso"),
+                _text_cmd(220, 720, 8, "TRASPASO DESDE HUCHA"),
+                _text_cmd(420, 720, 8, "1.400,00"),
+                _text_cmd(500, 720, 8, "1.400,00"),
+            ]
+        )
+
+        rows = await PDFFileTableAdapter().parse(_upload(_build_pdf([page1, page2])))
+
+        header_idx = rows.index(
+            ["F.VALOR", "TIPO OPERACIÓN", "DESCRIPCIÓN", "IMPORTE", "SALDO"]
+        )
+        assert rows[header_idx + 1 :] == [
+            ["04/11/2026", "Gasto", "AHORRO PARA HUCHA", "-1.400,00", "0,00"],
+            ["18/08/2026", "Ingreso", "TRASPASO DESDE HUCHA", "1.400,00", "1.400,00"],
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "rotate, content_matrix",
+        [
+            (90, "0 1 -1 0 595 0"),
+            (270, "0 -1 1 0 0 842"),
+            (0, "0 1 -1 0 595 0"),
+        ],
+        ids=["rotated-page", "rotated-page-270", "sideways-content"],
+    )
+    async def test_reads_landscape_tables_drawn_on_rotated_pages(
+        self, rotate, content_matrix
+    ):
+        landscape = "\n".join(
+            [
+                _text_cmd(60, 540, 9, "F. VALOR", bold=True),
+                _text_cmd(160, 540, 9, "DESCRIPCIÓN", bold=True),
+                _text_cmd(620, 540, 9, "IMPORTE (€)", bold=True),
+                _text_cmd(720, 540, 9, "SALDO (€)", bold=True),
+                _text_cmd(60, 520, 8, "04/10/2026"),
+                _text_cmd(160, 520, 8, "Transferencia emitida"),
+                _text_cmd(620, 520, 8, "-500.00"),
+                _text_cmd(720, 520, 8, "0.00"),
+                _text_cmd(60, 500, 8, "03/10/2026"),
+                _text_cmd(160, 500, 8, "Transferencia recibida"),
+                _text_cmd(620, 500, 8, "500.00"),
+                _text_cmd(720, 500, 8, "500.00"),
+            ]
+        )
+        page = f"q {content_matrix} cm\n{landscape}\nQ"
+
+        rows = await PDFFileTableAdapter().parse(
+            _upload(_build_pdf([page], rotate=rotate))
+        )
+
+        assert rows == [
+            ["F. VALOR", "DESCRIPCIÓN", "IMPORTE (€)", "SALDO (€)"],
+            ["04/10/2026", "Transferencia emitida", "-500.00", "0.00"],
+            ["03/10/2026", "Transferencia recibida", "500.00", "500.00"],
         ]
 
     @pytest.mark.asyncio

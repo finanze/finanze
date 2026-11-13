@@ -3,6 +3,7 @@ import { vi } from "vitest"
 import { render } from "@testing-library/react"
 import { I18nProvider } from "@/i18n"
 import ExportPage from "@/pages/ExportPage"
+import { FileImportJobProvider } from "@/context/FileImportJobContext"
 import {
   FileImportPreviewDialog,
   type FileImportPreviewStrings,
@@ -50,6 +51,7 @@ vi.mock("@/context/AppContext", () => ({
     exportState: {},
     setExportState: vi.fn(),
     showToast: mockShowToast,
+    hideToast: vi.fn(),
     fetchEntities: mockFetchEntities,
     entities: [
       { id: "entity-1", name: "Bank A", type: "FINANCIAL_INSTITUTION" },
@@ -235,7 +237,11 @@ vi.mock("@/components/ui/Tabs", async () => {
 })
 
 function Wrapper({ children }: { children: ReactNode }) {
-  return <I18nProvider>{children}</I18nProvider>
+  return (
+    <I18nProvider>
+      <FileImportJobProvider>{children}</FileImportJobProvider>
+    </I18nProvider>
+  )
 }
 
 export function renderExportPage() {

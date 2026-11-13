@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional, Protocol
 
-from domain.ai import AIModelPricing
+from domain.ai import AIModelPricing, AIVisionLimits
 
 PROCESS_FAILURES = (
     "ProcessExitedError",
@@ -37,6 +37,8 @@ class CopilotModelEntry:
     enabled: bool
     reasoning_efforts: tuple[str, ...] = ()
     pricing: Optional[AIModelPricing] = None
+    vision: Optional[bool] = None
+    vision_limits: Optional[AIVisionLimits] = None
 
 
 class CopilotRuntimeHandle(Protocol):

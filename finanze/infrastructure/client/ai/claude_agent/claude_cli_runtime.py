@@ -121,6 +121,17 @@ def _usage(result: dict) -> tuple[Optional[int], Optional[int]]:
     return _as_int(usage.get("input_tokens")), _as_int(usage.get("output_tokens"))
 
 
+def _stdin_payload(prompt: str, attachments: Optional[list[dict]]) -> bytes:
+    if not attachments:
+        return prompt.encode()
+    content = [{"type": "text", "text": prompt}] if prompt else []
+    message = {
+        "type": "user",
+        "message": {"role": "user", "content": content + attachments},
+    }
+    return (json.dumps(message) + "\n").encode()
+
+
 class ClaudeCliRuntime:
     def __init__(
         self,
@@ -143,11 +154,14 @@ class ClaudeCliRuntime:
         schema: Optional[dict],
         effort: Optional[str],
         timeout: float,
+        attachments: Optional[list[dict]] = None,
     ) -> ClaudeCompletion:
         system_prompt = self._write_system_prompt(instructions or "")
         try:
             process = await asyncio.create_subprocess_exec(
-                *self._arguments(model, system_prompt, schema, effort),
+                *self._arguments(
+                    model, system_prompt, schema, effort, bool(attachments)
+                ),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -165,7 +179,9 @@ class ClaudeCliRuntime:
         self._processes.add(process)
         try:
             async with asyncio.timeout(timeout):
-                state, stderr = await self._run(process, prompt)
+                state, stderr = await self._run(
+                    process, _stdin_payload(prompt, attachments)
+                )
         except TimeoutError as e:
             await terminate_process(process)
             raise ClaudeAgentError(
@@ -200,6 +216,7 @@ class ClaudeCliRuntime:
         system_prompt: Path,
         schema: Optional[dict],
         effort: Optional[str],
+        stream_input: bool = False,
     ) -> list[str]:
         arguments = [
             self._executable,
@@ -225,6 +242,8 @@ class ClaudeCliRuntime:
         ]
         if effort:
             arguments += ["--effort", effort]
+        if stream_input:
+            arguments += ["--input-format", "stream-json"]
         if schema is not None:
             arguments += ["--json-schema", json.dumps(schema, separators=(",", ":"))]
         return arguments
@@ -237,14 +256,14 @@ class ClaudeCliRuntime:
         return env
 
     async def _run(
-        self, process: asyncio.subprocess.Process, prompt: str
+        self, process: asyncio.subprocess.Process, payload: bytes
     ) -> tuple[_RunState, str]:
         stderr_task = asyncio.create_task(
             _read_limited(process.stderr, STDERR_LIMIT_BYTES)
         )
         try:
             try:
-                process.stdin.write(prompt.encode())
+                process.stdin.write(payload)
                 await process.stdin.drain()
                 process.stdin.close()
             except (BrokenPipeError, ConnectionResetError):

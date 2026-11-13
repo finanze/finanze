@@ -10,12 +10,14 @@ from domain.ai import (
     AIClientFeature,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIJsonSchema,
     AIMessage,
     AIMessageRole,
     AIModelCapability,
     AIModelPricing,
     AIReasoningEffort,
+    AIVisionLimits,
 )
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import (
@@ -229,6 +231,7 @@ def test_features_and_client_id(monkeypatch, tmp_path):
     assert client.features() == {
         AIClientFeature.GENERATION,
         AIClientFeature.MODEL_LISTING,
+        AIClientFeature.ATTACHMENTS,
     }
     monkeypatch.delenv(GITHUB_COPILOT_CLIENT_ID_ENV, raising=False)
     assert resolve_github_copilot_client_id() == GITHUB_COPILOT_CLIENT_ID
@@ -358,6 +361,31 @@ class TestModels:
         env.clock.now = CATALOG_TTL_SECONDS - 1
         assert await env.client.get_model("claude-sonnet", CREDENTIALS)
         assert env.list_calls == 1
+
+    @pytest.mark.asyncio
+    async def test_models_report_vision_support_when_known(self, env):
+        limits = AIVisionLimits(max_images=5, max_image_bytes=3_000_000)
+        env.models = [
+            CopilotModelEntry(
+                id="vision",
+                name="Vision",
+                enabled=True,
+                vision=True,
+                vision_limits=limits,
+            ),
+            CopilotModelEntry(id="text", name="Text", enabled=True, vision=False),
+            CopilotModelEntry(id="unknown", name="Unknown", enabled=True),
+        ]
+
+        models = {m.id: m for m in await env.client.list_models(CREDENTIALS)}
+
+        assert models["vision"].input_modalities == {
+            AIInputModality.TEXT,
+            AIInputModality.IMAGE,
+        }
+        assert models["vision"].vision_limits == limits
+        assert models["text"].input_modalities == {AIInputModality.TEXT}
+        assert models["unknown"].input_modalities is None
 
         env.clock.now = CATALOG_TTL_SECONDS
         assert await env.client.get_model("disabled-model", CREDENTIALS) is None

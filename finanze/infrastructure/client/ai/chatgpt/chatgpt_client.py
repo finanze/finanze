@@ -16,6 +16,7 @@ from domain.ai import (
     AIGeneration,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIModel,
     AIModelCapability,
 )
@@ -32,8 +33,10 @@ from domain.external_integration import (
     ExternalIntegrationPayload,
 )
 
+from infrastructure.client.ai.attachments import responses_input
 from infrastructure.client.ai.chatgpt.chatgpt_oauth import ChatGPTOAuth
 from infrastructure.client.ai.http_ai_client import HttpAIClient
+from infrastructure.client.ai.input_modalities import parse_input_modalities
 from infrastructure.client.ai.reasoning_levels import pick_reasoning_level
 from infrastructure.client.ai.responses_api import (
     parse_response_output,
@@ -58,6 +61,8 @@ UNSUPPORTED_CODES = {
     "subscription_sharing_route_not_supported",
 }
 MODEL_NOT_FOUND_CODES = {"model_not_found"}
+# The Codex catalog assumes text and image input when a model omits its modalities.
+DEFAULT_INPUT_MODALITIES = frozenset({AIInputModality.TEXT, AIInputModality.IMAGE})
 
 T = TypeVar("T")
 
@@ -67,6 +72,7 @@ class ChatGPTModelEntry:
     slug: str
     name: str
     efforts: tuple[str, ...] = ()
+    input_modalities: frozenset[AIInputModality] = DEFAULT_INPUT_MODALITIES
 
 
 class _Unauthorized(Exception):
@@ -109,11 +115,17 @@ def _parse_models(data) -> list[ChatGPTModelEntry]:
         if not isinstance(slug, str) or not slug:
             continue
         name = item.get("display_name")
+        modalities = parse_input_modalities(item.get("input_modalities"))
         entries.append(
             ChatGPTModelEntry(
                 slug=slug,
                 name=name if isinstance(name, str) and name else slug,
                 efforts=_reasoning_levels(item.get("supported_reasoning_levels")),
+                input_modalities=(
+                    frozenset(modalities)
+                    if modalities is not None
+                    else DEFAULT_INPUT_MODALITIES
+                ),
             )
         )
     return entries
@@ -123,7 +135,12 @@ def _to_model(entry: ChatGPTModelEntry) -> AIModel:
     capabilities = {AIModelCapability.STRUCTURED_OUTPUT}
     if entry.efforts:
         capabilities.add(AIModelCapability.REASONING)
-    return AIModel(id=entry.slug, name=entry.name, capabilities=capabilities)
+    return AIModel(
+        id=entry.slug,
+        name=entry.name,
+        capabilities=capabilities,
+        input_modalities=set(entry.input_modalities),
+    )
 
 
 def _error_for_code(code: Optional[str], message: str) -> Optional[Exception]:
@@ -175,7 +192,11 @@ class ChatGPTClient(HttpAIClient, OAuthConnectableIntegration):
         self._log = logging.getLogger(__name__)
 
     def features(self) -> set[AIClientFeature]:
-        return {AIClientFeature.GENERATION, AIClientFeature.MODEL_LISTING}
+        return {
+            AIClientFeature.GENERATION,
+            AIClientFeature.MODEL_LISTING,
+            AIClientFeature.ATTACHMENTS,
+        }
 
     async def start_authorization(
         self, payload: ExternalIntegrationPayload, completion_url: Optional[str]
@@ -263,10 +284,7 @@ class ChatGPTClient(HttpAIClient, OAuthConnectableIntegration):
 
         body = {
             "model": entry.slug,
-            "input": [
-                {"role": message.role.value.lower(), "content": message.content}
-                for message in request.messages
-            ],
+            "input": responses_input(request.messages),
             "store": False,
             "stream": True,
         }

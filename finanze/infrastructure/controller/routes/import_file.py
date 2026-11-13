@@ -12,6 +12,8 @@ from domain.template import TemplatedField
 from domain.use_cases.import_file import ImportFile
 from quart import jsonify, request
 
+MAX_AI_INSTRUCTIONS_LENGTH = 1000
+
 
 def _parse_template_fields(raw: str) -> list[TemplatedField]:
     parsed = json.loads(raw)
@@ -56,13 +58,14 @@ async def import_file_route(import_file_uc: ImportFile):
         )
 
     uploaded_file = (await request.files).get("file")
-    if not uploaded_file:
+    form = await request.form
+    preview_token = (form.get("previewToken") or "").strip() or None
+    if not uploaded_file and not preview_token:
         return (
             jsonify({"code": "INVALID_REQUEST", "message": "Missing file"}),
             HTTPStatus.BAD_REQUEST,
         )
 
-    form = await request.form
     date_format = form.get("dateFormat")
     datetime_format = form.get("datetimeFormat")
     number_format_raw = form.get("numberFormat")
@@ -71,6 +74,13 @@ async def import_file_route(import_file_uc: ImportFile):
     template_id = (form.get("templateId") or "").strip() or None
     template_fields_raw = form.get("templateFields")
     template_params_raw = form.get("templateParams")
+    use_ai = (form.get("useAi") or "").strip().lower() == "true"
+    ai_instructions = (form.get("aiInstructions") or "").strip() or None
+    if ai_instructions and len(ai_instructions) > MAX_AI_INSTRUCTIONS_LENGTH:
+        return (
+            jsonify({"code": "INVALID_REQUEST", "message": "Instructions too long"}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
     if not all([feature_raw, product_raw]):
         return (
@@ -134,11 +144,15 @@ async def import_file_route(import_file_uc: ImportFile):
                 HTTPStatus.BAD_REQUEST,
             )
 
-    file_upload = FileUpload(
-        filename=uploaded_file.filename,
-        content_type=uploaded_file.content_type,
-        content_length=uploaded_file.content_length or 0,
-        data=uploaded_file.stream,
+    file_upload = (
+        FileUpload(
+            filename=uploaded_file.filename,
+            content_type=uploaded_file.content_type,
+            content_length=uploaded_file.content_length or 0,
+            data=uploaded_file.stream,
+        )
+        if uploaded_file
+        else None
     )
 
     preview_raw = request.args.get("preview")
@@ -171,6 +185,9 @@ async def import_file_route(import_file_uc: ImportFile):
         preview=preview,
         template_fields=template_fields,
         template_params=template_params,
+        use_ai=use_ai,
+        ai_instructions=ai_instructions,
+        preview_token=preview_token,
     )
 
     try:
@@ -188,5 +205,11 @@ async def import_file_route(import_file_uc: ImportFile):
         response["data"] = result.data
     if result.errors:
         response["errors"] = result.errors
+    if result.preview_token:
+        response["previewToken"] = result.preview_token
+    if result.ai:
+        response["ai"] = result.ai
+    if result.detail:
+        response["detail"] = result.detail
 
     return jsonify(response), HTTPStatus.OK

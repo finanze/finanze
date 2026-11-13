@@ -4,6 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FRONTEND_APP="$SCRIPT_DIR/../../frontend/app"
 ANDROID_SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+LOCAL_IOS_APP="$FRONTEND_APP/build/ios/Build/Products/Debug-iphonesimulator/App.app"
+
+if [[ -z "${IOS_APP_PATH:-}" && -d "$LOCAL_IOS_APP" ]]; then
+  IOS_APP_PATH="$LOCAL_IOS_APP"
+fi
 
 IOS_APP_PATH="${IOS_APP_PATH:-$(find "$HOME/Library/Developer/Xcode/DerivedData" \
   -path "*/Debug-iphonesimulator/App.app/Info.plist" -type f 2>/dev/null \
@@ -18,7 +23,7 @@ usage() {
   echo "Automatically boots simulators/emulators if needed."
   echo ""
   echo "Environment variables:"
-  echo "  IOS_APP_PATH         Override iOS .app path (auto-detected from Xcode DerivedData)"
+  echo "  IOS_APP_PATH         Override iOS .app path (default: frontend/app/build/ios simulator build, else newest Xcode DerivedData)"
   echo "  ANDROID_APP_PATH     Override Android .apk path (default: frontend/app/android/...)"
   echo "  IOS_DEVICE_NAME      Simulator device (default: iPhone 17 Pro)"
   echo "  ANDROID_DEVICE_NAME  Emulator device name (default: emulator-5554)"

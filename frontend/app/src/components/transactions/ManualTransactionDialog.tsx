@@ -1229,6 +1229,7 @@ export function ManualTransactionDialog({
   const externalEntry = resolveExternalProvider(
     externalSettings,
     externalIntegrations,
+    settings.ai?.providers,
   )
   const externalProvider = externalEntry?.provider ?? ""
   const externalIntegration = externalIntegrations.find(

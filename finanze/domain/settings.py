@@ -8,7 +8,7 @@ from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass
 
 CURRENT_VERSION = 8
-MAX_EXTERNAL_LABELING_PROVIDERS = 3
+MAX_AI_PROVIDERS = 5
 
 FilterValues = str | list[str]
 
@@ -106,8 +106,62 @@ class SheetsImportConfig:
 
 
 @dataclass
+class AIProviderEntry:
+    provider: str = Field(min_length=1, max_length=200)
+    model: str = Field(min_length=1, max_length=200)
+    upstreamProvider: Optional[str] = None
+
+    @field_validator("provider", "model", "upstreamProvider", mode="before")
+    @classmethod
+    def trim_values(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+def _unique_entries(providers: list[AIProviderEntry]) -> list[AIProviderEntry]:
+    identities = [
+        (entry.provider, entry.model, entry.upstreamProvider or None)
+        for entry in providers
+    ]
+    if len(identities) != len(set(identities)):
+        raise ValueError("Duplicate AI providers")
+    return providers
+
+
+def effective_ai_providers(
+    default: list[AIProviderEntry], override: list[AIProviderEntry]
+) -> list[AIProviderEntry]:
+    return list(override or default)
+
+
+@dataclass
+class AIConfig:
+    providers: list[AIProviderEntry] = Field(
+        default_factory=list, max_length=MAX_AI_PROVIDERS
+    )
+
+    @field_validator("providers")
+    @classmethod
+    def unique_providers(cls, providers):
+        return _unique_entries(providers)
+
+
+@dataclass
+class AIImportConfig:
+    providers: list[AIProviderEntry] = Field(
+        default_factory=list, max_length=MAX_AI_PROVIDERS
+    )
+    instructions: Optional[str] = None
+
+    @field_validator("providers")
+    @classmethod
+    def unique_providers(cls, providers):
+        return _unique_entries(providers)
+
+
+@dataclass
 class ImportConfig:
     sheets: Optional[SheetsImportConfig] = None
+    ai: AIImportConfig = field(default_factory=AIImportConfig)
 
 
 @dataclass
@@ -206,22 +260,10 @@ class ExternalLabelingExamplesConfig:
 
 
 @dataclass
-class ExternalLabelingProviderEntry:
-    provider: str = Field(min_length=1, max_length=200)
-    model: str = Field(min_length=1, max_length=200)
-    upstreamProvider: Optional[str] = None
-
-    @field_validator("provider", "model", "upstreamProvider", mode="before")
-    @classmethod
-    def trim_values(cls, value):
-        return value.strip() if isinstance(value, str) else value
-
-
-@dataclass
 class ExternalLabelingConfig:
     enabled: bool = False
-    providers: list[ExternalLabelingProviderEntry] = Field(
-        default_factory=list, max_length=MAX_EXTERNAL_LABELING_PROVIDERS
+    providers: list[AIProviderEntry] = Field(
+        default_factory=list, max_length=MAX_AI_PROVIDERS
     )
     autoRun: bool = True
     minConfidence: int = 70
@@ -234,13 +276,7 @@ class ExternalLabelingConfig:
     @field_validator("providers")
     @classmethod
     def unique_providers(cls, providers):
-        identities = [
-            (entry.provider, entry.model, entry.upstreamProvider or None)
-            for entry in providers
-        ]
-        if len(identities) != len(set(identities)):
-            raise ValueError("Duplicate external labeling providers")
-        return providers
+        return _unique_entries(providers)
 
 
 @dataclass
@@ -255,6 +291,7 @@ class SettingsSection(str, Enum):
     IMPORTING = "importing"
     ASSETS = "assets"
     LABELING = "labeling"
+    AI = "ai"
 
 
 @dataclass
@@ -267,6 +304,7 @@ class Settings:
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
     labeling: LabelingConfig = field(default_factory=LabelingConfig)
+    ai: AIConfig = field(default_factory=AIConfig)
 
 
 @dataclass
@@ -279,6 +317,7 @@ class PartialSettings:
     importing: Optional[ImportConfig] = None
     assets: Optional[AssetConfig] = None
     labeling: Optional[LabelingConfig] = None
+    ai: Optional[AIConfig] = None
 
     def included_sections(self) -> list[SettingsSection]:
         return [

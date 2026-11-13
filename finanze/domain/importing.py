@@ -11,6 +11,7 @@ from domain.file_upload import FileUpload
 from domain.global_position import GlobalPosition, ProductType
 from domain.settings import TemplateConfig
 from domain.template import Template, TemplatedField
+from domain.template_fields import TemplateField
 from domain.transactions import BaseTx, Transactions, TxRefKey, TxType
 from pydantic.dataclasses import dataclass
 
@@ -52,7 +53,7 @@ class ImportCandidate:
 
 @dataclass
 class ImportFileRequest:
-    file: FileUpload
+    file: Optional[FileUpload]
     number_format: NumberFormat
     feature: Feature
     product: ProductType
@@ -62,6 +63,9 @@ class ImportFileRequest:
     preview: bool = True
     template_fields: Optional[list[TemplatedField]] = None
     template_params: Optional[dict[str, Any]] = None
+    use_ai: bool = False
+    ai_instructions: Optional[str] = None
+    preview_token: Optional[str] = None
 
 
 class ImportResultCode(str, Enum):
@@ -73,9 +77,23 @@ class ImportResultCode(str, Enum):
     PDF_NO_TEXT_LAYER = "PDF_NO_TEXT_LAYER"
     NO_TABLE_FOUND = "NO_TABLE_FOUND"
     INVALID_TEMPLATE = "INVALID_TEMPLATE"
+    PREVIEW_EXPIRED = "PREVIEW_EXPIRED"
+
+    # AI extraction
+    AI_UNAVAILABLE = "AI_UNAVAILABLE"
+    AI_VISION_UNSUPPORTED = "AI_VISION_UNSUPPORTED"
+    AI_EXTRACTION_EMPTY = "AI_EXTRACTION_EMPTY"
+    AI_FILE_TOO_LARGE = "AI_FILE_TOO_LARGE"
 
     # Import not configured
     DISABLED = "DISABLED"
+
+
+class AIImportFailed(Exception):
+    def __init__(self, code: ImportResultCode, detail: Optional[str] = None):
+        super().__init__(detail or code.value)
+        self.code = code
+        self.detail = detail
 
 
 class ImportErrorType(str, Enum):
@@ -102,10 +120,45 @@ class ImportedData:
 
 
 @dataclass
+class AIImportMetadata:
+    provider: str
+    model: str
+    rows: int
+    requests: int = 1
+    pages: Optional[int] = None
+    images: bool = False
+
+
+@dataclass
 class ImportResult:
     code: ImportResultCode
     data: Optional[ImportedData] = None
     errors: Optional[list[ImportError]] = None
+    preview_token: Optional[str] = None
+    ai: Optional[AIImportMetadata] = None
+    detail: Optional[str] = None
+
+
+@dataclass
+class AIImportRequest:
+    file: FileUpload
+    feature: Feature
+    product: ProductType
+    fields: list[TemplateField]
+    instructions: Optional[str] = None
+
+
+@dataclass
+class AIImportExtraction:
+    fields: list[str]
+    rows: list[list[str]]
+    metadata: AIImportMetadata
+
+
+@dataclass
+class ImportPreview:
+    candidate: ImportCandidate
+    ai: Optional[AIImportMetadata] = None
 
 
 @dataclass
