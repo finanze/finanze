@@ -8,7 +8,7 @@ from copilot.rpc import (
     TokenPriceUnit,
 )
 from copilot.session_events import AssistantMessageData, SessionErrorData
-from domain.ai import AIModelPricing
+from domain.ai import AIModelPricing, AIVisionLimits
 from domain.dezimal import Dezimal
 from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeSandbox
 from infrastructure.client.ai.github_copilot import copilot_runtime
@@ -129,13 +129,24 @@ async def _runtime(tmp_path, created) -> tuple[CopilotRuntime, FakeClient]:
     return runtime, created[-1]
 
 
-def _model(model_id, state=ModelPolicyState.ENABLED, efforts=None, billing=None):
+def _model(
+    model_id,
+    state=ModelPolicyState.ENABLED,
+    efforts=None,
+    billing=None,
+    vision=None,
+    vision_limits=None,
+):
+    supports = SimpleNamespace(reasoning_effort=efforts is not None)
+    if vision is not None:
+        supports.vision = vision
     return SimpleNamespace(
         id=model_id,
         name=model_id.upper(),
         policy=SimpleNamespace(state=state) if state else None,
         capabilities=SimpleNamespace(
-            supports=SimpleNamespace(reasoning_effort=efforts is not None)
+            supports=supports,
+            limits=SimpleNamespace(vision=vision_limits),
         ),
         supported_reasoning_efforts=efforts,
         billing=ModelBilling.from_dict(billing) if billing is not None else None,
@@ -267,6 +278,38 @@ async def test_list_models_maps_policy_and_efforts(tmp_path, created):
         CopilotModelEntry(id="unconfigured", name="UNCONFIGURED", enabled=False),
         CopilotModelEntry(id="no-policy", name="NO-POLICY", enabled=True),
     ]
+
+
+@pytest.mark.asyncio
+async def test_list_models_maps_vision_support_and_limits(tmp_path, created):
+    runtime, client = await _runtime(tmp_path, created)
+    client.models = [
+        _model(
+            "vision",
+            vision=True,
+            vision_limits=SimpleNamespace(
+                supported_media_types=["image/png", "image/jpeg"],
+                max_prompt_images=5,
+                max_prompt_image_size=3_145_728,
+            ),
+        ),
+        _model("text", vision=False),
+        _model("unknown"),
+    ]
+
+    entries = {entry.id: entry for entry in await runtime.list_models()}
+
+    assert entries["vision"].vision is True
+    assert entries["vision"].vision_limits == AIVisionLimits(
+        max_images=5,
+        max_image_bytes=3_145_728,
+        media_types=["image/png", "image/jpeg"],
+    )
+    assert (entries["text"].vision, entries["text"].vision_limits) == (False, None)
+    assert (entries["unknown"].vision, entries["unknown"].vision_limits) == (
+        None,
+        None,
+    )
 
 
 @pytest.mark.asyncio

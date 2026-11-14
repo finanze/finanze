@@ -95,6 +95,7 @@ from domain.use_cases.delete_pending_flow import DeletePendingFlow
 from domain.use_cases.settle_pending_flow import SettlePendingFlow
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
 from domain.use_cases.search_crypto_assets import SearchCryptoAssets
+from domain.use_cases.suggest_template_fields import SuggestTemplateFields
 from domain.use_cases.update_contributions import UpdateContributions
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
@@ -113,10 +114,8 @@ from domain.use_cases.create_label import CreateLabel
 from domain.use_cases.create_labeling_rule import CreateLabelingRule
 from domain.use_cases.delete_label import DeleteLabel
 from domain.use_cases.delete_labeling_rule import DeleteLabelingRule
-from domain.use_cases.get_external_labeling_providers import (
-    GetExternalLabelingProviders,
-)
-from domain.use_cases.get_external_labeling_models import GetExternalLabelingModels
+from domain.use_cases.get_ai_providers import GetAIProviders
+from domain.use_cases.get_ai_models import GetAIModels
 from domain.use_cases.get_local_models import GetLocalModels
 from domain.use_cases.download_local_model import DownloadLocalModel
 from domain.use_cases.delete_local_model import DeleteLocalModel
@@ -148,12 +147,8 @@ from infrastructure.controller.routes.create_label import create_label
 from infrastructure.controller.routes.create_labeling_rule import create_labeling_rule
 from infrastructure.controller.routes.delete_label import delete_label
 from infrastructure.controller.routes.delete_labeling_rule import delete_labeling_rule
-from infrastructure.controller.routes.get_external_labeling_providers import (
-    get_external_labeling_providers,
-)
-from infrastructure.controller.routes.get_external_labeling_models import (
-    get_external_labeling_models,
-)
+from infrastructure.controller.routes.get_ai_providers import get_ai_providers
+from infrastructure.controller.routes.get_ai_models import get_ai_models
 from infrastructure.controller.routes.get_local_models import get_local_models
 from infrastructure.controller.routes.download_local_model import (
     download_local_model,
@@ -323,6 +318,9 @@ from infrastructure.controller.routes.update_tracked_loans import update_tracked
 from infrastructure.controller.routes.upload_backup import upload_backup
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.search_crypto_assets import search_crypto_assets
+from infrastructure.controller.routes.suggest_template_fields import (
+    suggest_template_fields,
+)
 
 
 async def register_routes(
@@ -405,6 +403,7 @@ async def register_routes(
     delete_template_uc: DeleteTemplate,
     get_templates_uc: GetTemplates,
     get_template_fields_uc: GetTemplateFields,
+    suggest_template_fields_uc: SuggestTemplateFields,
     upload_backup_uc: UploadBackup,
     import_backup_uc: ImportBackup,
     get_backups_uc: GetBackups,
@@ -426,8 +425,8 @@ async def register_routes(
     preview_labeling_rule_uc: PreviewLabelingRule,
     relabel_transactions_uc: RelabelTransactions,
     update_transaction_labels_uc: UpdateTransactionLabels,
-    get_external_labeling_providers_uc: GetExternalLabelingProviders,
-    get_external_labeling_models_uc: GetExternalLabelingModels,
+    get_ai_providers_uc: GetAIProviders,
+    get_ai_models_uc: GetAIModels,
     validate_ai_model_uc: ValidateAIModel,
     get_ai_server_info_uc: GetAIServerInfo,
     get_cashflow_summary_uc: GetCashflowSummary,
@@ -596,17 +595,13 @@ async def register_routes(
     async def relabel_transactions_route():
         return await relabel_transactions(relabel_transactions_uc)
 
-    @app.route("/api/v1/labeling/external/providers", methods=["GET"])
-    async def get_external_labeling_providers_route():
-        return await get_external_labeling_providers(get_external_labeling_providers_uc)
+    @app.route("/api/v1/ai/providers", methods=["GET"])
+    async def get_ai_providers_route():
+        return await get_ai_providers(get_ai_providers_uc)
 
-    @app.route(
-        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
-    )
-    async def get_external_labeling_models_route(provider_id: str):
-        return await get_external_labeling_models(
-            get_external_labeling_models_uc, provider_id
-        )
+    @app.route("/api/v1/ai/providers/<provider_id>/models", methods=["GET"])
+    async def get_ai_models_route(provider_id: str):
+        return await get_ai_models(get_ai_models_uc, provider_id)
 
     @app.route("/api/v1/ai/models/validate", methods=["POST"])
     async def validate_ai_model_route():
@@ -891,6 +886,10 @@ async def register_routes(
     @app.route("/api/v1/templates/fields", methods=["GET"])
     async def get_template_fields_route():
         return await get_template_fields(get_template_fields_uc)
+
+    @app.route("/api/v1/templates/suggest", methods=["POST"])
+    async def suggest_template_fields_route():
+        return await suggest_template_fields(suggest_template_fields_uc)
 
     @app.route("/api/v1/calculations/savings", methods=["POST"])
     async def calculate_savings_route():

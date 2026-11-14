@@ -71,6 +71,25 @@ describe("PyodideApiClient", () => {
     })
   })
 
+  it("marks form data without files as multipart", async () => {
+    mocks.callPythonFunction.mockResolvedValue({
+      status: 200,
+      json: '{"code":"COMPLETED"}',
+      headers: {},
+    })
+    const form = new FormData()
+    form.append("previewToken", "token-1")
+
+    await new PyodideApiClient().post("/data/import/file", form)
+
+    const [, , method, path, payload, headers] =
+      mocks.callPythonFunction.mock.calls[0]
+    expect(method).toBe("POST")
+    expect(path).toBe("/api/v1/data/import/file")
+    expect(payload).toEqual({ previewToken: "token-1" })
+    expect(headers).toEqual({ "Content-Type": "multipart/form-data" })
+  })
+
   it("downloads binary and JSON text responses", async () => {
     const client = new PyodideApiClient()
     mocks.callPythonFunction.mockResolvedValueOnce({

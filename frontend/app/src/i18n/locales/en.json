@@ -560,8 +560,16 @@
     "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} did not allow fetching movements older than 3 months. Request them first in the {entity} app on your main device, approve the signature there and fetch again.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
-    "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
+    "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, XLS, XLSX, HTML or PDF file.",
+    "PDF_NO_TEXT_LAYER": "This PDF contains scanned images or vector outlines without selectable text. Export the statement as CSV, Excel, or a text-based PDF.",
+    "NO_TABLE_FOUND": "No data table could be found in this file.",
     "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one.",
+    "PREVIEW_EXPIRED": "This preview expired. Run the import again.",
+    "AI_UNAVAILABLE": "No AI model could process the file. Check your AI models in Integrations and try again.",
+    "AI_VISION_UNSUPPORTED": "None of your AI models can read images or scanned documents. Add a model with image support in Integrations.",
+    "AI_EXTRACTION_EMPTY": "AI didn't find any rows to import in this file.",
+    "AI_FILE_TOO_LARGE": "The file is too large to be processed with AI.",
+    "EXECUTION_CONFLICT": "Another import is already running. Wait for it to finish.",
     "NOT_ENTITLED": "Your account does not have access to {integration}. Check that your plan is active and that your organization allows it.",
     "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again.",
     "RUNTIME_NOT_FOUND": "The program required by {integration} was not found on this computer. Install it or enter the full path to its executable.",
@@ -1660,6 +1668,31 @@
       "CRYPTO_MARKET_PROVIDER": "Crypto market data",
       "AI_PROVIDER": "AI providers",
       "DATA_SOURCE": "Data sources"
+    },
+    "aiModels": {
+      "title": "AI models",
+      "description": "Default priority list for every AI feature, such as labeling suggestions and file imports. Each feature skips the models that can't do what it needs.",
+      "priorityNotice": "Models are tried in order. Methods unavailable on this platform or requiring sign-in are skipped, and a failure moves the task to the next entry.",
+      "privacyNotice": "Each feature only sends the data it needs to the model that runs it.",
+      "customModelNotice": "Some models can be slow and expensive. Faster and cheaper models are recommended for most tasks.",
+      "empty": "Add the models your AI features should use.",
+      "settingsLink": "Choose which AI models features use, in Settings"
+    },
+    "aiTab": {
+      "title": "AI & MCP",
+      "titleNoMcp": "AI"
+    },
+    "aiTaskProviders": {
+      "customize": "Use custom models for this feature",
+      "defaultHint": "Using your default AI models in order. The ones that can't do this task are skipped.",
+      "customHint": "Starts from your default models without the ones that can't do this task. Changes only apply here.",
+      "noDefault": "You have no default AI models yet.",
+      "editDefault": "Edit default models"
+    },
+    "aiModalities": {
+      "IMAGE": "Images",
+      "DOCUMENT": "PDF",
+      "notEligible": "Not suitable for this task"
     }
   },
   "dashboard": {
@@ -1851,39 +1884,80 @@
     },
     "file": {
       "cardTitle": "File export",
-      "cardDescription": "Download a file with your selected data.",
+      "cardDescription": "Download a snapshot of your positions, transactions, periodic contributions, or historic investments.",
       "singleRunBadge": "File-only",
-      "formatsLabel": "Available formats:",
+      "quickPickLabel": "Quick export",
+      "quickPresets": {
+        "accountMovements": "Account movements",
+        "fundAndStockOrders": "Fund & stock orders",
+        "stockOrders": "Stock & ETF orders",
+        "fundOrders": "Fund orders",
+        "cryptoMovements": "Crypto movements"
+      },
       "exportButton": "Export...",
       "dialogTitle": "Export data to file",
       "dialogDescription": "Pick what to include in this export and choose the desired file format.",
-      "featureLabel": "Feature",
+      "featureLabel": "What to export?",
       "featurePlaceholder": "Select what you want to export",
       "productsLabel": "Products",
       "productsHint": "Select at least one product.",
-      "productsPlaceholder": "Limit export to specific products",
       "productsInfo": "This feature is not product-specific. All related data will be included.",
+      "dateRange": {
+        "label": "Date range",
+        "fromPlaceholder": "From date",
+        "toPlaceholder": "To date",
+        "presets": {
+          "allTime": "All time",
+          "last30Days": "Last 30 days",
+          "last3Months": "Last 3 months",
+          "last6Months": "Last 6 months",
+          "thisYear": "This year",
+          "lastYear": "Last year"
+        }
+      },
       "templateLabel": "Template",
       "templatePlaceholder": "Use all available columns",
-      "templateFeatureHint": "Select a feature first to view its templates.",
+      "templateFeatureHint": "Select what to export first to view its templates.",
       "templateInfo": "Templates help you narrow the exported columns.",
       "formatLabel": "Format",
-      "formatHint": "Select the file format.",
       "numberFormatLabel": "Decimal format",
       "numberFormatHint": "Choose how thousands and decimals are separated.",
       "numberFormats": {
         "ENGLISH": "1,000.00",
         "EUROPEAN": "1.000,00"
       },
-      "datetimeHint": "If left empty, ISO formats (e.g. %Y-%m-%d and %Y-%m-%dT%H:%M:%S) will be used by default.",
+      "dateFormats": {
+        "customHint": "Use %Y, %m, %d (e.g. %Y-%m-%d). Leave empty for ISO.",
+        "presets": {
+          "iso": "ISO (YYYY-MM-DD)",
+          "dmySlash": "DD/MM/YYYY",
+          "mdySlash": "MM/DD/YYYY",
+          "dmyDash": "DD-MM-YYYY",
+          "custom": "Custom"
+        }
+      },
+      "datetimeFormats": {
+        "customHint": "Use %Y, %m, %d, %H, %M, %S (e.g. %Y-%m-%dT%H:%M:%S). Leave empty for ISO.",
+        "presets": {
+          "iso": "ISO 8601",
+          "ymdSpace": "YYYY-MM-DD HH:mm:ss",
+          "dmySlash": "DD/MM/YYYY HH:mm:ss",
+          "mdySlash": "MM/DD/YYYY HH:mm:ss",
+          "dmyDash": "DD-MM-YYYY HH:mm:ss",
+          "custom": "Custom"
+        }
+      },
       "exportAction": "Export",
       "formats": {
         "CSV": "CSV",
         "TSV": "TSV",
-        "XLSX": "Excel"
+        "XLSX": "Excel",
+        "HTML": "HTML",
+        "PDF": "PDF"
       },
       "errors": {
-        "featureRequired": "Select a feature to continue."
+        "featureRequired": "Select what to export to continue.",
+        "invalidDateRange": "The start date must not be after the end date."
       },
       "toast": {
         "success": "Export started. Your download should begin shortly.",
@@ -1892,38 +1966,86 @@
     },
     "fileImport": {
       "cardTitle": "File import",
-      "cardDescription": "Upload a CSV, TSV, or Excel file mapped with one of your templates.",
+      "cardDescription": "Import your bank statements, investment movements, or positions from a file.",
       "singleRunBadge": "Manual upload",
-      "formatsLabel": "Supported formats:",
+      "cardDropTitle": "Drop a file here or click to browse",
+      "cardDropActive": "Drop file to start importing",
+      "cardDropSubtitle": "Opens the import dialog with your file ready",
       "importButton": "Import...",
       "dialogTitle": "Import data from file",
-      "dialogDescription": "Upload a file, choose its template, and we'll process it immediately.",
+      "dialogDescription": "Upload a file to detect its columns automatically or choose one of your templates.",
       "additiveDisclaimer": "Imported data is appended to existing records. Previously saved data is never removed.",
-      "featureLabel": "Feature",
+      "featureLabel": "What to import?",
       "productsLabel": "Product",
       "productsHint": "Select the product type represented in the file.",
-      "productsPlaceholder": "Select a product",
       "productsInfo": "This feature is not limited to a specific product.",
       "templateLabel": "Template",
       "templatePlaceholder": "Select a template",
-      "templateFeatureHint": "Select a feature first to view its templates.",
+      "templateOptionalHint": "Optional — columns were detected automatically from the file.",
+      "templateFeatureHint": "Select what to import first to view its templates.",
       "templateInfo": "Templates define how we interpret each column.",
       "fileLabel": "File",
       "fileButton": "Choose file",
       "fileButtonChange": "Change file",
       "filePlaceholder": "No file selected. Drop a file here or click to browse.",
-      "fileHint": "Accepted formats: CSV, TSV, or XLSX.",
+      "fileHint": "Accepted formats: CSV, TSV, XLS, XLSX, HTML or PDF.",
       "fileHintSelected": "Ready to upload. Select another file if needed.",
       "numberFormatLabel": "Decimal format",
-      "numberFormatHint": "Match the separators used in your file.",
+      "numberFormatHint": "Used for columns whose separators can't be detected automatically.",
       "numberFormats": {
         "ENGLISH": "1,000.00",
         "EUROPEAN": "1.000,00"
       },
-      "datetimeHint": "Use the same date and datetime formatting found in your file. Both are required.",
+      "datetimeHint": "Date formats are optional. Leave them empty to detect them automatically, or enter the formats used in your file.",
+      "analysis": {
+        "analyzing": "Analyzing file...",
+        "matched": "Matches template “{template}”.",
+        "mismatch": "“{template}” doesn't match the columns of this file.",
+        "autoReady": "Ready to import",
+        "noMatch": "No template fits this file yet.",
+        "recognized": "{count} of {total} columns recognized automatically.",
+        "missingRequired": "Missing required fields: {fields}.",
+        "useTemplate": "Use “{template}”",
+        "useAutoDetect": "Import automatically",
+        "createFromFile": "Create template from file",
+        "currencyLabel": "Currency",
+        "currencyDetectedHint": "Detected from file",
+        "currencyDefaultHint": "Default currency (no currency column in file)",
+        "error": "We couldn't analyze the file. You can still pick a template."
+      },
+      "formatOptions": {
+        "title": "Format options",
+        "dates": "Dates",
+        "decimals": "Decimals",
+        "automatic": "Auto",
+        "detected": "Detected from the file"
+      },
       "importAction": "Preview",
+      "ai": {
+        "toggle": "Extract with AI",
+        "hint": "Use your AI models to read statements, receipts, screenshots or scanned documents.",
+        "disclosure": "The file content will be sent to your configured AI models.",
+        "instructionsLabel": "Notes for the AI (optional)",
+        "instructionsPlaceholder": "E.g. ignore card holds, amounts are in USD",
+        "suggest": "This file can't be read automatically. Try extracting it with AI.",
+        "extractedBy": "Extracted with {model}",
+        "settings": {
+          "title": "AI extraction",
+          "description": "Choose which AI models read your files when you import them with AI, and add notes that apply to every AI import.",
+          "priorityNotice": "Models are tried in order. Images and scanned PDFs skip the models that can't read them, and a failure moves the import to the next entry.",
+          "privacyNotice": "The content of the imported file is sent to the model. Nothing else from your data is shared.",
+          "instructionsLabel": "Notes for every AI import (optional)",
+          "instructionsHint": "Combined with the notes you write when importing a specific file."
+        }
+      },
+      "background": {
+        "continue": "Continue in background",
+        "running": "Importing...",
+        "ready": "Your file import is ready to review.",
+        "review": "Review"
+      },
       "errors": {
-        "featureRequired": "Select a feature to continue.",
+        "featureRequired": "Select what to import to continue.",
         "productRequired": "Select a product to continue.",
         "fileRequired": "Choose a file to import.",
         "dateFormatRequired": "Enter the date format used in the file.",
@@ -1963,10 +2085,6 @@
       "cardTitle": {
         "EXPORT": "Export templates",
         "IMPORT": "Import templates"
-      },
-      "cardDescription": {
-        "EXPORT": "Create templates for exporting your data in a consistent format.",
-        "IMPORT": "Create templates for importing external data quickly and easily."
       },
       "cardEmpty": "No templates yet.",
       "cardCountLabel": "{count} templates",
@@ -2037,6 +2155,17 @@
       "orGroupBadgeHint": "Alternative fields: {group}",
       "orGroupBadgeExplanation": "You must keep at least one of these fields selected.",
       "orGroupBlockedToggle": "Cannot exclude. Keep one: {group}",
+      "detectFromFile": {
+        "button": "Detect from file",
+        "detecting": "Analyzing file...",
+        "hint": "Upload or drop a sample file to map its columns automatically.",
+        "drop": "Drop the file to analyze it",
+        "summary": "{count} columns matched from {file}.",
+        "unmatched": "Columns not mapped: {columns}",
+        "missingRequired": "Required fields without a column: {fields}. Set a default value or a custom label.",
+        "noMatches": "No columns could be matched. Set the custom labels manually.",
+        "error": "We couldn't analyze the file. Try again."
+      },
       "defaultValueBadge": "Default value",
       "defaultValueHint": "Default value when omitted",
       "defaultValueExplanation": "If you don't provide this field in your import data, this default value will be used:",
@@ -2060,6 +2189,8 @@
         "active": "Active",
         "alias": "Alias",
         "amount": "Amount",
+        "amount_in": "Inflow amount",
+        "amount_out": "Outflow amount",
         "asset_type": "Asset type",
         "average_balance": "Average balance",
         "average_buy_price": "Average buy price",
@@ -2137,7 +2268,8 @@
         "iban": "IBAN",
         "symbol": "Symbol",
         "currency_amount": "Currency amount",
-        "contract_address": "Contract address"
+        "contract_address": "Contract address",
+        "counterparty": "Counterparty"
       },
       "enumValuesTitle": "Values",
       "errors": {
@@ -2991,12 +3123,14 @@
     "validationError": "Validation Error",
     "unexpectedColumn": "Unexpected Column",
     "unknownError": "Unknown Error",
+    "duplicated": "Duplicated Transaction",
     "sheetNotFoundMessage": "Sheet {entry} was not found",
     "missingFieldMessage": "Missing required fields in {entry}:",
     "validationErrorMessage": "Validation errors in {entry}:",
     "unexpectedColumnMessage": "Ignored columns in {entry}:",
     "validationErrorRow": "Row: {row}",
     "fieldError": "Field {field}: invalid value {value}",
+    "duplicatedMessage": "Skipped in {entry}: reference {ref} is already used by another transaction of this entity.",
     "unknownErrorMessage": "Unknown error in {entry}"
   },
   "countries": {

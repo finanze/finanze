@@ -38,10 +38,20 @@ interface LightHapticsPlugin {
   impact(): Promise<void>
 }
 
+interface PdfRendererPlugin {
+  renderPages(options: {
+    data: string
+    maxPages: number
+    maxPixels: number
+    quality: number
+  }): Promise<{ pages: { data: string }[]; pageCount: number }>
+}
+
 const BackupProcessor = registerPlugin<BackupProcessorPlugin>("BackupProcessor")
 const ImageProcessor = registerPlugin<ImageProcessorPlugin>("ImageProcessor")
 const DeviceCountry = registerPlugin<DeviceCountryPlugin>("DeviceCountry")
 const LightHaptics = registerPlugin<LightHapticsPlugin>("LightHaptics")
+const PdfRenderer = registerPlugin<PdfRendererPlugin>("PdfRenderer")
 
 declare global {
   interface Window {
@@ -51,6 +61,7 @@ declare global {
     ImageProcessor: typeof ImageProcessor
     DeviceCountry: typeof DeviceCountry
     TlsHttp: typeof TlsHttp
+    PdfRenderer: typeof PdfRenderer
   }
 }
 
@@ -60,6 +71,7 @@ window.BackupProcessor = BackupProcessor
 window.ImageProcessor = ImageProcessor
 window.DeviceCountry = DeviceCountry
 window.TlsHttp = TlsHttp
+window.PdfRenderer = PdfRenderer
 
 export {
   NativeCookies,
@@ -69,4 +81,5 @@ export {
   DeviceCountry,
   LightHaptics,
   TlsHttp,
+  PdfRenderer,
 }

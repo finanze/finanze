@@ -12,11 +12,9 @@ from application.use_cases.connect_external_integration import (
 from application.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegrationImpl,
 )
+from application.use_cases.get_ai_models import GetAIModelsImpl
 from application.use_cases.get_external_integrations import (
     GetExternalIntegrationsImpl,
-)
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
 )
 from application.use_cases.poll_external_integration_connection import (
     PollExternalIntegrationConnectionImpl,
@@ -54,17 +52,13 @@ from infrastructure.controller.routes.connect_external_integration import (
 from infrastructure.controller.routes.disconnect_external_integration import (
     disconnect_external_integration,
 )
+from infrastructure.controller.routes.get_ai_models import get_ai_models
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
-)
-from infrastructure.controller.routes.get_external_labeling_models import (
-    get_external_labeling_models,
 )
 from infrastructure.controller.routes.poll_external_integration_connection import (
     poll_external_integration_connection,
 )
-from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
-from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
@@ -198,9 +192,7 @@ async def ctx(tmp_path, monkeypatch):
     connect_uc = ConnectExternalIntegrationImpl(repository, integrations)
     poll_uc = PollExternalIntegrationConnectionImpl(repository, integrations)
     disconnect_uc = DisconnectExternalIntegrationImpl(repository, integrations)
-    models_uc = GetExternalLabelingModelsImpl(
-        repository, {COPILOT: AILabelingProvider(copilot, LABELING_PRESETS[COPILOT])}
-    )
+    models_uc = GetAIModelsImpl(repository, {COPILOT: copilot})
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -223,11 +215,9 @@ async def ctx(tmp_path, monkeypatch):
     async def poll_route(integration_id: str):
         return await poll_external_integration_connection(poll_uc, integration_id)
 
-    @app.route(
-        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
-    )
+    @app.route("/api/v1/ai/providers/<provider_id>/models", methods=["GET"])
     async def models_route(provider_id: str):
-        return await get_external_labeling_models(models_uc, provider_id)
+        return await get_ai_models(models_uc, provider_id)
 
     yield SimpleNamespace(
         http=app.test_client(),
@@ -387,9 +377,7 @@ async def _connect(ctx, token_response: dict):
 
 
 async def _model_ids(ctx) -> list[str]:
-    response = await ctx.http.get(
-        f"/api/v1/labeling/external/providers/{COPILOT.value}/models"
-    )
+    response = await ctx.http.get(f"/api/v1/ai/providers/{COPILOT.value}/models")
     assert response.status_code == 200
     return [model["id"] for model in (await response.get_json())["models"]]
 

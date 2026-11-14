@@ -11,7 +11,7 @@ from copilot.rpc import (
     TokenPriceUnit,
 )
 from copilot.session_events import AssistantMessageData, SessionErrorData
-from domain.ai import AIModelPricing
+from domain.ai import AIModelPricing, AIVisionLimits
 from domain.dezimal import Dezimal
 
 from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeInstanceDirs
@@ -87,19 +87,35 @@ def _pricing(billing: Any, unit: Optional[TokenPriceUnit]) -> Optional[AIModelPr
     )
 
 
+def _vision_limits(capabilities: Any) -> Optional[AIVisionLimits]:
+    vision = getattr(getattr(capabilities, "limits", None), "vision", None)
+    if vision is None:
+        return None
+    media_types = getattr(vision, "supported_media_types", None)
+    return AIVisionLimits(
+        max_images=getattr(vision, "max_prompt_images", None),
+        max_image_bytes=getattr(vision, "max_prompt_image_size", None),
+        media_types=list(media_types) if media_types else None,
+    )
+
+
 def _to_entry(model: Any, unit: Optional[TokenPriceUnit]) -> CopilotModelEntry:
     policy = getattr(model, "policy", None)
     enabled = policy is None or policy.state == ModelPolicyState.ENABLED
-    supports = getattr(getattr(model, "capabilities", None), "supports", None)
+    capabilities = getattr(model, "capabilities", None)
+    supports = getattr(capabilities, "supports", None)
     efforts = ()
     if supports is not None and supports.reasoning_effort:
         efforts = tuple(model.supported_reasoning_efforts or ())
+    vision = getattr(supports, "vision", None)
     return CopilotModelEntry(
         id=model.id,
         name=model.name or model.id,
         enabled=enabled,
         reasoning_efforts=efforts,
         pricing=_pricing(getattr(model, "billing", None), unit),
+        vision=vision if isinstance(vision, bool) else None,
+        vision_limits=_vision_limits(capabilities) if vision else None,
     )
 
 
@@ -187,6 +203,7 @@ class CopilotRuntime:
         schema: Optional[dict],
         reasoning_effort: Optional[str],
         timeout: float,
+        attachments: Optional[list[dict]] = None,
     ) -> Optional[str]:
         session_errors: list[SessionErrorData] = []
         session = None
@@ -209,7 +226,10 @@ class CopilotRuntime:
                 )
             )
             response = await session.send_and_wait(
-                prompt, response_schema=schema, timeout=timeout
+                prompt,
+                response_schema=schema,
+                timeout=timeout,
+                **({"attachments": attachments} if attachments else {}),
             )
         except Exception as e:
             raise CopilotRuntimeError(

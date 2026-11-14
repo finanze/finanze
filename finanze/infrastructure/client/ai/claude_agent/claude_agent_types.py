@@ -55,6 +55,7 @@ class ClaudeRuntimeHandle(Protocol):
         schema: Optional[dict],
         effort: Optional[str],
         timeout: float,
+        attachments: Optional[list[dict]] = None,
     ) -> ClaudeCompletion: ...
 
 

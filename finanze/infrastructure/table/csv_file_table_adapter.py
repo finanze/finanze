@@ -1,10 +1,17 @@
 import csv
-from io import StringIO, TextIOWrapper
+from collections import Counter
+from io import StringIO
+from itertools import islice
 
 from application.ports.file_rw_port import TableRWPort
 from domain.export import FileFormat
 from domain.file_upload import FileUpload
 from domain.exception.exceptions import UnsupportedFileFormat
+from infrastructure.table.text_decoding import decode_text
+
+_TSV_CONTENT_TYPES = ("text/tab-separated-values", "text/tsv")
+_DELIMITER_CANDIDATES = (",", ";", "\t", "|")
+_DELIMITER_SAMPLE_ROWS = 100
 
 
 def _delimiter_for_format(export_format: FileFormat) -> str:
@@ -16,14 +23,28 @@ def _delimiter_for_format(export_format: FileFormat) -> str:
         raise ValueError(f"Unsupported export format: {export_format}")
 
 
-def _delimiter_from_upload(upload: FileUpload) -> str:
-    if upload.content_type in ("text/tab-separated-values", "text/tsv"):
-        return "\t"
-    if upload.content_type == "text/csv" or upload.filename.endswith(".csv"):
-        return ","
-    if upload.filename.endswith(".tsv"):
-        return "\t"
-    raise UnsupportedFileFormat("Unsupported CSV/TSV file format")
+def _is_tsv(upload: FileUpload) -> bool:
+    return (upload.filename or "").lower().endswith(
+        ".tsv"
+    ) or upload.content_type in _TSV_CONTENT_TYPES
+
+
+def _detect_delimiter(text: str) -> str:
+    best_delimiter = _DELIMITER_CANDIDATES[0]
+    best_score = 0
+    for delimiter in _DELIMITER_CANDIDATES:
+        reader = csv.reader(StringIO(text, newline=""), delimiter=delimiter)
+        column_counts = Counter(
+            len(row) for row in islice(reader, _DELIMITER_SAMPLE_ROWS) if len(row) > 1
+        )
+        if not column_counts:
+            continue
+        columns, frequency = column_counts.most_common(1)[0]
+        score = columns * frequency
+        if score > best_score:
+            best_delimiter = delimiter
+            best_score = score
+    return best_delimiter
 
 
 class CSVFileTableAdapter(TableRWPort):
@@ -42,8 +63,10 @@ class CSVFileTableAdapter(TableRWPort):
         return data_str.encode("utf-8-sig")
 
     async def parse(self, upload: FileUpload) -> list[list[str]]:
-        delimiter = _delimiter_from_upload(upload)
         upload.data.seek(0)
-        stream = TextIOWrapper(upload.data, encoding="utf-8-sig")
-        reader = csv.reader(stream, delimiter=delimiter)
-        return list(reader)
+        text = decode_text(upload.data.read())
+        try:
+            delimiter = "\t" if _is_tsv(upload) else _detect_delimiter(text)
+            return list(csv.reader(StringIO(text, newline=""), delimiter=delimiter))
+        except csv.Error as e:
+            raise UnsupportedFileFormat("Invalid CSV/TSV file") from e

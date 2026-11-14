@@ -35,6 +35,7 @@ const {
 
 vi.mock("@/i18n", () => ({ useI18n: () => ({ t: en, locale: "en-US" }) }))
 vi.mock("@/context/AppContext", () => ({ useAppContext: () => state.app }))
+vi.mock("@/components/ai/AIModelsCard", () => ({ AIModelsCard: () => null }))
 vi.mock("@/hooks/useModalBackHandler", () => ({ useModalBackHandler: vi.fn() }))
 vi.mock("@/services/api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/services/api")>()),

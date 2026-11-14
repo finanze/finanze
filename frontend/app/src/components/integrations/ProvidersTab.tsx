@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   AlertTriangle,
@@ -17,6 +17,7 @@ import {
   Link2Off,
   Monitor,
   Server,
+  Settings2,
   Smartphone,
   Upload,
   type LucideIcon,
@@ -76,6 +77,7 @@ import {
   type IntegrationFieldOptions,
 } from "@/components/settings/LocalModelsIntegration"
 import { AIServerDetailsDialog } from "@/components/settings/AIServerDetailsDialog"
+import { AI_MODELS_SETTINGS_PATH } from "@/components/ai/TaskAIProviders"
 import {
   DeviceAuthorizationPanel,
   toDeviceAuthorization,
@@ -373,6 +375,7 @@ function PrivateKeyField({
 
 export function ProvidersTab() {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { showToast, externalIntegrations, fetchExternalIntegrations } =
     useAppContext()
@@ -1644,6 +1647,18 @@ export function ProvidersTab() {
                       renderIntegrationCard(integration),
                     )}
               </div>
+              {category === ExternalIntegrationType.AI_PROVIDER && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto gap-1 px-0"
+                  onClick={() => navigate(AI_MODELS_SETTINGS_PATH)}
+                  data-testid="ai-models-settings-link"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  {t.settings.aiModels.settingsLink}
+                </Button>
+              )}
             </div>
           )
         })

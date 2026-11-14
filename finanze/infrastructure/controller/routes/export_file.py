@@ -1,12 +1,26 @@
+from datetime import date
 from http import HTTPStatus
 from io import BytesIO
 
 from domain.entity import Feature
-from domain.export import FileExportRequest, FileFormat, NumberFormat
+from domain.export import (
+    EXPORT_FILE_FORMATS,
+    FileExportRequest,
+    FileFormat,
+    NumberFormat,
+)
 from domain.global_position import ProductType
 from domain.settings import TemplateConfig
 from domain.use_cases.export_file import ExportFile
 from quart import jsonify, request, send_file
+
+
+def _parse_iso_date(raw_value) -> date | None:
+    if raw_value is None or raw_value == "":
+        return None
+    if not isinstance(raw_value, str):
+        raise ValueError("Invalid date value")
+    return date.fromisoformat(raw_value.strip())
 
 
 async def export_file(export_file_uc: ExportFile):
@@ -30,6 +44,12 @@ async def export_file(export_file_uc: ExportFile):
     try:
         export_format = FileFormat(raw_format)
     except ValueError:
+        return (
+            jsonify({"code": "INVALID_REQUEST", "message": "Invalid format"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if export_format not in EXPORT_FILE_FORMATS:
         return (
             jsonify({"code": "INVALID_REQUEST", "message": "Invalid format"}),
             HTTPStatus.BAD_REQUEST,
@@ -81,6 +101,37 @@ async def export_file(export_file_uc: ExportFile):
     datetime_format = body.get("datetime_format")
     date_format = body.get("date_format")
 
+    try:
+        from_date = _parse_iso_date(body.get("from_date"))
+        to_date = _parse_iso_date(body.get("to_date"))
+    except ValueError:
+        return (
+            jsonify({"code": "INVALID_REQUEST", "message": "Invalid date range"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if (from_date or to_date) and feature != Feature.TRANSACTIONS:
+        return (
+            jsonify(
+                {
+                    "code": "INVALID_REQUEST",
+                    "message": "Date range is only applicable for TRANSACTIONS",
+                }
+            ),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if from_date and to_date and from_date > to_date:
+        return (
+            jsonify(
+                {
+                    "code": "INVALID_REQUEST",
+                    "message": "from_date must not be after to_date",
+                }
+            ),
+            HTTPStatus.BAD_REQUEST,
+        )
+
     raw_template = body.get("template")
     template_config = None
     if raw_template and isinstance(raw_template, dict) and raw_template.get("id"):
@@ -95,6 +146,8 @@ async def export_file(export_file_uc: ExportFile):
         data=products or None,
         datetime_format=datetime_format,
         date_format=date_format,
+        from_date=from_date,
+        to_date=to_date,
         template=template_config,
     )
 

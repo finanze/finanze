@@ -3,6 +3,7 @@ import { vi } from "vitest"
 import { render } from "@testing-library/react"
 import { I18nProvider } from "@/i18n"
 import ExportPage from "@/pages/ExportPage"
+import { FileImportJobProvider } from "@/context/FileImportJobContext"
 import {
   FileImportPreviewDialog,
   type FileImportPreviewStrings,
@@ -30,7 +31,11 @@ export const mockSaveSettings = vi.fn().mockResolvedValue(undefined)
 export const mockExportFile = vi.fn()
 export const mockImportFile = vi.fn()
 export const mockGetTemplates = vi.fn()
+export const mockSuggestTemplateFields = vi.fn()
 export const mockSaveBlobToDevice = vi.fn().mockResolvedValue(false)
+export const mockFinancialState: { positionsData: any } = {
+  positionsData: null,
+}
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
@@ -38,14 +43,20 @@ vi.mock("react-router-dom", () => ({
 
 vi.mock("@/context/AppContext", () => ({
   useAppContext: () => ({
-    settings: { export: null, importing: null },
+    settings: {
+      export: null,
+      importing: null,
+      general: { defaultCurrency: "EUR" },
+    },
     exportState: {},
     setExportState: vi.fn(),
     showToast: mockShowToast,
+    hideToast: vi.fn(),
     fetchEntities: mockFetchEntities,
     entities: [
-      { id: "entity-1", name: "Bank A", type: "BANK" },
-      { id: "entity-2", name: "Broker B", type: "BROKER" },
+      { id: "entity-1", name: "Bank A", type: "FINANCIAL_INSTITUTION" },
+      { id: "entity-2", name: "Broker B", type: "FINANCIAL_INSTITUTION" },
+      { id: "entity-3", name: "CryptoEx C", type: "CRYPTO_EXCHANGE" },
     ],
     externalIntegrations: [],
     fetchExternalIntegrations: mockFetchExternalIntegrations,
@@ -61,7 +72,7 @@ vi.mock("@/context/FinancialDataContext", () => ({
     refreshData: mockRefreshData,
     refreshRealEstate: vi.fn(),
     refreshFlows: vi.fn(),
-    positionsData: null,
+    positionsData: mockFinancialState.positionsData,
     contributions: null,
     periodicFlows: [],
     pendingFlows: [],
@@ -91,6 +102,8 @@ vi.mock("@/services/api", async importOriginal => {
     exportFile: (...args: unknown[]) => mockExportFile(...args),
     importFile: (...args: unknown[]) => mockImportFile(...args),
     getTemplates: (...args: unknown[]) => mockGetTemplates(...args),
+    suggestTemplateFields: (...args: unknown[]) =>
+      mockSuggestTemplateFields(...args),
     getTemplateFields: vi.fn().mockResolvedValue([]),
     createTemplate: vi.fn().mockResolvedValue({}),
     updateTemplate: vi.fn().mockResolvedValue({}),
@@ -110,17 +123,31 @@ vi.mock("framer-motion", () => {
   const handler = {
     get(_target: any, prop: string | symbol) {
       if (typeof prop === "symbol") return undefined
-      return ({ children, ...rest }: any) => (
-        <div data-motion={prop} {...rest}>
-          {children}
-        </div>
-      )
+      return function MotionElement({ children, ...rest }: any) {
+        if (prop === "table") {
+          return (
+            <table data-motion="table" {...rest}>
+              {children}
+            </table>
+          )
+        }
+        return (
+          <div data-motion={prop} {...rest}>
+            {children}
+          </div>
+        )
+      }
     },
   }
   return {
     motion: new Proxy({}, handler),
     AnimatePresence: ({ children }: { children: any }) => <>{children}</>,
     useReducedMotion: () => false,
+    useMotionValue: (initial: any) => ({
+      get: () => initial,
+      set: () => {},
+    }),
+    animate: () => Promise.resolve(),
   }
 })
 
@@ -210,7 +237,11 @@ vi.mock("@/components/ui/Tabs", async () => {
 })
 
 function Wrapper({ children }: { children: ReactNode }) {
-  return <I18nProvider>{children}</I18nProvider>
+  return (
+    <I18nProvider>
+      <FileImportJobProvider>{children}</FileImportJobProvider>
+    </I18nProvider>
+  )
 }
 
 export function renderExportPage() {
@@ -364,6 +395,7 @@ export function buildTemplate(overrides?: Partial<Template>): Template {
 }
 
 export function resetAllMocks() {
+  mockFinancialState.positionsData = null
   mockNavigate.mockReset()
   mockShowToast.mockReset()
   mockFetchEntities.mockReset().mockResolvedValue(undefined)
@@ -375,5 +407,14 @@ export function resetAllMocks() {
   mockExportFile.mockReset()
   mockImportFile.mockReset()
   mockGetTemplates.mockReset().mockResolvedValue([])
+  mockSuggestTemplateFields.mockReset().mockResolvedValue({
+    headers: [],
+    fields: [],
+    missing_required_fields: [],
+    matching_templates: [],
+    number_format: null,
+    date_format: null,
+    detected_currency: null,
+  })
   mockSaveBlobToDevice.mockReset().mockResolvedValue(false)
 }

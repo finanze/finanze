@@ -31,6 +31,7 @@ from domain.transactions import (
     Transactions,
     TransactionSortBy,
     TransactionSortOrder,
+    TxRefKey,
     TxType,
 )
 from infrastructure.repository.db.client import DBClient, DBCursor
@@ -454,16 +455,49 @@ class TransactionSQLRepository(TransactionPort):
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        product_types: Optional[list[ProductType]] = None,
     ) -> Transactions:
+        investment_types = (
+            [pt for pt in product_types if pt != ProductType.ACCOUNT]
+            if product_types is not None
+            else None
+        )
+        include_account = product_types is None or ProductType.ACCOUNT in product_types
+        investment = (
+            await self._get_investment_txs(
+                real,
+                excluded_entities,
+                from_date=from_date,
+                to_date=to_date,
+                product_types=investment_types,
+            )
+            if investment_types is None or len(investment_types) > 0
+            else []
+        )
+        account = (
+            await self._get_account_txs(
+                real,
+                excluded_entities,
+                from_date=from_date,
+                to_date=to_date,
+            )
+            if include_account
+            else []
+        )
         return Transactions(
-            investment=await self._get_investment_txs(real, excluded_entities),
-            account=await self._get_account_txs(real, excluded_entities),
+            investment=investment,
+            account=account,
         )
 
     async def _get_investment_txs(
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        product_types: Optional[list[ProductType]] = None,
     ) -> List[BaseInvestmentTx]:
         async with self._db_client.read() as cursor:
             params: list[str] = []
@@ -481,6 +515,19 @@ class TransactionSQLRepository(TransactionPort):
                 conditions.append(f"it.entity_id NOT IN ({placeholders})")
                 params.extend([str(e) for e in excluded_entities])
 
+            if product_types:
+                placeholders = ", ".join("?" for _ in product_types)
+                conditions.append(f"it.product_type IN ({placeholders})")
+                params.extend([pt.value for pt in product_types])
+
+            if from_date:
+                conditions.append("it.date >= ?")
+                params.append(from_date.isoformat())
+
+            if to_date:
+                conditions.append("it.date < ?")
+                params.append(_day_after(to_date))
+
             if conditions:
                 query += " AND " + " AND ".join(conditions)
 
@@ -493,6 +540,8 @@ class TransactionSQLRepository(TransactionPort):
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
     ) -> List[AccountTx]:
         async with self._db_client.read() as cursor:
             params: list[str] = []
@@ -509,6 +558,14 @@ class TransactionSQLRepository(TransactionPort):
                 placeholders = ", ".join("?" for _ in excluded_entities)
                 conditions.append(f"at.entity_id NOT IN ({placeholders})")
                 params.extend([str(e) for e in excluded_entities])
+
+            if from_date:
+                conditions.append("at.date >= ?")
+                params.append(from_date.isoformat())
+
+            if to_date:
+                conditions.append("at.date < ?")
+                params.append(_day_after(to_date))
 
             if conditions:
                 query += " AND " + " AND ".join(conditions)
@@ -840,6 +897,21 @@ class TransactionSQLRepository(TransactionPort):
                 (str(entity_id), str(entity_id)),
             )
             return {row[0] for row in await cursor.fetchall()}
+
+    async def get_ref_keys(self, entity_ids: list[UUID]) -> set[TxRefKey]:
+        if not entity_ids:
+            return set()
+        params = [str(entity_id) for entity_id in entity_ids]
+        entity_placeholders = sql_placeholders(params)
+        query = TransactionQueries.GET_REF_KEYS_BY_ENTITIES.value.format(
+            entities=entity_placeholders
+        )
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, tuple(params + params))
+            return {
+                (UUID(row[0]), ProductType(row[1]), row[2])
+                for row in await cursor.fetchall()
+            }
 
     async def get_latest_account_tx_date(self, entity_id: UUID) -> Optional[datetime]:
         async with self._db_client.read() as cursor:

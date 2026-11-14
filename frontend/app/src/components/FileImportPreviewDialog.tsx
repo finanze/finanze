@@ -12,10 +12,24 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { formatCurrency } from "@/lib/formatters"
 import { type ImportError, type ImportedData } from "@/types"
 import { ProductType } from "@/types/position"
-import { AlertTriangle, ChevronDown, ChevronUp, FileUp, X } from "lucide-react"
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  FileUp,
+  Sparkles,
+  X,
+} from "lucide-react"
 
 const PREVIEW_SAMPLE_LIMIT = 3
 const REFERENCE_MAX_LENGTH = 50
+const HIDDEN_PREVIEW_FIELDS = new Set([
+  "id",
+  "source",
+  "entity_account_id",
+  "labels_locked",
+  "linked_tx",
+])
 
 const humanizeKey = (key: string) =>
   key
@@ -105,6 +119,7 @@ interface FileImportPreviewDialogProps {
   previewUnnamedEntry: string
   warningStrings: PreviewWarningStrings
   infoWarnings?: ImportError[] | null
+  aiNotice?: string | null
   onClose: () => void
   onConfirm: () => void
 }
@@ -121,6 +136,7 @@ export function FileImportPreviewDialog({
   previewUnnamedEntry,
   warningStrings,
   infoWarnings,
+  aiNotice,
   onClose,
   onConfirm,
 }: FileImportPreviewDialogProps) {
@@ -174,7 +190,11 @@ export function FileImportPreviewDialog({
 
       return Object.entries(entry)
         .map(([fieldKey, value]) => {
-          if (value === null || value === undefined) {
+          if (
+            value === null ||
+            value === undefined ||
+            HIDDEN_PREVIEW_FIELDS.has(fieldKey)
+          ) {
             return null
           }
           const label = templateFieldLabels[fieldKey] ?? humanizeKey(fieldKey)
@@ -383,8 +403,8 @@ export function FileImportPreviewDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6">
-      <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col">
+    <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/60 p-2 sm:p-3 lg:p-6">
+      <Card className="flex max-h-[90vh] w-full max-w-3xl min-w-0 flex-col overflow-hidden">
         <CardHeader className="space-y-1">
           <CardTitle className="text-lg font-semibold">
             {previewStrings.title}
@@ -392,6 +412,15 @@ export function FileImportPreviewDialog({
           <p className="text-sm text-muted-foreground">
             {previewStrings.description}
           </p>
+          {aiNotice ? (
+            <p
+              className="flex items-center gap-1.5 text-xs text-primary"
+              data-testid="import-preview-ai"
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              {aiNotice}
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
           {hasWarnings ? (

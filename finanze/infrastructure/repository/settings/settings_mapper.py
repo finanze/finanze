@@ -9,6 +9,7 @@ from warnings import deprecated
 
 from domain.settings import (
     CURRENT_VERSION,
+    AIConfig,
     AssetConfig,
     DataConfig,
     ExportConfig,
@@ -28,6 +29,7 @@ SECTION_TYPES = {
     "importing": ImportConfig,
     "assets": AssetConfig,
     "labeling": LabelingConfig,
+    "ai": AIConfig,
 }
 
 _log = logging.getLogger(__name__)

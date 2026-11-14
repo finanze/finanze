@@ -113,6 +113,7 @@ from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
 from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
+from application.use_cases.suggest_template_fields import SuggestTemplateFieldsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
@@ -137,12 +138,8 @@ from application.use_cases.create_label import CreateLabelImpl
 from application.use_cases.create_labeling_rule import CreateLabelingRuleImpl
 from application.use_cases.delete_label import DeleteLabelImpl
 from application.use_cases.delete_labeling_rule import DeleteLabelingRuleImpl
-from application.use_cases.get_external_labeling_providers import (
-    GetExternalLabelingProvidersImpl,
-)
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
-)
+from application.use_cases.get_ai_providers import GetAIProvidersImpl
+from application.use_cases.get_ai_models import GetAIModelsImpl
 from application.use_cases.get_local_models import GetLocalModelsImpl
 from application.use_cases.download_local_model import DownloadLocalModelImpl
 from application.use_cases.delete_local_model import DeleteLocalModelImpl
@@ -317,6 +314,7 @@ from infrastructure.crypto.public_key_derivation_adapter import (
 )
 from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.keychain.public_keychain_adapter import PublicKeychainAdapter
+from infrastructure.client.ai.ai_model_presets import AI_MODEL_PRESETS
 from infrastructure.labeling.ai_labeling_presets import (
     LABELING_BATCH_SIZES,
     LABELING_PRESETS,
@@ -422,7 +420,18 @@ from infrastructure.repository.virtual.virtual_import_repository import (
 from infrastructure.sheets.sheets_adapter import SheetsAdapter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from infrastructure.table.csv_file_table_adapter import CSVFileTableAdapter
+from infrastructure.table.html_file_table_adapter import HTMLFileTableAdapter
+from infrastructure.table.pdf_file_table_adapter import PDFFileTableAdapter
 from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
+from infrastructure.ai_import.ai_import_extractor_adapter import (
+    AIImportExtractorAdapter,
+)
+from infrastructure.ai_import.import_document import ImportDocumentReader
+from infrastructure.ai_import.memory_import_preview_store import (
+    MemoryImportPreviewStore,
+)
+from infrastructure.ai_import.pdfium_page_renderer import PdfiumPageRenderer
+from infrastructure.ai_import.pillow_image_normalizer import PillowImageNormalizer
 from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
@@ -646,6 +655,8 @@ class FinanzeServer:
                 FileFormat.CSV: csv_tsv_adapter,
                 FileFormat.TSV: csv_tsv_adapter,
                 FileFormat.XLSX: XLSXFileTableAdapter(),
+                FileFormat.HTML: HTMLFileTableAdapter(),
+                FileFormat.PDF: PDFFileTableAdapter(),
             }
         )
 
@@ -710,6 +721,15 @@ class FinanzeServer:
         credentials_port = CredentialsRepository(client=db_client)
 
         transaction_handler = TransactionHandler(client=db_client)
+        import_preview_store = MemoryImportPreviewStore()
+        ai_import_extractor = AIImportExtractorAdapter(
+            config_port=settings_repository,
+            external_integration_port=external_integration_repository,
+            clients=ai_clients,
+            document_reader=ImportDocumentReader(
+                table_rw_adapter, PillowImageNormalizer(), PdfiumPageRenderer()
+            ),
+        )
 
         transaction_labeler = TransactionLabelerAdapter(
             transaction_port=transaction_repository,
@@ -764,6 +784,7 @@ class FinanzeServer:
             cloud_register,
             self._error_reporter,
             agent_runtime_port=agent_runtime_pool,
+            import_preview_store=import_preview_store,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -875,6 +896,8 @@ class FinanzeServer:
             template_parser=template_parser,
             transaction_handler_port=transaction_handler,
             transaction_labeler=transaction_labeler,
+            ai_import_extractor=ai_import_extractor,
+            preview_store=import_preview_store,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
             financial_entity_fetchers,
@@ -1208,6 +1231,9 @@ class FinanzeServer:
         delete_template = DeleteTemplateImpl(template_repository)
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
+        suggest_template_fields = SuggestTemplateFieldsImpl(
+            table_rw_adapter, template_parser, template_repository
+        )
 
         get_labels = GetLabelsImpl(label_repository)
         create_label = CreateLabelImpl(label_repository)
@@ -1246,12 +1272,10 @@ class FinanzeServer:
             transaction_labeler,
             transaction_handler,
         )
-        get_external_labeling_providers = GetExternalLabelingProvidersImpl(
-            external_integration_repository, external_labeling_providers
+        get_ai_providers = GetAIProvidersImpl(
+            external_integration_repository, ai_clients, AI_MODEL_PRESETS
         )
-        get_external_labeling_models = GetExternalLabelingModelsImpl(
-            external_integration_repository, external_labeling_providers
-        )
+        get_ai_models = GetAIModelsImpl(external_integration_repository, ai_clients)
         validate_ai_model = ValidateAIModelImpl(
             external_integration_repository, ai_clients
         )
@@ -1444,6 +1468,7 @@ class FinanzeServer:
             delete_template,
             get_templates,
             get_template_fields,
+            suggest_template_fields,
             upload_backup,
             import_backup,
             get_backups,
@@ -1465,8 +1490,8 @@ class FinanzeServer:
             preview_labeling_rule_uc=preview_labeling_rule,
             relabel_transactions_uc=relabel_transactions,
             update_transaction_labels_uc=update_transaction_labels,
-            get_external_labeling_providers_uc=get_external_labeling_providers,
-            get_external_labeling_models_uc=get_external_labeling_models,
+            get_ai_providers_uc=get_ai_providers,
+            get_ai_models_uc=get_ai_models,
             validate_ai_model_uc=validate_ai_model,
             get_ai_server_info_uc=get_ai_server_info,
             get_cashflow_summary_uc=get_cashflow_summary,

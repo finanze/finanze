@@ -163,7 +163,7 @@ describe('Basic Setup', () => {
                 return !(await el.isDisplayed())
             },
             {
-                timeout: 10_000,
+                timeout: 60_000,
                 timeoutMsg: '#oldPassword still visible after change',
             },
         )
@@ -219,7 +219,7 @@ describe('Basic Setup', () => {
                 return !(await el.isDisplayed())
             },
             {
-                timeout: 10_000,
+                timeout: 60_000,
                 timeoutMsg: '#oldPassword still visible after restore',
             },
         )

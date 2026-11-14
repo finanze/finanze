@@ -50,6 +50,7 @@ import {
   TemplateCreatePayload,
   TemplateUpdatePayload,
   TemplateFeatureDefinition,
+  TemplateFieldsSuggestion,
   FileExportRequest,
   FileImportRequest,
   MoneyEvents,
@@ -84,6 +85,7 @@ import type {
 import {
   EntitiesPosition,
   PositionQueryRequest,
+  ProductType,
   UpdatePositionRequest,
 } from "../types/position"
 import type {
@@ -115,11 +117,11 @@ import type {
   UpdateTransactionLabelsRequest,
   RelabelRequest,
   RelabelResult,
-  ExternalLabelingProviders,
-  ExternalLabelingModels,
 } from "../types/labeling"
 import type {
+  AIModels,
   AIModelValidation,
+  AIProviders,
   AIServerInfo,
   AITask,
   DownloadLocalModelRequest,
@@ -228,10 +230,12 @@ export async function exportFile(
 
 export async function importFile(
   request: FileImportRequest,
-  file: File,
+  file: File | null,
 ): Promise<ImportResult> {
   const formData = new FormData()
-  formData.append("file", file)
+  if (file) {
+    formData.append("file", file)
+  }
   formData.append("feature", request.feature)
   formData.append("product", request.product)
   if (request.datetime_format) {
@@ -241,12 +245,25 @@ export async function importFile(
     formData.append("dateFormat", request.date_format)
   }
   formData.append("numberFormat", request.number_format)
-  formData.append("templateId", request.templateId)
+  if (request.templateId) {
+    formData.append("templateId", request.templateId)
+  } else if (request.templateFields && request.templateFields.length > 0) {
+    formData.append("templateFields", JSON.stringify(request.templateFields))
+  }
   if (
     request.templateParams &&
     Object.keys(request.templateParams).length > 0
   ) {
     formData.append("templateParams", JSON.stringify(request.templateParams))
+  }
+  if (request.useAi) {
+    formData.append("useAi", "true")
+  }
+  if (request.aiInstructions) {
+    formData.append("aiInstructions", request.aiInstructions)
+  }
+  if (request.previewToken) {
+    formData.append("previewToken", request.previewToken)
   }
 
   let path = "/data/import/file"
@@ -267,6 +284,18 @@ export async function getTemplateFields(): Promise<
   Record<string, TemplateFeatureDefinition[]>
 > {
   return (await getApiClient()).get("/templates/fields")
+}
+
+export async function suggestTemplateFields(
+  file: File,
+  feature: Feature,
+  product: ProductType,
+): Promise<TemplateFieldsSuggestion> {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("feature", feature)
+  formData.append("product", product)
+  return (await getApiClient()).post("/templates/suggest", formData)
 }
 
 export async function createTemplate(
@@ -495,15 +524,19 @@ export async function updateTransactionLabels(
   return (await getApiClient()).put(`/transactions/${txId}/labels`, request)
 }
 
-export async function getExternalLabelingProviders(): Promise<ExternalLabelingProviders> {
-  return (await getApiClient()).get("/labeling/external/providers")
+export async function getAIProviders(task?: AITask): Promise<AIProviders> {
+  return (await getApiClient()).get(
+    task ? `/ai/providers?task=${encodeURIComponent(task)}` : "/ai/providers",
+  )
 }
 
-export async function getExternalLabelingModels(
+export async function getAIModels(
   providerId: string,
-): Promise<ExternalLabelingModels> {
+  task?: AITask,
+): Promise<AIModels> {
+  const path = `/ai/providers/${encodeURIComponent(providerId)}/models`
   return (await getApiClient()).get(
-    `/labeling/external/providers/${encodeURIComponent(providerId)}/models`,
+    task ? `${path}?task=${encodeURIComponent(task)}` : path,
   )
 }
 

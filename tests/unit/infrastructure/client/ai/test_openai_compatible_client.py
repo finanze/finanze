@@ -76,6 +76,7 @@ def test_features_include_model_listing():
         AIClientFeature.MODEL_LISTING,
         AIClientFeature.CUSTOM_MODELS,
         AIClientFeature.SERVER_INFO,
+        AIClientFeature.ATTACHMENTS,
     }
 
 

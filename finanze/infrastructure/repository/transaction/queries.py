@@ -70,6 +70,16 @@ class TransactionQueries(str, Enum):
         WHERE entity_id = ?
     """
 
+    GET_REF_KEYS_BY_ENTITIES = """
+        SELECT entity_id, product_type, ref
+        FROM investment_transactions
+        WHERE entity_id IN ({entities})
+        UNION
+        SELECT entity_id, 'ACCOUNT', ref
+        FROM account_transactions
+        WHERE entity_id IN ({entities})
+    """
+
     GET_LATEST_REAL_ACCOUNT_TX_DATE = """
         SELECT MAX(date)
         FROM account_transactions

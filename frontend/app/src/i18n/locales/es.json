@@ -558,8 +558,16 @@
     "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} no ha permitido obtener movimientos de más de 3 meses. Solicítalos primero en la app de {entity} de tu dispositivo principal, aprueba la firma allí y vuelve a actualizar.",
     "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
     "DISABLED": "Importación de datos deshabilitada en configuración.",
-    "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",
+    "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV, XLS, XLSX, HTML o PDF.",
+    "PDF_NO_TEXT_LAYER": "Este PDF contiene imágenes escaneadas o trazados vectoriales sin texto seleccionable. Exporta los movimientos en CSV, Excel o un PDF con texto.",
+    "NO_TABLE_FOUND": "No se ha encontrado ninguna tabla de datos en este archivo.",
     "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra.",
+    "PREVIEW_EXPIRED": "Esta previsualización ha caducado. Vuelve a lanzar la importación.",
+    "AI_UNAVAILABLE": "Ningún modelo de IA pudo procesar el archivo. Revisa tus modelos de IA en Integraciones e inténtalo de nuevo.",
+    "AI_VISION_UNSUPPORTED": "Ninguno de tus modelos de IA puede leer imágenes o documentos escaneados. Añade un modelo con soporte de imágenes en Integraciones.",
+    "AI_EXTRACTION_EMPTY": "La IA no encontró filas para importar en este archivo.",
+    "AI_FILE_TOO_LARGE": "El archivo es demasiado grande para procesarlo con IA.",
+    "EXECUTION_CONFLICT": "Ya hay otra importación en curso. Espera a que termine.",
     "NOT_ENTITLED": "Tu cuenta no tiene acceso a {integration}. Comprueba que tu plan está activo y que tu organización lo permite.",
     "RUNTIME_FAILED": "No se pudo iniciar {integration} en este dispositivo. Comprueba tu conexión e inténtalo de nuevo.",
     "RUNTIME_NOT_FOUND": "No se ha encontrado en este ordenador el programa que necesita {integration}. Instálalo o indica la ruta completa a su ejecutable.",
@@ -1658,6 +1666,31 @@
       "CRYPTO_MARKET_PROVIDER": "Datos de mercado cripto",
       "AI_PROVIDER": "Proveedores de IA",
       "DATA_SOURCE": "Fuentes de datos"
+    },
+    "aiModels": {
+      "title": "Modelos de IA",
+      "description": "Lista de prioridad por defecto para todas las funciones con IA, como las sugerencias de etiquetado o la importación de archivos. Cada función omite los modelos que no pueden hacer lo que necesita.",
+      "priorityNotice": "Los modelos se prueban en orden. Se omiten los métodos no disponibles en esta plataforma o que requieren iniciar sesión, y si uno falla la tarea pasa al siguiente.",
+      "privacyNotice": "Cada función solo envía los datos que necesita al modelo que la ejecuta.",
+      "customModelNotice": "Algunos modelos pueden ser lentos y caros. Para la mayoría de tareas se recomiendan modelos más rápidos y baratos.",
+      "empty": "Añade los modelos que deben usar tus funciones con IA.",
+      "settingsLink": "Elige qué modelos de IA usan las funciones, en Ajustes"
+    },
+    "aiTab": {
+      "title": "IA y MCP",
+      "titleNoMcp": "IA"
+    },
+    "aiTaskProviders": {
+      "customize": "Usar modelos personalizados en esta función",
+      "defaultHint": "Usa tus modelos de IA por defecto en orden. Se omiten los que no pueden hacer esta tarea.",
+      "customHint": "Parte de tus modelos por defecto sin los que no pueden hacer esta tarea. Los cambios solo se aplican aquí.",
+      "noDefault": "Todavía no tienes modelos de IA por defecto.",
+      "editDefault": "Editar modelos por defecto"
+    },
+    "aiModalities": {
+      "IMAGE": "Imágenes",
+      "DOCUMENT": "PDF",
+      "notEligible": "No apto para esta tarea"
     }
   },
   "dashboard": {
@@ -1850,39 +1883,80 @@
     },
     "file": {
       "cardTitle": "Exportación de archivos",
-      "cardDescription": "Descarga un archivo con los tus datos elegidos.",
+      "cardDescription": "Descarga una copia de tus posiciones, transacciones, aportaciones periódicas o inversiones históricas.",
       "singleRunBadge": "Solo archivo",
-      "formatsLabel": "Formatos disponibles:",
+      "quickPickLabel": "Exportación rápida",
+      "quickPresets": {
+        "accountMovements": "Movimientos de cuenta",
+        "fundAndStockOrders": "Órdenes de fondos y acciones",
+        "stockOrders": "Órdenes de acciones y ETFs",
+        "fundOrders": "Órdenes de fondos",
+        "cryptoMovements": "Movimientos cripto"
+      },
       "exportButton": "Exportar...",
       "dialogTitle": "Exportar datos a archivo",
       "dialogDescription": "Elige qué incluir en esta exportación y selecciona el formato.",
-      "featureLabel": "Funcionalidad",
+      "featureLabel": "¿Qué quieres exportar?",
       "featurePlaceholder": "Selecciona qué quieres exportar",
       "productsLabel": "Productos",
       "productsHint": "Selecciona al menos un producto.",
-      "productsPlaceholder": "Limitar exportación a productos",
       "productsInfo": "Esta funcionalidad no es específica por producto. Se incluirán todos los datos relacionados.",
+      "dateRange": {
+        "label": "Rango de fechas",
+        "fromPlaceholder": "Desde fecha",
+        "toPlaceholder": "Hasta fecha",
+        "presets": {
+          "allTime": "Todo",
+          "last30Days": "Últimos 30 días",
+          "last3Months": "Últimos 3 meses",
+          "last6Months": "Últimos 6 meses",
+          "thisYear": "Este año",
+          "lastYear": "Año pasado"
+        }
+      },
       "templateLabel": "Plantilla",
       "templatePlaceholder": "Usar todas las columnas disponibles",
-      "templateFeatureHint": "Selecciona primero una funcionalidad para ver sus plantillas.",
+      "templateFeatureHint": "Selecciona primero qué quieres exportar para ver sus plantillas.",
       "templateInfo": "Las plantillas te ayudan a limitar las columnas exportadas.",
       "formatLabel": "Formato",
-      "formatHint": "Selecciona el formato del archivo.",
       "numberFormatLabel": "Formato numérico",
       "numberFormatHint": "Elige cómo se separan los miles y los decimales.",
       "numberFormats": {
         "ENGLISH": "1,000.00",
         "EUROPEAN": "1.000,00"
       },
-      "datetimeHint": "Si los dejas vacíos, se usarán formatos ISO por defecto (p. ej. %Y-%m-%d y %Y-%m-%dT%H:%M:%S).",
+      "dateFormats": {
+        "customHint": "Usa %Y, %m, %d (p. ej. %Y-%m-%d). Déjalo vacío para ISO.",
+        "presets": {
+          "iso": "ISO (YYYY-MM-DD)",
+          "dmySlash": "DD/MM/YYYY",
+          "mdySlash": "MM/DD/YYYY",
+          "dmyDash": "DD-MM-YYYY",
+          "custom": "Personalizado"
+        }
+      },
+      "datetimeFormats": {
+        "customHint": "Usa %Y, %m, %d, %H, %M, %S (p. ej. %Y-%m-%dT%H:%M:%S). Déjalo vacío para ISO.",
+        "presets": {
+          "iso": "ISO 8601",
+          "ymdSpace": "YYYY-MM-DD HH:mm:ss",
+          "dmySlash": "DD/MM/YYYY HH:mm:ss",
+          "mdySlash": "MM/DD/YYYY HH:mm:ss",
+          "dmyDash": "DD-MM-YYYY HH:mm:ss",
+          "custom": "Personalizado"
+        }
+      },
       "exportAction": "Exportar",
       "formats": {
         "CSV": "CSV",
         "TSV": "TSV",
-        "XLSX": "Excel"
+        "XLSX": "Excel",
+        "HTML": "HTML",
+        "PDF": "PDF"
       },
       "errors": {
-        "featureRequired": "Selecciona una funcionalidad para continuar."
+        "featureRequired": "Selecciona qué quieres exportar para continuar.",
+        "invalidDateRange": "La fecha de inicio no puede ser posterior a la fecha de fin."
       },
       "toast": {
         "success": "Exportación iniciada. La descarga comenzará en segundos.",
@@ -1891,38 +1965,86 @@
     },
     "fileImport": {
       "cardTitle": "Importación de archivos",
-      "cardDescription": "Sube un archivo CSV, TSV o Excel y aplícale una de tus plantillas.",
+      "cardDescription": "Importa tus movimientos bancarios, inversiones o posiciones desde un archivo.",
       "singleRunBadge": "Carga manual",
-      "formatsLabel": "Formatos soportados:",
+      "cardDropTitle": "Arrastra un archivo aquí o haz clic para elegirlo",
+      "cardDropActive": "Suelta el archivo para empezar a importar",
+      "cardDropSubtitle": "Abre el diálogo de importación con tu archivo listo",
       "importButton": "Importar...",
       "dialogTitle": "Importar datos desde archivo",
-      "dialogDescription": "Sube un archivo, elige su plantilla y procesaremos la información al instante.",
+      "dialogDescription": "Sube un archivo para detectar sus columnas automáticamente o elige una de tus plantillas.",
       "additiveDisclaimer": "Los datos importados se agregan a tus registros existentes. Nada previamente guardado se elimina.",
-      "featureLabel": "Funcionalidad",
+      "featureLabel": "¿Qué quieres importar?",
       "productsLabel": "Producto",
       "productsHint": "Selecciona el tipo de producto representado en el archivo.",
-      "productsPlaceholder": "Selecciona un producto",
       "productsInfo": "Esta funcionalidad no depende de un producto específico.",
       "templateLabel": "Plantilla",
       "templatePlaceholder": "Selecciona una plantilla",
-      "templateFeatureHint": "Selecciona primero una funcionalidad para ver sus plantillas.",
+      "templateOptionalHint": "Opcional — las columnas se han detectado automáticamente en el archivo.",
+      "templateFeatureHint": "Selecciona primero qué quieres importar para ver sus plantillas.",
       "templateInfo": "Las plantillas definen cómo interpretamos cada columna.",
       "fileLabel": "Archivo",
       "fileButton": "Elegir archivo",
       "fileButtonChange": "Cambiar archivo",
       "filePlaceholder": "No seleccionaste un archivo. Arrastra uno aquí o haz clic para buscar.",
-      "fileHint": "Formatos aceptados: CSV, TSV o XLSX.",
+      "fileHint": "Formatos aceptados: CSV, TSV, XLS, XLSX, HTML o PDF.",
       "fileHintSelected": "Listo para importar. Cambia el archivo si lo necesitas.",
       "numberFormatLabel": "Formato numérico",
-      "numberFormatHint": "Usa los mismos separadores que aparecen en tu archivo.",
+      "numberFormatHint": "Se usa en las columnas cuyos separadores no se pueden detectar automáticamente.",
       "numberFormats": {
         "ENGLISH": "1,000.00",
         "EUROPEAN": "1.000,00"
       },
-      "datetimeHint": "Usa los mismos formatos de fecha y fecha-hora que están en tu archivo. Ambos son obligatorios.",
+      "datetimeHint": "Los formatos de fecha son opcionales. Déjalos vacíos para detectarlos automáticamente o indica los que usa tu archivo.",
+      "analysis": {
+        "analyzing": "Analizando archivo...",
+        "matched": "Coincide con la plantilla «{template}».",
+        "mismatch": "«{template}» no coincide con las columnas de este archivo.",
+        "autoReady": "Listo para importar",
+        "noMatch": "Ninguna plantilla encaja con este archivo todavía.",
+        "recognized": "{count} de {total} columnas reconocidas automáticamente.",
+        "missingRequired": "Faltan campos obligatorios: {fields}.",
+        "useTemplate": "Usar «{template}»",
+        "useAutoDetect": "Importar automáticamente",
+        "createFromFile": "Crear plantilla desde el archivo",
+        "currencyLabel": "Moneda",
+        "currencyDetectedHint": "Detectada en el archivo",
+        "currencyDefaultHint": "Moneda por defecto (sin columna de moneda en el archivo)",
+        "error": "No pudimos analizar el archivo. Aún puedes elegir una plantilla."
+      },
+      "formatOptions": {
+        "title": "Opciones de formato",
+        "dates": "Fechas",
+        "decimals": "Decimales",
+        "automatic": "Auto",
+        "detected": "Detectado en el archivo"
+      },
       "importAction": "Previsualizar",
+      "ai": {
+        "toggle": "Extraer con IA",
+        "hint": "Usa tus modelos de IA para leer extractos, tickets, capturas o documentos escaneados.",
+        "disclosure": "El contenido del archivo se enviará a tus modelos de IA configurados.",
+        "instructionsLabel": "Notas para la IA (opcional)",
+        "instructionsPlaceholder": "Ej. ignora las retenciones de tarjeta, los importes están en USD",
+        "suggest": "Este archivo no se puede leer automáticamente. Prueba a extraerlo con IA.",
+        "extractedBy": "Extraído con {model}",
+        "settings": {
+          "title": "Extracción con IA",
+          "description": "Elige qué modelos de IA leen tus archivos cuando los importas con IA y añade notas que se aplican a todas las importaciones con IA.",
+          "priorityNotice": "Los modelos se prueban en orden. Las imágenes y los PDF escaneados omiten los modelos que no pueden leerlos, y un fallo pasa la importación a la siguiente entrada.",
+          "privacyNotice": "El contenido del archivo importado se envía al modelo. No se comparte nada más de tus datos.",
+          "instructionsLabel": "Notas para todas las importaciones con IA (opcional)",
+          "instructionsHint": "Se combinan con las notas que escribas al importar un archivo concreto."
+        }
+      },
+      "background": {
+        "continue": "Continuar en segundo plano",
+        "running": "Importando...",
+        "ready": "La importación del archivo está lista para revisar.",
+        "review": "Revisar"
+      },
       "errors": {
-        "featureRequired": "Selecciona una funcionalidad para continuar.",
+        "featureRequired": "Selecciona qué quieres importar para continuar.",
         "productRequired": "Selecciona un producto para continuar.",
         "fileRequired": "Selecciona un archivo para importar.",
         "dateFormatRequired": "Ingresa el formato de fecha usado en el archivo.",
@@ -1962,10 +2084,6 @@
       "cardTitle": {
         "EXPORT": "Plantillas de exportación",
         "IMPORT": "Plantillas de importación"
-      },
-      "cardDescription": {
-        "EXPORT": "Crea plantillas para exportar tus datos de manera consistente y rápida.",
-        "IMPORT": "Crea plantillas para traer datos externos de manera rápida y sencilla."
       },
       "cardEmpty": "Todavía no tienes plantillas.",
       "cardCountLabel": "{count} plantillas",
@@ -2036,6 +2154,17 @@
       "orGroupBadgeHint": "Campos alternativos: {group}",
       "orGroupBadgeExplanation": "Debes mantener al menos uno de estos campos seleccionado.",
       "orGroupBlockedToggle": "No puedes excluir. Mantén uno: {group}",
+      "detectFromFile": {
+        "button": "Detectar desde archivo",
+        "detecting": "Analizando archivo...",
+        "hint": "Sube o arrastra un archivo de ejemplo para asignar sus columnas automáticamente.",
+        "drop": "Suelta el archivo para analizarlo",
+        "summary": "{count} columnas detectadas en {file}.",
+        "unmatched": "Columnas sin asignar: {columns}",
+        "missingRequired": "Campos obligatorios sin columna: {fields}. Define un valor por defecto o una etiqueta personalizada.",
+        "noMatches": "No se ha podido asignar ninguna columna. Define las etiquetas personalizadas manualmente.",
+        "error": "No hemos podido analizar el archivo. Inténtalo de nuevo."
+      },
       "defaultValueBadge": "Valor predet.",
       "defaultValueHint": "Valor predeterminado si se omite",
       "defaultValueExplanation": "Si no proporcionas este campo en tus datos de importación, se usará este valor predeterminado:",
@@ -2059,6 +2188,8 @@
         "active": "Activo",
         "alias": "Alias",
         "amount": "Monto",
+        "amount_in": "Importe de entrada",
+        "amount_out": "Importe de salida",
         "asset_type": "Tipo de activo",
         "average_balance": "Saldo promedio",
         "average_buy_price": "Precio promedio de compra",
@@ -2136,7 +2267,8 @@
         "iban": "IBAN",
         "symbol": "Símbolo",
         "currency_amount": "Cantidad",
-        "contract_address": "Dirección del contrato"
+        "contract_address": "Dirección del contrato",
+        "counterparty": "Contraparte"
       },
       "enumValuesTitle": "Valores",
       "errors": {
@@ -2990,12 +3122,14 @@
     "validationError": "Error de validación",
     "unexpectedColumn": "Columna inesperada",
     "unknownError": "Error desconocido",
+    "duplicated": "Transacción duplicada",
     "sheetNotFoundMessage": "La hoja {entry} no fue encontrada",
     "missingFieldMessage": "Campos requeridos faltantes en {entry}:",
     "validationErrorMessage": "Errores de validación en {entry}:",
     "unexpectedColumnMessage": "Ignoradas columnas en {entry}:",
     "validationErrorRow": "Fila: {row}",
     "fieldError": "Campo {field}: valor inválido {value}",
+    "duplicatedMessage": "Omitida en {entry}: la referencia {ref} ya la usa otra transacción de esta entidad.",
     "unknownErrorMessage": "Error desconocido en {entry}"
   },
   "countries": {

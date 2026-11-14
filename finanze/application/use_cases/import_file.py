@@ -1,10 +1,13 @@
 import logging
 from asyncio import Lock
 from datetime import datetime
+from typing import Optional
 from uuid import UUID, uuid4
 
+from application.ports.ai_import_extractor import AIImportExtractor
 from application.ports.entity_port import EntityPort
 from application.ports.file_rw_port import TableRWPort
+from application.ports.import_preview_store import ImportPreviewStore
 from application.ports.position_port import PositionPort
 from application.ports.template_parser_port import TemplateParserPort
 from application.ports.template_port import TemplatePort
@@ -14,23 +17,85 @@ from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
 from domain.entity import Entity, Feature
-from domain.exception.exceptions import ExecutionConflict, UnsupportedFileFormat
+from domain.export import NumberFormat
+from domain.exception.exceptions import (
+    ExecutionConflict,
+    InvalidTemplateDefaultValue,
+    NoTableFound,
+    PdfNoTextLayer,
+    UnsupportedFileFormat,
+)
 from domain.fetch_record import DataSource
+from domain.global_position import ProductType
 from domain.importing import (
+    AIImportFailed,
+    AIImportRequest,
     ImportCandidate,
     ImportedData,
     ImportError,
     ImportErrorType,
     ImportFileRequest,
+    ImportPreview,
     ImportResult,
     ImportResultCode,
+    PositionImportResult,
     TemplatedDataParserParams,
+    TransactionsImportResult,
+    exclude_duplicated_txs,
+    stored_entity_ids,
 )
 from domain.labeling import LabelingTrigger
 from domain.settlement import settlement_window
+from domain.template import (
+    Template,
+    TemplatedField,
+    get_effective_field,
+    missing_required_template_fields,
+    validate_template_default_values,
+)
+from domain.template_fields import TEMPLATE_FIELD_MATRIX, TemplateField
+from domain.template_type import TemplateType
 from domain.transactions import AccountTxSelection
 from domain.use_cases.import_file import ImportFile
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
+
+IMPORTABLE_FEATURES = {Feature.POSITION, Feature.TRANSACTIONS}
+
+
+def _importable_product_fields(
+    feature: Feature, product: ProductType
+) -> list[TemplateField] | None:
+    if feature not in IMPORTABLE_FEATURES:
+        return None
+    product_fields = TEMPLATE_FIELD_MATRIX.get(feature, {}).get(product)
+    if not product_fields:
+        return None
+    return [
+        field for field in product_fields if field.template_type != TemplateType.EXPORT
+    ]
+
+
+def _validate_ephemeral_template(
+    template: Template, importable_fields: list[TemplateField]
+) -> bool:
+    if not template.fields:
+        return False
+    allowed_names = {f.field for f in importable_fields}
+    available_fields: set[str] = set()
+    for tf in template.fields:
+        if tf.field not in allowed_names:
+            return False
+        if get_effective_field(tf.field, tf.name, tf.default_value, template) is None:
+            return False
+        if (tf.name and tf.name.strip()) or tf.default_value is not None:
+            available_fields.add(tf.field)
+    try:
+        validate_template_default_values(template)
+    except InvalidTemplateDefaultValue:
+        return False
+    return (
+        len(missing_required_template_fields(importable_fields, available_fields)) == 0
+    )
 
 
 class ImportFileImpl(ImportFile):
@@ -45,6 +110,8 @@ class ImportFileImpl(ImportFile):
         template_parser: TemplateParserPort,
         transaction_handler_port: TransactionHandlerPort,
         transaction_labeler: TransactionLabeler,
+        ai_import_extractor: Optional[AIImportExtractor] = None,
+        preview_store: Optional[ImportPreviewStore] = None,
     ):
         self._position_port = position_port
         self._transaction_port = transaction_port
@@ -55,49 +122,189 @@ class ImportFileImpl(ImportFile):
         self._template_parser = template_parser
         self._transaction_handler_port = transaction_handler_port
         self._transaction_labeler = transaction_labeler
+        self._ai_import_extractor = ai_import_extractor
+        self._preview_store = preview_store
         self._lock = Lock()
         self._log = logging.getLogger(__name__)
+
+    async def _parse_table(self, request: ImportFileRequest):
+        try:
+            return await self._table_rw_port.parse(request.file), None
+        except PdfNoTextLayer as exc:
+            self._log.warning("PDF without selectable text provided: %s", exc)
+            return None, ImportResult(ImportResultCode.PDF_NO_TEXT_LAYER)
+        except NoTableFound as exc:
+            self._log.warning("No table found in file: %s", exc)
+            return None, ImportResult(ImportResultCode.NO_TABLE_FOUND)
+        except UnsupportedFileFormat as exc:
+            self._log.warning("Unsupported file provided: %s", exc)
+            return None, ImportResult(ImportResultCode.UNSUPPORTED_FILE_FORMAT)
+
+    async def _resolve_template_and_table(self, request: ImportFileRequest):
+        template_cfg = request.template
+        if template_cfg is not None:
+            if not template_cfg.id:
+                return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+            try:
+                template_uuid = UUID(template_cfg.id)
+            except ValueError:
+                return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+            template = await self._template_port.get_by_id(template_uuid)
+            if not template or template.feature != request.feature:
+                return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+            table, err = await self._parse_table(request)
+            if err is not None:
+                return None, None, None, err
+            params = template_cfg.params or request.template_params or {}
+            return template, params, table, None
+
+        importable_fields = _importable_product_fields(request.feature, request.product)
+        if not importable_fields:
+            return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+
+        if request.template_fields is not None:
+            ephemeral = Template(
+                id=None,
+                name="",
+                feature=request.feature,
+                type=TemplateType.IMPORT,
+                fields=request.template_fields,
+                products=[request.product],
+            )
+            if not _validate_ephemeral_template(ephemeral, importable_fields):
+                return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+            table, err = await self._parse_table(request)
+            if err is not None:
+                return None, None, None, err
+            return ephemeral, request.template_params or {}, table, None
+
+        table, err = await self._parse_table(request)
+        if err is not None:
+            return None, None, None, err
+        suggestion = await self._template_parser.suggest_fields(
+            table, importable_fields, []
+        )
+        auto_fields = [
+            TemplatedField(field=f.field, name=f.name) for f in suggestion.fields
+        ]
+        if (
+            "currency" in suggestion.missing_required_fields
+            and suggestion.detected_currency
+        ):
+            auto_fields.append(
+                TemplatedField(
+                    field="currency",
+                    name="currency",
+                    default_value=suggestion.detected_currency,
+                )
+            )
+        ephemeral = Template(
+            id=None,
+            name="",
+            feature=request.feature,
+            type=TemplateType.IMPORT,
+            fields=auto_fields,
+            products=[request.product],
+        )
+        if not _validate_ephemeral_template(ephemeral, importable_fields):
+            return None, None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+        return ephemeral, request.template_params or {}, table, None
+
+    async def _extract_with_ai(self, request: ImportFileRequest):
+        importable_fields = _importable_product_fields(request.feature, request.product)
+        if not importable_fields:
+            return None, None, ImportResult(ImportResultCode.INVALID_TEMPLATE)
+        if self._ai_import_extractor is None:
+            return None, None, ImportResult(ImportResultCode.AI_UNAVAILABLE)
+        try:
+            extraction = await self._ai_import_extractor.extract(
+                AIImportRequest(
+                    file=request.file,
+                    feature=request.feature,
+                    product=request.product,
+                    fields=importable_fields,
+                    instructions=request.ai_instructions,
+                )
+            )
+        except AIImportFailed as e:
+            self._log.warning(f"AI import failed with {e.code.value}: {e.detail}")
+            return None, None, ImportResult(e.code, detail=e.detail)
+
+        template = Template(
+            id=None,
+            name="",
+            feature=request.feature,
+            type=TemplateType.IMPORT,
+            fields=[TemplatedField(field=f, name=f) for f in extraction.fields],
+            products=[request.product],
+        )
+        if not extraction.rows or not _validate_ephemeral_template(
+            template, importable_fields
+        ):
+            return None, None, ImportResult(ImportResultCode.AI_EXTRACTION_EMPTY)
+
+        candidate = ImportCandidate(
+            name=request.file.filename,
+            source=DataSource.MANUAL,
+            params=TemplatedDataParserParams(
+                template=template,
+                number_format=NumberFormat.ENGLISH,
+                feature=request.feature,
+                product=request.product,
+                datetime_format=None,
+                date_format=None,
+                params=request.template_params or {},
+            ),
+            data=[list(extraction.fields), *extraction.rows],
+        )
+        return candidate, extraction.metadata, None
+
+    async def _resolve_candidate(self, request: ImportFileRequest):
+        if request.preview_token:
+            stored = (
+                self._preview_store.take(request.preview_token)
+                if self._preview_store
+                else None
+            )
+            if stored is None:
+                return None, None, ImportResult(ImportResultCode.PREVIEW_EXPIRED)
+            return stored.candidate, stored.ai, None
+
+        if request.file is None:
+            return None, None, ImportResult(ImportResultCode.UNSUPPORTED_FILE_FORMAT)
+
+        if request.use_ai:
+            return await self._extract_with_ai(request)
+
+        template, params, table, err = await self._resolve_template_and_table(request)
+        if err is not None:
+            return None, None, err
+
+        parser_params = TemplatedDataParserParams(
+            template=template,
+            number_format=request.number_format,
+            feature=request.feature,
+            product=request.product,
+            datetime_format=request.datetime_format,
+            date_format=request.date_format,
+            params=params,
+        )
+        candidate = ImportCandidate(
+            name=request.file.filename,
+            source=DataSource.MANUAL,
+            params=parser_params,
+            data=table,
+        )
+        return candidate, None, None
 
     async def execute(self, request: ImportFileRequest) -> ImportResult:
         if self._lock.locked():
             raise ExecutionConflict()
 
         async with self._lock:
-            template_cfg = request.template
-            if not template_cfg or not template_cfg.id:
-                return ImportResult(ImportResultCode.INVALID_TEMPLATE)
-
-            template = await self._template_port.get_by_id(UUID(template_cfg.id))
-            if not template:
-                return ImportResult(
-                    ImportResultCode.INVALID_TEMPLATE,
-                )
-
-            parser_params = TemplatedDataParserParams(
-                template=template,
-                number_format=request.number_format,
-                feature=request.feature,
-                product=request.product,
-                datetime_format=request.datetime_format,
-                date_format=request.date_format,
-                params=template_cfg.params or {},
-            )
-
-            if parser_params.feature != template.feature:
-                return ImportResult(ImportResultCode.INVALID_TEMPLATE)
-
-            try:
-                table = await self._table_rw_port.parse(request.file)
-            except UnsupportedFileFormat as exc:
-                self._log.warning("Unsupported file provided: %s", exc)
-                return ImportResult(ImportResultCode.UNSUPPORTED_FILE_FORMAT)
-
-            candidate = ImportCandidate(
-                name=request.file.filename,
-                source=DataSource.MANUAL,
-                params=parser_params,
-                data=table,
-            )
+            candidate, ai_metadata, err = await self._resolve_candidate(request)
+            if err is not None:
+                return err
 
             existing_entities = await self._entity_port.get_all()
             existing_entities_by_name = {
@@ -106,8 +313,19 @@ class ImportFileImpl(ImportFile):
 
             async with self._transaction_handler_port.start():
                 result = await self._process_candidate(
-                    request, candidate, existing_entities_by_name
+                    candidate, request.preview, existing_entities_by_name
                 )
+
+            if ai_metadata is not None:
+                result.ai = ai_metadata
+                if (
+                    request.preview
+                    and result.code == ImportResultCode.COMPLETED
+                    and self._preview_store is not None
+                ):
+                    result.preview_token = self._preview_store.save(
+                        ImportPreview(candidate=candidate, ai=ai_metadata)
+                    )
 
             imported_txs = result.data.transactions if result.data else None
             if not request.preview and imported_txs and imported_txs.account:
@@ -117,14 +335,92 @@ class ImportFileImpl(ImportFile):
                 )
             return result
 
+    async def _finalize_positions(
+        self,
+        result: PositionImportResult,
+        preview: bool,
+        import_id: UUID,
+        now: datetime,
+        virtual_entries: list[VirtualDataImport],
+        existing_entities_by_name: dict[str, Entity],
+        errors: list[ImportError],
+    ):
+        errors.extend(result.errors)
+        positions = result.positions
+        if not preview:
+            for entity in result.created_entities:
+                await self._entity_port.insert(entity)
+                existing_entities_by_name[entity.name] = entity
+
+            for position in positions or []:
+                await self._position_port.save(position)
+                virtual_entries.append(
+                    VirtualDataImport(
+                        import_id=import_id,
+                        global_position_id=position.id,
+                        source=VirtualDataSource.MANUAL,
+                        date=now,
+                        feature=Feature.POSITION,
+                        entity_id=position.entity.id,
+                    )
+                )
+        return positions
+
+    async def _finalize_transactions(
+        self,
+        result: TransactionsImportResult,
+        preview: bool,
+        import_id: UUID,
+        now: datetime,
+        virtual_entries: list[VirtualDataImport],
+        errors: list[ImportError],
+    ):
+        errors.extend(result.errors)
+        existing_keys = await self._transaction_port.get_ref_keys(
+            stored_entity_ids(result)
+        )
+        transactions, duplicated = exclude_duplicated_txs(result, existing_keys)
+        errors.extend(duplicated)
+
+        if not preview:
+            for entity in result.created_entities:
+                await self._entity_port.insert(entity)
+
+            if transactions:
+                await self._transaction_port.save(transactions)
+                if transactions.account:
+                    await self._transaction_labeler.classify(
+                        AccountTxSelection(ids=[tx.id for tx in transactions.account])
+                    )
+                if transactions.investment:
+                    await self._transaction_labeler.link_settlements(
+                        settlement_window(transactions.investment)
+                    )
+                tx_entities = {
+                    tx.entity.id
+                    for tx in (transactions.investment or [])
+                    + (transactions.account or [])
+                }
+                for entity_id in tx_entities:
+                    virtual_entries.append(
+                        VirtualDataImport(
+                            import_id=import_id,
+                            global_position_id=None,
+                            source=VirtualDataSource.MANUAL,
+                            date=now,
+                            feature=Feature.TRANSACTIONS,
+                            entity_id=entity_id,
+                        )
+                    )
+        return transactions
+
     async def _process_candidate(
         self,
-        request: ImportFileRequest,
         candidate: ImportCandidate,
+        preview: bool,
         existing_entities_by_name: dict[str, Entity],
     ) -> ImportResult:
-        feature = request.feature
-        preview = request.preview
+        feature = candidate.params.feature
         now = datetime.now(tzlocal())
         import_id = uuid4()
         virtual_entries: list[VirtualDataImport] = []
@@ -150,76 +446,38 @@ class ImportFileImpl(ImportFile):
             )
 
         if feature == Feature.POSITION:
-            result = await self._template_parser.global_positions(
+            pos_result = await self._template_parser.global_positions(
                 [candidate], existing_entities_by_name
             )
-            errors.extend(result.errors)
-            positions = result.positions
-
-            if not preview:
-                for entity in result.created_entities:
-                    await self._entity_port.insert(entity)
-                    existing_entities_by_name[entity.name] = entity
-
-                for position in positions or []:
-                    await self._position_port.save(position)
-                    virtual_entries.append(
-                        VirtualDataImport(
-                            import_id=import_id,
-                            global_position_id=position.id,
-                            source=VirtualDataSource.MANUAL,
-                            date=now,
-                            feature=Feature.POSITION,
-                            entity_id=position.entity.id,
-                        )
-                    )
+            positions = await self._finalize_positions(
+                pos_result,
+                preview,
+                import_id,
+                now,
+                virtual_entries,
+                existing_entities_by_name,
+                errors,
+            )
 
         elif feature == Feature.TRANSACTIONS:
-            result = await self._template_parser.transactions(
+            tx_result = await self._template_parser.transactions(
                 [candidate], existing_entities_by_name
             )
-            errors.extend(result.errors)
-            transactions = result.transactions
-
-            if not preview:
-                for entity in result.created_entities:
-                    await self._entity_port.insert(entity)
-
-                if transactions:
-                    await self._transaction_port.save(transactions)
-                    if transactions.account:
-                        await self._transaction_labeler.classify(
-                            AccountTxSelection(
-                                ids=[tx.id for tx in transactions.account]
-                            )
-                        )
-                    if transactions.investment:
-                        await self._transaction_labeler.link_settlements(
-                            settlement_window(transactions.investment)
-                        )
-                    tx_entities = {
-                        tx.entity.id
-                        for tx in (transactions.investment or [])
-                        + (transactions.account or [])
-                    }
-                    for entity_id in tx_entities:
-                        virtual_entries.append(
-                            VirtualDataImport(
-                                import_id=import_id,
-                                global_position_id=None,
-                                source=VirtualDataSource.MANUAL,
-                                date=now,
-                                feature=Feature.TRANSACTIONS,
-                                entity_id=entity_id,
-                            )
-                        )
+            transactions = await self._finalize_transactions(
+                tx_result,
+                preview,
+                import_id,
+                now,
+                virtual_entries,
+                errors,
+            )
         else:
             return ImportResult(
                 ImportResultCode.DISABLED,
                 errors=[
                     ImportError(
                         type=ImportErrorType.UNEXPECTED_ERROR,
-                        entry=request.file.filename,
+                        entry=candidate.name,
                         detail=[f"Unsupported feature: {feature.value}"],
                     )
                 ],

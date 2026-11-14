@@ -81,6 +81,7 @@ class OpenAICompatibleClient(HttpAIClient):
             AIClientFeature.MODEL_LISTING,
             AIClientFeature.CUSTOM_MODELS,
             AIClientFeature.SERVER_INFO,
+            AIClientFeature.ATTACHMENTS,
         }
 
     def _base_url(self, credentials: Optional[ExternalIntegrationPayload]) -> str:

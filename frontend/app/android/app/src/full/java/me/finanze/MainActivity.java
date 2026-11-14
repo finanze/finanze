@@ -21,6 +21,7 @@ import me.finanze.plugins.FileTransferPlugin;
 import me.finanze.plugins.ImageProcessorPlugin;
 import me.finanze.plugins.LoopbackCallbackPlugin;
 import me.finanze.plugins.NativeCookiesPlugin;
+import me.finanze.plugins.PdfRendererPlugin;
 import me.finanze.plugins.SmsOtpPlugin;
 import me.finanze.plugins.LoginWebViewPlugin;
 import me.finanze.plugins.TlsHttpPlugin;
@@ -36,6 +37,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(ImageProcessorPlugin.class);
         registerPlugin(LoopbackCallbackPlugin.class);
         registerPlugin(NativeCookiesPlugin.class);
+        registerPlugin(PdfRendererPlugin.class);
         registerPlugin(SmsOtpPlugin.class);
         registerPlugin(LoginWebViewPlugin.class);
         registerPlugin(TlsHttpPlugin.class);

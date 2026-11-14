@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { ChangeEvent, DragEvent, ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRef } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -8,6 +8,7 @@ import {
   CalendarClock,
   ChevronLeft,
   Edit3,
+  FileSearch,
   GripVertical,
   LayoutTemplate,
   Layers,
@@ -30,6 +31,7 @@ import type {
   TemplateCreateField,
   TemplateFeatureDefinition,
   TemplateFeatureField,
+  TemplateFieldsSuggestion,
   TemplateUpdatePayload,
 } from "@/types"
 import { TemplateFieldType, TemplateType } from "@/types"
@@ -59,6 +61,14 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 type TemplateFieldsMap = Partial<Record<Feature, TemplateFeatureDefinition[]>>
 
+export interface TemplateCreatePreset {
+  name: string
+  feature: Feature
+  product: ProductType
+  fileName: string
+  suggestion: TemplateFieldsSuggestion
+}
+
 interface TemplateManagerDialogProps {
   isOpen: boolean
   onClose: () => void
@@ -70,6 +80,12 @@ interface TemplateManagerDialogProps {
   onCreate: (payload: TemplateCreatePayload) => Promise<void>
   onUpdate: (payload: TemplateUpdatePayload) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onSuggestFields?: (
+    file: File,
+    feature: Feature,
+    product: ProductType,
+  ) => Promise<TemplateFieldsSuggestion>
+  createPreset?: TemplateCreatePreset | null
   featureLabels: Record<string, string>
   productLabels: Record<string, string>
   t: Translations
@@ -100,6 +116,19 @@ type TemplateFormErrors = Partial<
   Record<"name" | "feature" | "products" | "fields" | "submit", string>
 >
 
+interface FileDetection {
+  fileName: string
+  headers: string[]
+}
+
+const normalizeHeader = (value: string) =>
+  value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+
 export const featureIcons: Record<Feature, ReactNode> = {
   POSITION: <BarChart className="h-4 w-4" />,
   AUTO_CONTRIBUTIONS: <PiggyBankIcon />,
@@ -107,7 +136,7 @@ export const featureIcons: Record<Feature, ReactNode> = {
   HISTORIC: <HistoryIcon />,
 }
 
-const IMPORT_ALLOWED_FEATURES: Feature[] = ["POSITION", "TRANSACTIONS"]
+const IMPORT_ALLOWED_FEATURES: Feature[] = ["TRANSACTIONS", "POSITION"]
 
 function PiggyBankIcon() {
   return <Layers className="h-4 w-4" />
@@ -239,6 +268,8 @@ export function TemplateManagerDialog({
   onCreate,
   onUpdate,
   onDelete,
+  onSuggestFields,
+  createPreset,
   featureLabels,
   productLabels,
   t,
@@ -285,6 +316,19 @@ export function TemplateManagerDialog({
     return () => clearTimeout(timer)
   }, [blockedGroup])
   const isImportTemplate = templateType === TemplateType.IMPORT
+  const detectInputRef = useRef<HTMLInputElement | null>(null)
+  const [isDetecting, setIsDetecting] = useState(false)
+  const [isDetectDragging, setIsDetectDragging] = useState(false)
+  const [detection, setDetection] = useState<FileDetection | null>(null)
+  const [detectError, setDetectError] = useState<string | null>(null)
+  const pendingPresetRef = useRef<TemplateCreatePreset | null>(null)
+  const detectionScope = draft
+    ? `${mode}:${draft.feature ?? ""}:${draft.products.join(",")}`
+    : ""
+  useEffect(() => {
+    setDetection(null)
+    setDetectError(null)
+  }, [detectionScope])
 
   const currencyOptions = useMemo(() => {
     if (typeof Intl?.supportedValuesOf === "function") {
@@ -664,8 +708,8 @@ export function TemplateManagerDialog({
     }
     const baseFeatures = Object.keys(templateFields) as Feature[]
     const filtered = isImportTemplate
-      ? baseFeatures.filter(feature =>
-          IMPORT_ALLOWED_FEATURES.includes(feature),
+      ? IMPORT_ALLOWED_FEATURES.filter(feature =>
+          baseFeatures.includes(feature),
         )
       : baseFeatures
     if (
@@ -701,6 +745,24 @@ export function TemplateManagerDialog({
       setSelectedTemplateId(templates[0]?.id ?? null)
     }
   }, [isOpen, templates])
+
+  useEffect(() => {
+    if (!isOpen) {
+      pendingPresetRef.current = null
+      return
+    }
+    if (!createPreset) return
+    pendingPresetRef.current = createPreset
+    setDraft({
+      name: createPreset.name,
+      feature: createPreset.feature,
+      products: [createPreset.product],
+      fields: [],
+    })
+    setMode("create")
+    setFormErrors({})
+    setFeatureDrafts({})
+  }, [isOpen, createPreset])
 
   const productOptionsForFeature = useMemo(() => {
     if (!draft?.feature || !templateFields) {
@@ -788,10 +850,14 @@ export function TemplateManagerDialog({
       const defaultSelected = mode === "create" || !draft?.id
       allowedMap.forEach(def => {
         const systemDefaultValue = deriveSystemDefaultValue(def)
+        const isSecondarySplitAmount =
+          def.field === "amount_in" || def.field === "amount_out"
         nextFields.push({
           field: def.field,
           customName: "",
-          selected: defaultSelected || (isImportTemplate && def.required),
+          selected: isSecondarySplitAmount
+            ? false
+            : defaultSelected || (isImportTemplate && def.required),
           type: def.type,
           enumValues:
             def.type === TemplateFieldType.ENUM ? def.enum_values : undefined,
@@ -996,6 +1062,275 @@ export function TemplateManagerDialog({
         ),
       }
     })
+  }
+
+  const canDetectFromFile =
+    isImportTemplate &&
+    Boolean(onSuggestFields) &&
+    Boolean(
+      draft?.feature && IMPORT_ALLOWED_FEATURES.includes(draft.feature),
+    ) &&
+    draft?.products.length === 1
+
+  const applySuggestion = useCallback(
+    (suggestion: TemplateFieldsSuggestion) => {
+      const suggestedNames = new Map(
+        suggestion.fields.map(item => [item.field, item.name]),
+      )
+      const columnOrder = new Map(
+        suggestion.fields.map((item, index) => [item.field, index]),
+      )
+      setDraft(prev => {
+        if (!prev) return prev
+        const fields = prev.fields.map(field => {
+          const name = suggestedNames.get(field.field)
+          if (name !== undefined) {
+            return { ...field, selected: true, customName: name }
+          }
+          const def = allowedFieldDefinitions.find(d => d.field === field.field)
+          if (
+            field.field === "currency" &&
+            suggestion.detected_currency &&
+            !field.defaultValue.trim()
+          ) {
+            return {
+              ...field,
+              selected: true,
+              defaultValue: suggestion.detected_currency,
+              defaultError: undefined,
+              useSystemDefault: false,
+            }
+          }
+          if (!def || def.required) return field
+          if (def.or_requires && def.or_requires.length > 0) {
+            const groupSuggested = def.or_requires.some(member =>
+              suggestedNames.has(member),
+            )
+            return groupSuggested ? { ...field, selected: false } : field
+          }
+          return { ...field, selected: false }
+        })
+        const rank = (field: TemplateFieldDraft) =>
+          columnOrder.get(field.field) ??
+          suggestion.fields.length + (field.selected ? 0 : 1)
+        return {
+          ...prev,
+          fields: [...fields].sort((a, b) => rank(a) - rank(b)),
+        }
+      })
+    },
+    [allowedFieldDefinitions],
+  )
+
+  useEffect(() => {
+    const preset = pendingPresetRef.current
+    if (!preset || !draft || draft.fields.length === 0) return
+    if (
+      draft.feature !== preset.feature ||
+      draft.products.length !== 1 ||
+      draft.products[0] !== preset.product
+    ) {
+      return
+    }
+    pendingPresetRef.current = null
+    applySuggestion(preset.suggestion)
+    setDetection({
+      fileName: preset.fileName,
+      headers: preset.suggestion.headers,
+    })
+    setDetectError(null)
+  }, [draft, applySuggestion])
+
+  const processDetectFile = async (file: File) => {
+    if (!onSuggestFields || !draft?.feature || draft.products.length !== 1) {
+      return
+    }
+    setIsDetecting(true)
+    setDetectError(null)
+    try {
+      const suggestion = await onSuggestFields(
+        file,
+        draft.feature,
+        draft.products[0],
+      )
+      applySuggestion(suggestion)
+      setDetection({ fileName: file.name, headers: suggestion.headers })
+    } catch (error) {
+      setDetection(null)
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? (error as { code?: unknown }).code
+          : undefined
+      setDetectError(
+        code === "PDF_NO_TEXT_LAYER"
+          ? t.errors.PDF_NO_TEXT_LAYER
+          : code === "NO_TABLE_FOUND"
+            ? t.errors.NO_TABLE_FOUND
+            : code === "UNSUPPORTED_FILE_FORMAT"
+              ? t.errors.UNSUPPORTED_FILE_FORMAT
+              : templateTexts.detectFromFile.error,
+      )
+    } finally {
+      setIsDetecting(false)
+    }
+  }
+
+  const handleDetectFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (file) {
+      void processDetectFile(file)
+    }
+  }
+
+  const isFileDrag = (event: DragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer.types).includes("Files")
+
+  const handleDetectDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = isDetecting ? "none" : "copy"
+    if (!isDetecting) setIsDetectDragging(true)
+  }
+
+  const handleDetectDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget as Node | null
+    if (next && event.currentTarget.contains(next)) return
+    setIsDetectDragging(false)
+  }
+
+  const handleDetectDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDetectDragging(false)
+    const file = event.dataTransfer.files?.[0]
+    if (file && !isDetecting) {
+      void processDetectFile(file)
+    }
+  }
+
+  const renderDetectFromFile = () => {
+    if (!canDetectFromFile || !draft) return null
+    const detectTexts = templateTexts.detectFromFile
+    let summary: ReactNode = null
+    if (detection) {
+      const fieldHeader = (field: TemplateFieldDraft) =>
+        normalizeHeader(field.customName.trim() || field.field)
+      const selectedHeaders = new Set(
+        draft.fields.filter(field => field.selected).map(fieldHeader),
+      )
+      const fileHeaders = new Set(detection.headers.map(normalizeHeader))
+      const unmatched = detection.headers.filter(
+        header => !selectedHeaders.has(normalizeHeader(header)),
+      )
+      const matchedCount = detection.headers.length - unmatched.length
+      const missingRequired: string[] = []
+      const seenOrGroups = new Set<string>()
+      draft.fields.forEach(field => {
+        const def = allowedFieldDefinitions.find(d => d.field === field.field)
+        if (!def) return
+        if (def.required) {
+          if (
+            !field.defaultValue.trim() &&
+            !fileHeaders.has(fieldHeader(field))
+          ) {
+            missingRequired.push(getFieldLabel(field.field))
+          }
+          return
+        }
+        if (def.or_requires && def.or_requires.length > 0) {
+          const group = [def.field, ...def.or_requires].sort()
+          const groupKey = group.join("|")
+          if (seenOrGroups.has(groupKey)) return
+          seenOrGroups.add(groupKey)
+          const satisfied = draft.fields.some(
+            candidate =>
+              candidate.selected &&
+              group.includes(candidate.field) &&
+              (Boolean(candidate.defaultValue.trim()) ||
+                fileHeaders.has(fieldHeader(candidate))),
+          )
+          if (!satisfied) {
+            missingRequired.push(getFieldLabel(def.field))
+          }
+        }
+      })
+      summary = (
+        <div className="space-y-1 text-xs">
+          {matchedCount > 0 ? (
+            <p className="flex items-center gap-1.5 text-foreground">
+              <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+              {detectTexts.summary
+                .replace("{count}", String(matchedCount))
+                .replace("{file}", detection.fileName)}
+            </p>
+          ) : (
+            <p className="text-muted-foreground">{detectTexts.noMatches}</p>
+          )}
+          {unmatched.length > 0 ? (
+            <p className="text-muted-foreground">
+              {detectTexts.unmatched.replace("{columns}", unmatched.join(", "))}
+            </p>
+          ) : null}
+          {missingRequired.length > 0 ? (
+            <p className="text-amber-600 dark:text-amber-400">
+              {detectTexts.missingRequired.replace(
+                "{fields}",
+                missingRequired.join(", "),
+              )}
+            </p>
+          ) : null}
+        </div>
+      )
+    }
+    return (
+      <div
+        className={cn(
+          "space-y-2 rounded-lg border border-dashed p-3 transition-colors",
+          isDetectDragging
+            ? "border-primary bg-primary/5"
+            : "border-border/70 bg-muted/30",
+        )}
+        onDragEnter={handleDetectDragOver}
+        onDragOver={handleDetectDragOver}
+        onDragLeave={handleDetectDragLeave}
+        onDrop={handleDetectDrop}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {isDetectDragging ? detectTexts.drop : detectTexts.hint}
+          </p>
+          <input
+            ref={detectInputRef}
+            id="template-detect-file-input"
+            type="file"
+            accept=".csv,.tsv,.xls,.xlsx,.html,.htm,.pdf"
+            className="hidden"
+            onChange={handleDetectFile}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isDetecting}
+            onClick={() => detectInputRef.current?.click()}
+          >
+            {isDetecting ? (
+              <LoadingSpinner className="mr-2 h-4 w-4" />
+            ) : (
+              <FileSearch className="mr-2 h-4 w-4" />
+            )}
+            {isDetecting ? detectTexts.detecting : detectTexts.button}
+          </Button>
+        </div>
+        {detectError ? (
+          <p className="text-xs text-destructive">{detectError}</p>
+        ) : null}
+        {summary}
+      </div>
+    )
   }
 
   const handleRenameField = (fieldKey: string, value: string) => {
@@ -1483,6 +1818,7 @@ export function TemplateManagerDialog({
             {selectedCount} / {draft.fields.length}
           </Badge>
         </div>
+        {renderDetectFromFile()}
         <div className="space-y-2" ref={fieldListRef}>
           {draft.fields.map((field, index) => {
             const isDragTarget =

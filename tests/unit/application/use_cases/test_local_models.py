@@ -7,12 +7,17 @@ from application.use_cases.download_local_model import (
     FREE_SPACE_MARGIN,
     DownloadLocalModelImpl,
 )
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
-)
+from application.use_cases.get_ai_models import GetAIModelsImpl
 from application.use_cases.get_local_models import GetLocalModelsImpl
 from application.use_cases.import_local_model import ImportLocalModelImpl
 from application.use_cases.list_hugging_face_quants import ListHuggingFaceQuantsImpl
+from domain.ai import (
+    AIClientFeature,
+    AIInputModality,
+    AIModel,
+    AIModelCapability,
+    AITask,
+)
 from domain.exception.exceptions import (
     ExternalIntegrationRequired,
     IntegrationNotFound,
@@ -20,7 +25,6 @@ from domain.exception.exceptions import (
     LocalModelErrorCode,
 )
 from domain.external_integration import ExternalIntegrationId
-from domain.external_labeling import ExternalLabelingModel
 from domain.local_model import (
     DownloadLocalModelRequest,
     HuggingFaceModelKind,
@@ -528,46 +532,75 @@ class TestListHuggingFaceQuants:
         assert await ListHuggingFaceQuantsImpl(catalog).execute("org/model") == quants
 
 
-class TestGetExternalLabelingModels:
-    def _provider(self, dynamic=True):
-        provider = MagicMock()
-        provider.dynamic_models.return_value = dynamic
-        provider.list_models = AsyncMock(
-            return_value=[ExternalLabelingModel(id="a:Q4", name="A", loaded=True)]
+class TestGetAIModels:
+    def _client(self, listing=True):
+        client = MagicMock()
+        features = {AIClientFeature.GENERATION, AIClientFeature.DECISIONS}
+        if listing:
+            features.add(AIClientFeature.MODEL_LISTING)
+        client.features.return_value = features
+        client.list_models = AsyncMock(
+            return_value=[
+                AIModel(
+                    id="a:Q4",
+                    name="A",
+                    capabilities={AIModelCapability.STRUCTURED_OUTPUT},
+                    loaded=True,
+                    input_modalities={AIInputModality.TEXT},
+                ),
+                AIModel(
+                    id="jev:Q4",
+                    name="Jev",
+                    capabilities={AIModelCapability.DECISIONS},
+                ),
+            ]
         )
-        return provider
+        return client
 
     @pytest.mark.asyncio
-    async def test_lists_dynamic_models(self):
-        provider = self._provider()
-        result = await GetExternalLabelingModelsImpl(
-            _integrations({}), {ExternalIntegrationId.LOCAL_MODELS: provider}
-        ).execute("LOCAL_MODELS")
-        assert [m.id for m in result.models] == ["a:Q4"]
-        provider.list_models.assert_awaited_once_with({})
+    async def test_lists_dynamic_models_with_task_eligibility(self):
+        client = self._client()
+        result = await GetAIModelsImpl(
+            _integrations({}), {ExternalIntegrationId.LOCAL_MODELS: client}
+        ).execute("LOCAL_MODELS", AITask.IMPORTING)
+        assert [(m.id, m.eligible, m.probabilistic) for m in result.models] == [
+            ("a:Q4", True, False),
+            ("jev:Q4", False, True),
+        ]
+        assert result.models[0].loaded is True
+        assert result.models[0].input_modalities == [AIInputModality.TEXT]
+        assert result.models[1].input_modalities is None
+        client.list_models.assert_awaited_once_with({})
+
+    @pytest.mark.asyncio
+    async def test_without_task_eligibility_is_unknown(self):
+        result = await GetAIModelsImpl(
+            _integrations({}), {ExternalIntegrationId.LOCAL_MODELS: self._client()}
+        ).execute("LOCAL_MODELS", None)
+        assert {m.eligible for m in result.models} == {None}
 
     @pytest.mark.asyncio
     async def test_static_provider_returns_empty(self):
-        provider = self._provider(dynamic=False)
-        result = await GetExternalLabelingModelsImpl(
-            _integrations({"api_key": "x"}), {ExternalIntegrationId.OPENAI: provider}
-        ).execute("OPENAI")
+        client = self._client(listing=False)
+        result = await GetAIModelsImpl(
+            _integrations({"api_key": "x"}), {ExternalIntegrationId.OPENAI: client}
+        ).execute("OPENAI", None)
         assert result.models == []
-        provider.list_models.assert_not_called()
+        client.list_models.assert_not_called()
 
     @pytest.mark.parametrize("provider_id", ["NOPE", "OPENAI"])
     @pytest.mark.asyncio
     async def test_unknown_provider(self, provider_id):
         with pytest.raises(IntegrationNotFound):
-            await GetExternalLabelingModelsImpl(
+            await GetAIModelsImpl(
                 _integrations({}),
-                {ExternalIntegrationId.LOCAL_MODELS: self._provider()},
-            ).execute(provider_id)
+                {ExternalIntegrationId.LOCAL_MODELS: self._client()},
+            ).execute(provider_id, None)
 
     @pytest.mark.asyncio
     async def test_requires_connection(self):
         with pytest.raises(ExternalIntegrationRequired):
-            await GetExternalLabelingModelsImpl(
+            await GetAIModelsImpl(
                 _integrations(None),
-                {ExternalIntegrationId.LOCAL_MODELS: self._provider()},
-            ).execute("LOCAL_MODELS")
+                {ExternalIntegrationId.LOCAL_MODELS: self._client()},
+            ).execute("LOCAL_MODELS", None)

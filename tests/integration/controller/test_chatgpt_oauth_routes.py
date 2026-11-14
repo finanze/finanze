@@ -21,11 +21,9 @@ from application.use_cases.disconnect_external_integration import (
 from application.use_cases.forward_integration_oauth_callback import (
     ForwardIntegrationOAuthCallbackImpl,
 )
+from application.use_cases.get_ai_models import GetAIModelsImpl
 from application.use_cases.get_external_integrations import (
     GetExternalIntegrationsImpl,
-)
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
 )
 from cryptography.hazmat.primitives.asymmetric import rsa
 from dateutil.tz import tzlocal
@@ -54,13 +52,10 @@ from infrastructure.controller.routes.disconnect_external_integration import (
 from infrastructure.controller.routes.forward_integration_oauth_callback import (
     forward_integration_oauth_callback,
 )
+from infrastructure.controller.routes.get_ai_models import get_ai_models
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
-from infrastructure.controller.routes.get_external_labeling_models import (
-    get_external_labeling_models,
-)
-from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
@@ -199,9 +194,7 @@ async def ctx(tmp_path):
     complete_uc = CompleteExternalIntegrationConnectionImpl(repository, integrations)
     disconnect_uc = DisconnectExternalIntegrationImpl(repository, integrations)
     forward_uc = ForwardIntegrationOAuthCallbackImpl(integrations)
-    models_uc = GetExternalLabelingModelsImpl(
-        repository, {CHATGPT: AILabelingProvider(chatgpt, [])}
-    )
+    models_uc = GetAIModelsImpl(repository, {CHATGPT: chatgpt})
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -230,11 +223,9 @@ async def ctx(tmp_path):
     async def forward_route():
         return await forward_integration_oauth_callback(forward_uc)
 
-    @app.route(
-        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
-    )
+    @app.route("/api/v1/ai/providers/<provider_id>/models", methods=["GET"])
     async def models_route(provider_id: str):
-        return await get_external_labeling_models(models_uc, provider_id)
+        return await get_ai_models(models_uc, provider_id)
 
     yield SimpleNamespace(
         http=app.test_client(),
@@ -286,9 +277,7 @@ async def _connect(ctx) -> dict[str, str]:
 
 
 async def _model_ids(ctx):
-    return await ctx.http.get(
-        f"/api/v1/labeling/external/providers/{CHATGPT.value}/models"
-    )
+    return await ctx.http.get(f"/api/v1/ai/providers/{CHATGPT.value}/models")
 
 
 @pytest.mark.asyncio

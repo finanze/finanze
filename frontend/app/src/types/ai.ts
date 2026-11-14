@@ -1,5 +1,60 @@
 export enum AITask {
   LABELING = "LABELING",
+  IMPORTING = "IMPORTING",
+}
+
+export enum AIInputModality {
+  TEXT = "TEXT",
+  IMAGE = "IMAGE",
+  DOCUMENT = "DOCUMENT",
+}
+
+export const MAX_AI_PROVIDERS = 5
+
+export interface AIProviderEntry {
+  provider: string
+  model: string
+  upstreamProvider?: string | null
+}
+
+export interface AISettings {
+  providers: AIProviderEntry[]
+}
+
+export interface AIImportSettings {
+  providers: AIProviderEntry[]
+  instructions?: string | null
+}
+
+export interface AICatalogModel {
+  id: string
+  name: string
+  description?: string | null
+  probabilistic: boolean
+  size?: number | null
+  loaded?: boolean
+  load_failed?: boolean
+  pricing?: AIModelPricing | null
+  input_modalities?: AIInputModality[] | null
+  eligible?: boolean | null
+}
+
+export interface AIProviderDetails {
+  id: string
+  connected: boolean
+  recommended_models: AICatalogModel[]
+  custom_models: boolean
+  upstream_providers: boolean
+  dynamic_models?: boolean
+  attachments?: boolean
+}
+
+export interface AIProviders {
+  providers: AIProviderDetails[]
+}
+
+export interface AIModels {
+  models: AICatalogModel[]
 }
 
 export enum AIModelCapability {

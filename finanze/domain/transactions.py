@@ -46,6 +46,21 @@ ACCOUNT_INCOMING_TYPES = {TxType.INFLOW, TxType.INTEREST}
 ACCOUNT_OUTGOING_TYPES = {TxType.OUTFLOW, TxType.FEE}
 ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS = 730
 MAX_IBAN_LENGTH = 34
+MAX_COUNTERPARTY_LENGTH = 200
+
+NET_OUTGOING_TX_TYPES = {
+    TxType.BUY,
+    TxType.INVESTMENT,
+    TxType.SUBSCRIPTION,
+    TxType.FEE,
+    TxType.RIGHT_ISSUE,
+    TxType.TRANSFER_OUT,
+    TxType.SWITCH_FROM,
+    TxType.SWAP_FROM,
+    TxType.OUTFLOW,
+}
+
+TxRefKey = tuple[UUID, ProductType, str]
 
 
 def normalize_iban(value: Optional[str]) -> Optional[str]:
@@ -207,6 +222,14 @@ class Transactions:
         investment = (self.investment or []) + (other.investment or [])
         account = (self.account or []) + (other.account or [])
         return Transactions(investment=investment, account=account)
+
+
+def compute_net_amount(tx: BaseTx) -> Dezimal:
+    fees = getattr(tx, "fees", None) or Dezimal(0)
+    retentions = getattr(tx, "retentions", None) or Dezimal(0)
+    if tx.type in NET_OUTGOING_TX_TYPES:
+        return tx.amount + fees + retentions
+    return tx.amount - fees - retentions
 
 
 @dataclass
