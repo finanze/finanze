@@ -1428,14 +1428,6 @@ export function ProvidersTab() {
                     <CardTitle className="text-lg break-words">
                       {headerTitle}
                     </CardTitle>
-                    {integration.id === CHATGPT_ID && (
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                      >
-                        {t.settings.integrationBeta}
-                      </Badge>
-                    )}
                   </div>
                   {!embedded && integration.family && (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -1639,6 +1631,14 @@ export function ProvidersTab() {
               <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-300">
                 <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {t.settings.integrationCategories[category]}
+                {category === ExternalIntegrationType.AI_PROVIDER && (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                  >
+                    {t.settings.integrationBeta}
+                  </Badge>
+                )}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                 {category === ExternalIntegrationType.AI_PROVIDER
