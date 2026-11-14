@@ -126,6 +126,7 @@ export enum LocalModelState {
   DOWNLOADING = "DOWNLOADING",
   FAILED = "FAILED",
   MISSING = "MISSING",
+  INCOMPLETE = "INCOMPLETE",
 }
 
 export enum LocalRuntimeMode {
@@ -149,6 +150,10 @@ export interface LocalModel {
   decisions: boolean
   deletable: boolean
   path?: string | null
+  vision?: boolean
+  vision_size?: number | null
+  vision_addable?: boolean
+  vision_removable?: boolean
 }
 
 export interface LocalModelCatalogEntry {
@@ -162,6 +167,8 @@ export interface LocalModelCatalogEntry {
   license: string
   decisions: boolean
   languages?: string[] | null
+  vision_size?: number | null
+  vision_ram?: number | null
 }
 
 export interface LocalModelsCapabilities {
@@ -189,12 +196,15 @@ export interface DownloadLocalModelRequest {
   catalog_id?: string
   repo?: string
   quant?: string
+  vision?: boolean
 }
 
 export interface HuggingFaceQuantOption {
   quant: string
   file: string
   size?: number | null
+  vision_file?: string | null
+  vision_size?: number | null
 }
 
 export enum HuggingFaceModelKind {
@@ -215,4 +225,6 @@ export interface ImportedLocalModel {
   path: string
   exists: boolean
   size?: number | null
+  mmproj_path?: string | null
+  mmproj_size?: number | null
 }

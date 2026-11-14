@@ -264,7 +264,7 @@ def parse_number(value: Any, number_format: NumberFormat) -> Dezimal:
     return -number if negative and number != 0 else number
 
 
-def _decimal_separator_hint(value: str) -> Optional[NumberFormat]:
+def decimal_separator_hint(value: str) -> Optional[NumberFormat]:
     try:
         body, _ = _number_body(value.strip())
     except ValueError:
@@ -295,7 +295,7 @@ def _decimal_separator_hint(value: str) -> Optional[NumberFormat]:
 
 def infer_number_format(values: Iterable[Any]) -> Optional[NumberFormat]:
     hints = {
-        _decimal_separator_hint(value) for value in values if isinstance(value, str)
+        decimal_separator_hint(value) for value in values if isinstance(value, str)
     }
     hints.discard(None)
     return hints.pop() if len(hints) == 1 else None

@@ -104,13 +104,13 @@ def _decode_text(data: bytes) -> str:
     return data.decode("latin-1")
 
 
-def text_segments(text: str) -> list[DocumentSegment]:
+def text_segments(text: str, max_chars: int = CHUNK_CHARS) -> list[DocumentSegment]:
     lines = [line.rstrip() for line in text[:MAX_TEXT_CHARS].splitlines()]
     segments, current, size = [], [], 0
     for line in lines:
         if not line.strip():
             continue
-        if current and size + len(line) > CHUNK_CHARS:
+        if current and size + len(line) > max_chars:
             segments.append(DocumentSegment("\n".join(current)))
             current, size = [], 0
         current.append(line)
@@ -118,6 +118,18 @@ def text_segments(text: str) -> list[DocumentSegment]:
     if current:
         segments.append(DocumentSegment("\n".join(current)))
     return segments
+
+
+def fit_segments(
+    segments: list[DocumentSegment], max_chars: int
+) -> list[DocumentSegment]:
+    fitted = []
+    for segment in segments:
+        if segment.attachments or len(segment.text) <= max_chars:
+            fitted.append(segment)
+        else:
+            fitted += text_segments(segment.text, max_chars)
+    return fitted
 
 
 def table_segments(rows: list[list]) -> list[DocumentSegment]:
@@ -209,6 +221,27 @@ class ImportDocumentReader:
         if not segments:
             raise AIImportFailed(ImportResultCode.AI_EXTRACTION_EMPTY)
         return ImportDocument(segments=segments)
+
+    async def split(self, segment: DocumentSegment) -> list[DocumentSegment]:
+        if not segment.attachments:
+            lines = segment.text.splitlines()
+            if len(lines) < 2:
+                return []
+            middle = len(lines) // 2
+            return [
+                DocumentSegment("\n".join(lines[:middle])),
+                DocumentSegment("\n".join(lines[middle:])),
+            ]
+        if (
+            self._image_normalizer is None
+            or len(segment.attachments) != 1
+            or not segment.attachments[0].mime_type.startswith("image/")
+        ):
+            return []
+        halves = await self._image_normalizer.split(
+            segment.attachments[0], MAX_IMAGE_BYTES
+        )
+        return [DocumentSegment(segment.text, [half]) for half in halves]
 
     def _text_document(self, text: str) -> ImportDocument:
         segments = text_segments(text)

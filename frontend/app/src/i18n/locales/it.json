@@ -1568,7 +1568,7 @@
       "import": "Importa GGUF",
       "importTitle": "Seleziona un file di modello GGUF",
       "importSuccess": "{model} importato",
-      "importHint": "I file importati vengono usati dalla loro posizione, non vengono copiati. Puoi anche mettere file GGUF nella cartella dei modelli e premere Aggiorna.",
+      "importHint": "I file importati vengono usati dalla loro posizione, non vengono copiati. Puoi anche mettere file GGUF nella cartella dei modelli e premere Aggiorna. Per leggere immagini, tieni il file mmproj del modello nella stessa cartella.",
       "openFolder": "Apri cartella",
       "recommended": "Consigliati",
       "params": "{params} parametri",
@@ -1583,6 +1583,12 @@
       "deleteMessage": "{model} verrà eliminato. Potrai scaricarlo di nuovo più tardi.",
       "deleteImportedMessage": "{model} verrà rimosso da Finanze. Il file originale viene mantenuto.",
       "deleted": "{model} eliminato",
+      "includeVision": "Includi supporto immagini (+{size})",
+      "addVision": "Aggiungi supporto immagini (+{size})",
+      "removeVision": "Rimuovi supporto immagini",
+      "removeVisionMessage": "I file di supporto immagini di {model} verranno eliminati. Continuerà a funzionare con il testo e potrai aggiungerli di nuovo più tardi.",
+      "visionRemoved": "Supporto immagini rimosso da {model}",
+      "remove": "Rimuovi",
       "huggingFace": "Altri modelli da Hugging Face",
       "huggingFaceHint": "Inserisci un repository di Hugging Face con file GGUF, ad esempio unsloth/Qwen3.5-4B-GGUF. I modelli piccoli (meno di 4B parametri) funzionano meglio sulla maggior parte dei dispositivi.",
       "repoPlaceholder": "proprietario/repository",
@@ -1601,7 +1607,8 @@
         "SLEEPING": "Inattivo",
         "DOWNLOADING": "Download in corso",
         "FAILED": "Avvio non riuscito",
-        "MISSING": "File non trovato"
+        "MISSING": "File non trovato",
+        "INCOMPLETE": "Download incompleto"
       },
       "sources": {
         "CATALOG": "Consigliato",

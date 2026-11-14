@@ -66,12 +66,25 @@ ENTRY = LocalModelCatalogEntry(
     license="apache-2.0",
     decisions=True,
 )
+VISION_ID = "org/Vision-GGUF:Q4_K_M"
+VISION_ENTRY = LocalModelCatalogEntry(
+    id=VISION_ID,
+    name="Vision",
+    repo="org/Vision-GGUF",
+    quant="Q4_K_M",
+    size=1000,
+    ram=2000,
+    params="2B",
+    license="apache-2.0",
+    vision_size=300,
+    vision_ram=500,
+)
 CAPABILITIES = LocalModelsCapabilities(built_in_available=True, can_import_files=True)
 
 
 class FakeCatalog(LocalModelCatalog):
     def entries(self):
-        return [ENTRY]
+        return [ENTRY, VISION_ENTRY]
 
 
 class FakeRuntime:
@@ -98,28 +111,38 @@ class FakeRuntime:
 
 
 class FakeRouter:
-    def __init__(self, models=None, error=None):
+    def __init__(self, models=None, error=None, snapshots=None):
         self.models = models or []
+        self.snapshots = list(snapshots or [])
         self.error = error
         self.list_calls: list[bool] = []
         self.downloads: list[str] = []
         self.deleted: list[str] = []
         self.unloaded: list[str] = []
+        self.calls: list[tuple[str, str]] = []
 
     async def list_models(self, connection, reload=False):
         self.list_calls.append(reload)
         if self.error:
             raise self.error
+        if self.snapshots:
+            self.models = self.snapshots.pop(0)
         return self.models
 
-    async def download(self, connection, model_id):
+    async def download(self, connection, model_id, vision=False):
         self.downloads.append(model_id)
+        self.calls.append(("download_vision" if vision else "download", model_id))
 
     async def delete(self, connection, model_id):
         self.deleted.append(model_id)
+        self.calls.append(("delete", model_id))
+
+    async def delete_vision(self, connection, model_id):
+        self.calls.append(("delete_vision", model_id))
 
     async def unload(self, connection, model_id):
         self.unloaded.append(model_id)
+        self.calls.append(("unload", model_id))
 
 
 class FakeImports:
@@ -174,7 +197,7 @@ class TestGetLocalModels:
         overview = await self._use_case(None, runtime=runtime).execute()
         assert overview.connected is False
         assert overview.capabilities == CAPABILITIES
-        assert overview.catalog == [ENTRY]
+        assert overview.catalog == [ENTRY, VISION_ENTRY]
         assert overview.models == []
         assert runtime.resolved == 0
 
@@ -282,6 +305,58 @@ class TestGetLocalModels:
         ).execute()
         assert overview.error == LocalModelErrorCode.RUNTIME_FAILED
         assert overview.mode is None
+
+    @pytest.mark.asyncio
+    async def test_vision_state(self):
+        router = FakeRouter(
+            [
+                _model(VISION_ID, LocalModelState.LOADED, vision=True, has_mmproj=True),
+                _model("org/Vision-GGUF:Q8_0", LocalModelState.DOWNLOADING),
+                _model("org/text-GGUF:Q4_K_M"),
+                _model("local/mine", vision=True),
+            ]
+        )
+        imports = FakeImports(
+            [
+                ImportedLocalModel(
+                    id="local/mine",
+                    path="/a/mine.gguf",
+                    size=70,
+                    mmproj_path="/a/mmproj-F16.gguf",
+                    mmproj_size=30,
+                )
+            ]
+        )
+        overview = await self._use_case({}, router=router, imports=imports).execute()
+        by_id = {m.id: m for m in overview.models}
+
+        installed = by_id[VISION_ID]
+        assert installed.vision is True
+        assert installed.size == 1300
+        assert installed.vision_size == 300
+        assert installed.vision_removable is True
+        assert installed.vision_addable is False
+        downloading = by_id["org/Vision-GGUF:Q8_0"]
+        assert downloading.vision_addable is False
+        assert downloading.vision_removable is False
+        text = by_id["org/text-GGUF:Q4_K_M"]
+        assert text.vision is False
+        assert text.vision_addable is False
+        mine = by_id["local/mine"]
+        assert mine.vision is True
+        assert mine.size == 100
+        assert mine.vision_size == 30
+        assert mine.vision_removable is False
+
+    @pytest.mark.asyncio
+    async def test_catalog_text_install_can_add_vision(self):
+        router = FakeRouter([_model(VISION_ID)])
+        overview = await self._use_case({}, router=router).execute()
+        model = overview.models[0]
+        assert model.vision is False
+        assert model.size == 1000
+        assert model.vision_addable is True
+        assert model.vision_removable is False
 
 
 class TestDownloadLocalModel:
@@ -392,6 +467,103 @@ class TestDownloadLocalModel:
         )
         assert router.downloads == [CATALOG_ID]
 
+    @pytest.mark.asyncio
+    async def test_downloads_catalog_entry_with_vision(self):
+        router = FakeRouter()
+        await self._use_case(
+            {}, FakeRuntime(free=1300 + FREE_SPACE_MARGIN), router
+        ).execute(DownloadLocalModelRequest(catalog_id=VISION_ID, vision=True))
+        assert router.calls == [("download_vision", VISION_ID)]
+
+    @pytest.mark.asyncio
+    async def test_vision_download_counts_projector_space(self):
+        router = FakeRouter()
+        with pytest.raises(LocalModelError) as error:
+            await self._use_case(
+                {}, FakeRuntime(free=1300 + FREE_SPACE_MARGIN - 1), router
+            ).execute(DownloadLocalModelRequest(catalog_id=VISION_ID, vision=True))
+        assert error.value.code == LocalModelErrorCode.INSUFFICIENT_SPACE
+        assert router.calls == []
+
+    @pytest.mark.asyncio
+    async def test_vision_requires_projector(self):
+        router = FakeRouter()
+        with pytest.raises(LocalModelError) as error:
+            await self._use_case({}, FakeRuntime(free=10**12), router).execute(
+                DownloadLocalModelRequest(catalog_id=CATALOG_ID, vision=True)
+            )
+        assert error.value.code == LocalModelErrorCode.INVALID_MODEL
+        assert router.calls == []
+
+    @pytest.mark.asyncio
+    async def test_adds_vision_to_installed_model(self):
+        router = FakeRouter([_model(VISION_ID, LocalModelState.LOADED)])
+        await self._use_case(
+            {}, FakeRuntime(free=300 + FREE_SPACE_MARGIN), router
+        ).execute(DownloadLocalModelRequest(catalog_id=VISION_ID, vision=True))
+        assert router.calls == [
+            ("unload", VISION_ID),
+            ("download_vision", VISION_ID),
+        ]
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            _model(VISION_ID, vision=True, has_mmproj=True),
+            _model(VISION_ID, LocalModelState.DOWNLOADING, has_mmproj=True),
+            _model(VISION_ID, LocalModelState.DOWNLOADING),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_vision_already_present_or_pending_is_noop(self, model):
+        router = FakeRouter([model])
+        await self._use_case({}, FakeRuntime(free=10**12), router).execute(
+            DownloadLocalModelRequest(catalog_id=VISION_ID, vision=True)
+        )
+        assert router.calls == []
+
+    @pytest.mark.asyncio
+    async def test_resumes_incomplete_download(self):
+        router = FakeRouter([_model(CATALOG_ID, LocalModelState.INCOMPLETE)])
+        await self._use_case({}, FakeRuntime(free=10**12), router).execute(
+            DownloadLocalModelRequest(catalog_id=CATALOG_ID)
+        )
+        assert router.calls == [("download", CATALOG_ID)]
+
+    @pytest.mark.asyncio
+    async def test_hugging_face_quant_with_vision(self):
+        router = FakeRouter()
+        quants = HuggingFaceQuants(
+            repo="org/model-GGUF",
+            quants=[
+                HuggingFaceQuantOption(
+                    quant="Q4_K_M",
+                    file="m-Q4_K_M.gguf",
+                    size=500,
+                    vision_file="mmproj-F16.gguf",
+                    vision_size=100,
+                )
+            ],
+        )
+        with pytest.raises(LocalModelError) as error:
+            await self._use_case(
+                {}, FakeRuntime(free=600 + FREE_SPACE_MARGIN - 1), router, quants
+            ).execute(
+                DownloadLocalModelRequest(
+                    repo="org/model-GGUF", quant="Q4_K_M", vision=True
+                )
+            )
+        assert error.value.code == LocalModelErrorCode.INSUFFICIENT_SPACE
+
+        await self._use_case(
+            {}, FakeRuntime(free=600 + FREE_SPACE_MARGIN), router, quants
+        ).execute(
+            DownloadLocalModelRequest(
+                repo="org/model-GGUF", quant="Q4_K_M", vision=True
+            )
+        )
+        assert router.calls == [("download_vision", "org/model-GGUF:Q4_K_M")]
+
 
 class TestDeleteLocalModel:
     def _use_case(self, payload=None, runtime=None, router=None, imports=None):
@@ -483,6 +655,92 @@ class TestDeleteLocalModel:
             ).execute(LocalModelRequest(model_id="local/remote"))
         assert error.value.code == LocalModelErrorCode.NOT_DELETABLE
         assert imports.removed == []
+
+    @pytest.mark.asyncio
+    async def test_removes_vision_of_repo(self):
+        router = FakeRouter(
+            [
+                _model(VISION_ID, LocalModelState.LOADED, has_mmproj=True),
+                _model("org/Vision-GGUF:Q8_0", LocalModelState.SLEEPING),
+                _model("org/other-GGUF:Q4_K_M", LocalModelState.LOADED),
+            ]
+        )
+        await self._use_case({}, router=router).execute(
+            LocalModelRequest(model_id=VISION_ID, vision_only=True)
+        )
+        assert router.calls == [
+            ("unload", VISION_ID),
+            ("unload", "org/Vision-GGUF:Q8_0"),
+            ("delete_vision", VISION_ID),
+        ]
+        assert router.list_calls == [False, True]
+
+    @pytest.mark.asyncio
+    async def test_remove_vision_without_projector(self):
+        router = FakeRouter([_model(VISION_ID)])
+        with pytest.raises(LocalModelError) as error:
+            await self._use_case({}, router=router).execute(
+                LocalModelRequest(model_id=VISION_ID, vision_only=True)
+            )
+        assert error.value.code == LocalModelErrorCode.MODEL_NOT_FOUND
+        assert router.calls == []
+
+    @pytest.mark.asyncio
+    async def test_cancelled_vision_download_keeps_model(self):
+        router = FakeRouter(
+            snapshots=[
+                [_model(VISION_ID, LocalModelState.DOWNLOADING, has_mmproj=True)],
+                [_model(VISION_ID)],
+            ]
+        )
+        await self._use_case({}, router=router).execute(
+            LocalModelRequest(model_id=VISION_ID)
+        )
+        assert router.calls == [
+            ("unload", VISION_ID),
+            ("delete_vision", VISION_ID),
+        ]
+        assert router.deleted == []
+
+    @pytest.mark.asyncio
+    async def test_cancelled_new_download_is_deleted(self):
+        router = FakeRouter(
+            snapshots=[
+                [_model(VISION_ID, LocalModelState.DOWNLOADING, has_mmproj=True)],
+                [_model(VISION_ID, LocalModelState.INCOMPLETE, has_mmproj=True)],
+            ]
+        )
+        await self._use_case({}, router=router).execute(
+            LocalModelRequest(model_id=VISION_ID)
+        )
+        assert router.calls == [("unload", VISION_ID), ("delete", VISION_ID)]
+
+    @pytest.mark.asyncio
+    async def test_last_quant_removes_projector_first(self):
+        router = FakeRouter(
+            [_model(VISION_ID, LocalModelState.LOADED, has_mmproj=True)]
+        )
+        await self._use_case({}, router=router).execute(
+            LocalModelRequest(model_id=VISION_ID)
+        )
+        assert router.calls == [
+            ("unload", VISION_ID),
+            ("delete_vision", VISION_ID),
+            ("delete", VISION_ID),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_shared_projector_is_kept(self):
+        router = FakeRouter(
+            [
+                _model(VISION_ID, has_mmproj=True),
+                _model("org/vision-gguf:Q8_0", has_mmproj=True),
+            ]
+        )
+        await self._use_case({}, router=router).execute(
+            LocalModelRequest(model_id=VISION_ID)
+        )
+        assert router.calls == [("delete", VISION_ID)]
 
 
 class TestImportLocalModel:

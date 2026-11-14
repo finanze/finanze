@@ -12,6 +12,7 @@ from application.ports.config_port import ConfigPort
 from application.ports.external_integration_port import ExternalIntegrationPort
 from domain.ai import (
     AIClientFeature,
+    AIGeneration,
     AIGenerationRequest,
     AIGenerationStatus,
     AIInputModality,
@@ -35,21 +36,32 @@ from domain.importing import (
     ImportResultCode,
 )
 from domain.settings import AIProviderEntry, SettingsSection, effective_ai_providers
+from domain.template_fields import TemplateFieldType
+from infrastructure.ai_import.extracted_rows import (
+    ExtractedRow,
+    apply_balance_directions,
+    drop_shared_refs,
+    normalize_response,
+)
 from infrastructure.ai_import.import_document import (
     DocumentSegment,
     ImportDocument,
     ImportDocumentReader,
+    fit_segments,
 )
 from infrastructure.ai_import.import_schema import (
+    BALANCE_FIELD,
     REF_FIELD,
     SCHEMA_NAME,
     build_instructions,
     build_schema,
     import_schema_fields,
+    signed_amounts,
 )
 
 MAX_ROWS = 2000
 MAX_OUTPUT_TOKENS = 16_000
+MAX_SPLIT_DEPTH = 2
 SEGMENT_PROMPT = "Extract the rows from this part ({index}/{total}) of the document."
 DOCUMENT_PROMPT = "Extract the rows from the attached document."
 _NON_ALNUM = re.compile(r"[^0-9a-z]+")
@@ -97,29 +109,14 @@ def _fill_refs(fields: list[str], rows: list[list[str]]):
         row[ref_i] = f"ai-{digest}" if occurrence == 0 else f"ai-{digest}-{occurrence}"
 
 
-def _cell(value) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value).strip()
-
-
-def _parse_rows(text: Optional[str], fields: list[str]) -> list[list[str]]:
+def _parse_rows(text: Optional[str]) -> list[dict]:
     if not text:
         raise ValueError("Empty response")
     body = json.loads(text)
     rows = body.get("rows") if isinstance(body, dict) else None
     if not isinstance(rows, list):
         raise ValueError("Missing rows")
-    parsed = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        cells = [_cell(row.get(name)) for name in fields]
-        if any(cells):
-            parsed.append(cells)
-    return parsed
+    return [row for row in rows if isinstance(row, dict)]
 
 
 class _CandidateFailed(Exception):
@@ -163,6 +160,10 @@ class AIImportExtractorAdapter(AIImportExtractor):
 
         schema_fields = import_schema_fields(request.fields)
         field_names = [field.field for field in schema_fields]
+        balance = signed_amounts(request.feature, request.product)
+        field_types = {field.field: field.type for field in schema_fields}
+        if balance:
+            field_types[BALANCE_FIELD] = TemplateFieldType.DECIMAL
         user_instructions = "\n".join(
             part.strip()
             for part in (
@@ -171,18 +172,26 @@ class AIImportExtractorAdapter(AIImportExtractor):
             )
             if part and part.strip()
         )
-        instructions = build_instructions(
-            request.feature, request.product, schema_fields, user_instructions
-        )
-        schema = AIJsonSchema(
-            name=SCHEMA_NAME, schema=build_schema(schema_fields, request.product)
-        )
 
         last_error: Optional[str] = None
         for candidate in candidates:
+            omit_empty = AIClientFeature.OPTIONAL_FIELDS in candidate.client.features()
+            instructions = build_instructions(
+                request.feature,
+                request.product,
+                schema_fields,
+                user_instructions,
+                omit_empty,
+            )
+            schema = AIJsonSchema(
+                name=SCHEMA_NAME,
+                schema=build_schema(
+                    schema_fields, request.product, omit_empty, balance
+                ),
+            )
             try:
                 rows, requests = await self._run(
-                    candidate, document, instructions, schema, field_names
+                    candidate, document, instructions, schema, field_types
                 )
             except _CandidateFailed as e:
                 last_error = str(e)
@@ -195,14 +204,18 @@ class AIImportExtractorAdapter(AIImportExtractor):
                 continue
             if not rows:
                 raise AIImportFailed(ImportResultCode.AI_EXTRACTION_EMPTY)
-            _fill_refs(field_names, rows)
+            if balance:
+                apply_balance_directions(rows)
+            drop_shared_refs(rows)
+            cells = [[row[name] for name in field_names] for row in rows]
+            _fill_refs(field_names, cells)
             return AIImportExtraction(
                 fields=field_names,
-                rows=rows,
+                rows=cells,
                 metadata=AIImportMetadata(
                     provider=candidate.entry.provider,
                     model=candidate.entry.model,
-                    rows=len(rows),
+                    rows=len(cells),
                     requests=requests,
                     pages=document.pages,
                     images=document.modality is not None,
@@ -217,57 +230,95 @@ class AIImportExtractorAdapter(AIImportExtractor):
         document: ImportDocument,
         instructions: str,
         schema: AIJsonSchema,
-        field_names: list[str],
-    ) -> tuple[list[list[str]], int]:
-        rows: list[list[str]] = []
-        total = len(document.segments)
+        field_types: dict[str, TemplateFieldType],
+    ) -> tuple[list[ExtractedRow], int]:
+        segments = document.segments
+        context_length = candidate.model.context_length if candidate.model else None
+        if context_length:
+            # About one text char per context token leaves room for the extracted rows
+            segments = fit_segments(segments, context_length)
+        rows: list[ExtractedRow] = []
+        requests = 0
+        total = len(segments)
         temperature = (
             Dezimal(0)
             if candidate.model is not None
             and AIModelCapability.TEMPERATURE in candidate.model.capabilities
             else None
         )
-        for index, segment in enumerate(document.segments, start=1):
-            prompt = self._prompt(segment, index, total)
-            request = AIGenerationRequest(
-                model=candidate.entry.model,
-                messages=[
-                    AIMessage(
-                        role=AIMessageRole.USER,
-                        content=prompt,
-                        attachments=segment.attachments,
-                    )
-                ],
-                instructions=instructions,
-                response_schema=schema,
-                temperature=temperature,
-                max_output_tokens=MAX_OUTPUT_TOKENS,
-                upstream_provider=candidate.entry.upstreamProvider or None,
-            )
-            try:
-                generation = await candidate.client.generate(
-                    request, candidate.credentials
+        for index, segment in enumerate(segments, start=1):
+            pending = [(segment, 0)]
+            while pending:
+                part, depth = pending.pop(0)
+                requests += 1
+                generation = await self._generate(
+                    candidate,
+                    part,
+                    self._prompt(part, index, total),
+                    instructions,
+                    schema,
+                    temperature,
                 )
-            except (AIProviderError, TooManyRequests) as e:
-                if segment.attachments and (
-                    candidate.model is None or candidate.model.input_modalities is None
+                if (
+                    generation.status == AIGenerationStatus.INCOMPLETE
+                    and depth < MAX_SPLIT_DEPTH
                 ):
-                    self._no_vision.add(
-                        (candidate.entry.provider, candidate.entry.model)
+                    halves = await self._document_reader.split(part)
+                    if halves:
+                        self._log.info(
+                            "AI import output for part %d/%d was cut off, splitting it",
+                            index,
+                            total,
+                        )
+                        pending[:0] = [(half, depth + 1) for half in halves]
+                        continue
+                if generation.status != AIGenerationStatus.COMPLETED:
+                    raise _CandidateFailed(generation.status.value)
+                try:
+                    rows += normalize_response(
+                        _parse_rows(generation.text), field_types
                     )
-                code = getattr(e, "code", None)
-                raise _CandidateFailed(
-                    code.value if code is not None else type(e).__name__
-                ) from e
-            if generation.status != AIGenerationStatus.COMPLETED:
-                raise _CandidateFailed(generation.status.value)
-            try:
-                rows += _parse_rows(generation.text, field_names)
-            except ValueError as e:
-                raise _CandidateFailed("INVALID_RESPONSE") from e
-            if len(rows) >= MAX_ROWS:
-                return rows[:MAX_ROWS], index
-        return rows, total
+                except ValueError as e:
+                    raise _CandidateFailed("INVALID_RESPONSE") from e
+                if len(rows) >= MAX_ROWS:
+                    return rows[:MAX_ROWS], requests
+        return rows, requests
+
+    async def _generate(
+        self,
+        candidate: _Candidate,
+        segment: DocumentSegment,
+        prompt: str,
+        instructions: str,
+        schema: AIJsonSchema,
+        temperature: Optional[Dezimal],
+    ) -> AIGeneration:
+        request = AIGenerationRequest(
+            model=candidate.entry.model,
+            messages=[
+                AIMessage(
+                    role=AIMessageRole.USER,
+                    content=prompt,
+                    attachments=segment.attachments,
+                )
+            ],
+            instructions=instructions,
+            response_schema=schema,
+            temperature=temperature,
+            max_output_tokens=MAX_OUTPUT_TOKENS,
+            upstream_provider=candidate.entry.upstreamProvider or None,
+        )
+        try:
+            return await candidate.client.generate(request, candidate.credentials)
+        except (AIProviderError, TooManyRequests) as e:
+            if segment.attachments and (
+                candidate.model is None or candidate.model.input_modalities is None
+            ):
+                self._no_vision.add((candidate.entry.provider, candidate.entry.model))
+            code = getattr(e, "code", None)
+            raise _CandidateFailed(
+                code.value if code is not None else type(e).__name__
+            ) from e
 
     @staticmethod
     def _prompt(segment: DocumentSegment, index: int, total: int) -> str:

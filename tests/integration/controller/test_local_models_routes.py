@@ -88,7 +88,10 @@ class FakeLlamaServer:
         self.api_key = None
         self.cached: dict[str, dict] = {}
         self.presets: dict[str, str] = {}
+        self.preset_mmproj: dict[str, str] = {}
         self.states: dict[str, str] = {}
+        self.vision: set[str] = set()
+        self.removals: list[tuple[str, str]] = []
         self.hf_info = {
             "id": HF_REPO,
             "siblings": [
@@ -106,12 +109,20 @@ class FakeLlamaServer:
 
     def _reload_presets(self):
         self.presets = {}
+        self.preset_mmproj = {}
         current = None
         for line in presets_path(self.models_dir).read_text().splitlines():
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]
             elif current and line.startswith("model = "):
                 self.presets[current] = line[len("model = ") :]
+            elif current and line.startswith("mmproj = "):
+                self.preset_mmproj[current] = line[len("mmproj = ") :]
+
+    @staticmethod
+    def _architecture(vision: bool) -> dict:
+        inputs = ["text", "image"] if vision else ["text"]
+        return {"input_modalities": inputs, "output_modalities": ["text"]}
 
     def _entries(self) -> list[dict]:
         entries = [
@@ -120,6 +131,8 @@ class FakeLlamaServer:
                 "status": {"value": self.states.get(model_id, "downloaded")},
                 "meta": {"size": size},
                 "can_remove": True,
+                "architecture": self._architecture(model_id in self.vision),
+                "sidecars": ["mmproj"] if model_id in self.vision else [],
             }
             for model_id, size in self.cached.items()
         ]
@@ -128,6 +141,7 @@ class FakeLlamaServer:
                 "id": model_id,
                 "status": {"value": self.states.get(model_id, "unloaded")},
                 "can_remove": False,
+                "architecture": self._architecture(model_id in self.preset_mmproj),
             }
             for model_id in self.presets
         ]
@@ -147,11 +161,22 @@ class FakeLlamaServer:
                 self._reload_presets()
             return _response(200, {"data": self._entries()})
         if path == "/models" and method == "POST":
+            if json["model"] in self.states and self.states[json["model"]] == "loaded":
+                return _response(400, {"error": {"message": "unload it first"}})
             self.cached[json["model"]] = 1000
+            if "mmproj" in json.get("sidecars", []):
+                self.vision.add(json["model"])
             return _response(200, {"success": True})
         if path == "/models" and method == "DELETE":
             if params["model"] not in self.cached:
                 return _response(404, {"error": {"message": "Not found"}})
+            if self.states.get(params["model"]) == "loaded":
+                return _response(400, {"error": {"message": "unload it first"}})
+            if params.get("sidecar") == "mmproj":
+                self.removals.append(("sidecar", params["model"]))
+                self.vision.discard(params["model"])
+                return _response(200, {"success": True})
+            self.removals.append(("model", params["model"]))
             del self.cached[params["model"]]
             return _response(200, {"success": True})
         if path in ("/models/load", "/models/unload"):
@@ -405,7 +430,7 @@ async def test_built_in_model_lifecycle(ctx):
     assert provider["connected"] is True
     assert provider["dynamic_models"] is True
     assert provider["custom_models"] is False
-    assert provider["attachments"] is False
+    assert provider["attachments"] is True
 
     response = await ctx.http.get(
         "/api/v1/ai/providers/LOCAL_MODELS/models", query_string={"task": "IMPORTING"}
@@ -459,6 +484,102 @@ async def test_model_in_folder_is_listed(ctx):
     assert response.status_code == 204
     assert not (local_dir / "qwen.gguf").exists()
     assert (await ctx.overview(refresh=True))["models"] == []
+
+
+@pytest.mark.asyncio
+async def test_vision_lifecycle(ctx):
+    await ctx.connect()
+    catalog_id = "unsloth/Qwen3.5-0.8B-GGUF:Q4_K_M"
+    ctx.server.hf_info["siblings"].append(
+        {"rfilename": "mmproj-F16.gguf", "lfs": {"size": 200}}
+    )
+
+    response = await ctx.http.get(
+        "/api/v1/ai/local/huggingface/quants", query_string={"repo": HF_REPO}
+    )
+    quant = (await response.get_json())["quants"][0]
+    assert (quant["vision_file"], quant["vision_size"]) == ("mmproj-F16.gguf", 200)
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download",
+        json={"repo": HF_REPO, "quant": "Q4_K_M", "vision": True},
+    )
+    assert response.status_code == 204
+    assert ctx.server.vision == {HF_MODEL}
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download",
+        json={"catalog_id": catalog_id, "vision": "yes"},
+    )
+    assert response.status_code == 400
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download", json={"catalog_id": catalog_id}
+    )
+    assert response.status_code == 204
+    assert catalog_id not in ctx.server.vision
+
+    overview = await ctx.overview()
+    models = {m["id"]: m for m in overview["models"]}
+    assert models[HF_MODEL]["vision"] is True
+    assert models[HF_MODEL]["vision_removable"] is True
+    catalog_model = models[catalog_id]
+    assert catalog_model["vision"] is False
+    assert catalog_model["vision_addable"] is True
+    assert catalog_model["vision_size"] == 207346528
+
+    ctx.server.states[catalog_id] = "loaded"
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download",
+        json={"catalog_id": catalog_id, "vision": True},
+    )
+    assert response.status_code == 204
+    assert ctx.server.states[catalog_id] == "unloaded"
+    assert catalog_id in ctx.server.vision
+
+    response = await ctx.http.get(
+        "/api/v1/ai/providers/LOCAL_MODELS/models", query_string={"task": "IMPORTING"}
+    )
+    modalities = {
+        m["id"]: m["input_modalities"] for m in (await response.get_json())["models"]
+    }
+    assert modalities[catalog_id] == ["IMAGE", "TEXT"]
+
+    ctx.server.states[catalog_id] = "loaded"
+    response = await ctx.http.delete(
+        "/api/v1/ai/local/models",
+        query_string={"model_id": catalog_id, "vision_only": "true"},
+    )
+    assert response.status_code == 204
+    assert catalog_id not in ctx.server.vision
+    assert catalog_id in ctx.server.cached
+    models = {m["id"]: m for m in (await ctx.overview())["models"]}
+    assert models[catalog_id]["vision"] is False
+
+    response = await ctx.http.delete(
+        "/api/v1/ai/local/models", query_string={"model_id": HF_MODEL}
+    )
+    assert response.status_code == 204
+    assert ctx.server.removals[-2:] == [("sidecar", HF_MODEL), ("model", HF_MODEL)]
+
+
+@pytest.mark.asyncio
+async def test_imported_model_uses_projector_in_same_folder(ctx):
+    await ctx.connect()
+    model_file = ctx.gguf("gemma-Q4_K_M.gguf")
+    projector = ctx.gguf("mmproj-gemma-F16.gguf")
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/import", json={"path": str(model_file)}
+    )
+    assert response.status_code == 200
+    assert (await response.get_json())["mmproj_path"] == str(projector.resolve())
+    assert ctx.server.preset_mmproj == {"local/gemma-q4_k_m": str(projector.resolve())}
+
+    models = (await ctx.overview(refresh=True))["models"]
+    assert [(m["id"], m["vision"], m["size"]) for m in models] == [
+        ("local/gemma-q4_k_m", True, 40)
+    ]
 
 
 @pytest.mark.asyncio

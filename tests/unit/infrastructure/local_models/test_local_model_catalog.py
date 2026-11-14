@@ -17,6 +17,15 @@ class TestStaticLocalModelCatalog:
             assert entry.id == hugging_face_model_id(entry.repo, entry.quant)
             assert entry.size > 0
             assert entry.ram > entry.size
+            assert (entry.vision_size is None) == (entry.vision_ram is None)
+            if entry.vision_ram is not None:
+                assert entry.vision_ram > entry.vision_size
+
+    def test_vision_entries(self):
+        entries = {e.name: e for e in StaticLocalModelCatalog().entries()}
+        assert entries["Qwen3.5 0.8B"].vision_size == 207346528
+        assert entries["Granite 4.0 Micro"].vision_size is None
+        assert sum(1 for e in entries.values() if e.vision_size) == 8
 
     def test_find_is_case_insensitive(self):
         catalog = StaticLocalModelCatalog()

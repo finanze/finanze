@@ -155,6 +155,10 @@ class TestStart:
         assert _arg(args, "-np") == "1"
         assert _arg(args, "--reasoning-budget") == "0"
         assert "--no-ui" in args
+        assert "--offline" in args
+        assert _arg(args, "--image-max-tokens") == "2048"
+        assert "-ub" not in args
+        assert "LLAMA_ARG_OFFLINE" not in env
         assert env["LLAMA_API_KEY"] == connection.api_key
         assert len(connection.api_key) >= 32
         assert env["LLAMA_CACHE"] == str(models_dir / CACHE_FOLDER)
@@ -163,6 +167,7 @@ class TestStart:
         assert connection.base_url == f"http://127.0.0.1:{port}"
         assert connection.mode == LocalRuntimeMode.BUILT_IN
         assert connection.source == LocalRuntimeSource.BUILT_IN
+        assert connection.context_length == LlamaRouterProcess.CONTEXT_SIZE
         assert presets_path(models_dir).read_text() == "version = 1\n"
         assert (models_dir / CACHE_FOLDER).is_dir()
         assert (models_dir / PID_FILE).read_text() == "4242"

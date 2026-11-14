@@ -186,6 +186,7 @@ class TestInstall:
         (bin_dir / "libggml-cpu.so").write_bytes(b"cpu")
         (bin_dir / "libllama-server-impl.so").write_bytes(b"server-impl")
         (bin_dir / "libllama-cli-impl.so").write_bytes(b"cli-impl")
+        (bin_dir / "libmtmd.0.dylib").write_bytes(b"mtmd")
         (bin_dir / "README.md").write_text("readme")
         (bin_dir / "LICENSE").write_text("MIT")
         return root
@@ -206,6 +207,7 @@ class TestInstall:
             "libggml-cpu.so",
             "libllama-server-impl.so",
             "libllama.so.0",
+            "libmtmd.0.dylib",
         ]
         assert not any(p.is_symlink() for p in output.iterdir())
         assert (output / "libggml-base.0.dylib").read_bytes() == b"ggml-base"

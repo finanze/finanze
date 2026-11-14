@@ -176,3 +176,77 @@ class TestRemove:
     @pytest.mark.asyncio
     async def test_unknown(self, imports):
         assert await imports.remove("local/unknown") is False
+
+    @pytest.mark.asyncio
+    async def test_deletes_unshared_projector(self, imports, models_dir):
+        folder = models_dir / LOCAL_FOLDER
+        _gguf(folder / "b-Q4_K_M.gguf")
+        projector = _gguf(folder / "mmproj-F16.gguf")
+        assert await imports.remove("local/b-q4_k_m") is True
+        assert not projector.exists()
+        assert _presets(models_dir) == "version = 1\n"
+
+    @pytest.mark.asyncio
+    async def test_keeps_shared_projector(self, imports, models_dir):
+        folder = models_dir / LOCAL_FOLDER
+        _gguf(folder / "b-Q4_K_M.gguf")
+        _gguf(folder / "b-Q8_0.gguf")
+        projector = _gguf(folder / "mmproj-F16.gguf")
+        assert await imports.remove("local/b-q4_k_m") is True
+        assert projector.exists()
+        assert f"mmproj = {projector.resolve()}" in _presets(models_dir)
+
+    @pytest.mark.asyncio
+    async def test_never_deletes_referenced_projector(
+        self, imports, models_dir, tmp_path
+    ):
+        file = _gguf(tmp_path / "a-Q4_K_M.gguf")
+        projector = _gguf(tmp_path / "mmproj-F16.gguf")
+        model = await imports.add(str(file))
+        assert await imports.remove(model.id) is True
+        assert file.exists()
+        assert projector.exists()
+
+
+class TestProjectorPairing:
+    @pytest.mark.asyncio
+    async def test_pairs_closest_projector_in_same_folder(
+        self, imports, models_dir, tmp_path
+    ):
+        folder = tmp_path / "downloads"
+        file = _gguf(folder / "model-Q4_K_M.gguf")
+        _gguf(folder / "mmproj-F32.gguf", size=64)
+        projector = _gguf(folder / "mmproj-F16.gguf", size=32)
+        _gguf(folder / "sub" / "mmproj-Q4_0.gguf")
+        model = await imports.add(str(file))
+        assert model.mmproj_path == str(projector.resolve())
+        assert model.mmproj_size == 32
+        assert _presets(models_dir) == (
+            f"version = 1\n\n[{model.id}]\nmodel = {file.resolve()}\n"
+            f"mmproj = {projector.resolve()}\n"
+        )
+
+    @pytest.mark.asyncio
+    async def test_text_only_model(self, imports, models_dir, tmp_path):
+        model = await imports.add(str(_gguf(tmp_path / "model.gguf")))
+        assert model.mmproj_path is None
+        assert model.mmproj_size is None
+        assert "mmproj" not in _presets(models_dir)
+
+    @pytest.mark.asyncio
+    async def test_skips_unsafe_projector_path(self, imports, models_dir, tmp_path):
+        file = _gguf(tmp_path / "model.gguf")
+        _gguf(tmp_path / "mmproj;x-F16.gguf")
+        model = await imports.add(str(file))
+        assert model.mmproj_path is None
+        assert "mmproj" not in _presets(models_dir)
+
+    @pytest.mark.asyncio
+    async def test_folder_models_are_paired(self, imports, models_dir):
+        folder = models_dir / LOCAL_FOLDER
+        _gguf(folder / "b.gguf")
+        projector = _gguf(folder / "mmproj-b.gguf")
+        models = await imports.list()
+        assert [(m.id, m.mmproj_path) for m in models] == [
+            ("local/b", str(projector.resolve()))
+        ]

@@ -175,9 +175,43 @@ class TestListQuants:
             ("Q8_0", "model-Q8_0.gguf", 800),
             ("F16", "model-F16.gguf", None),
         ]
+        assert {(q.vision_file, q.vision_size) for q in result.quants} == {
+            ("mmproj-F16.gguf", 50)
+        }
         call = client._session.get.call_args
         assert call.args[0] == "https://huggingface.co/api/models/org/model-GGUF"
         assert call.kwargs["params"] == MODEL_INFO_PARAMS
+
+    @pytest.mark.asyncio
+    async def test_resolves_projector_like_llama_cpp(self):
+        client = _client(
+            HttpResponse(
+                httpx.Response(
+                    200,
+                    json=_info(
+                        _file("model-Q4_K_M.gguf", 400),
+                        _file("model-F16.gguf", 1600),
+                        _file("mmproj-F32.gguf", 90),
+                        _file("mmproj-Q8_0.gguf", 30),
+                        _file("mmproj-BF16.gguf", 50),
+                    ),
+                )
+            )
+        )
+        result = await client.list_quants("org/model-GGUF")
+        assert {q.quant: (q.vision_file, q.vision_size) for q in result.quants} == {
+            "Q4_K_M": ("mmproj-Q8_0.gguf", 30),
+            "F16": ("mmproj-BF16.gguf", 50),
+        }
+
+    @pytest.mark.asyncio
+    async def test_text_only_repo(self):
+        client = _client(
+            HttpResponse(httpx.Response(200, json=_info(_file("m-Q8_0.gguf", 1))))
+        )
+        result = await client.list_quants("org/model-GGUF")
+        assert result.quants[0].vision_file is None
+        assert result.quants[0].vision_size is None
 
     @pytest.mark.parametrize(
         "gguf, kind",

@@ -19,11 +19,17 @@ class LocalModelRouter(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def download(self, connection: LocalRouterConnection, model_id: str):
+    async def download(
+        self, connection: LocalRouterConnection, model_id: str, vision: bool = False
+    ):
         raise NotImplementedError
 
     @abc.abstractmethod
     async def delete(self, connection: LocalRouterConnection, model_id: str):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def delete_vision(self, connection: LocalRouterConnection, model_id: str):
         raise NotImplementedError
 
     @abc.abstractmethod

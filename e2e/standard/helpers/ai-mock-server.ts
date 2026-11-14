@@ -13,6 +13,11 @@ export interface MockReply {
 
 type ReplyFn = (call: ChatCall) => MockReply | Promise<MockReply>
 
+export interface RouterModel {
+    id: string
+    vision?: boolean
+}
+
 export interface AIMockServer {
     url: string
     calls: ChatCall[]
@@ -54,6 +59,7 @@ export function chatCompletion(content: unknown): MockReply {
 
 export async function startAIMockServer(
     models: string[],
+    routerModels: RouterModel[] = [],
 ): Promise<AIMockServer> {
     const calls: ChatCall[] = []
     let reply: ReplyFn = () => chatCompletion({ rows: [] })
@@ -62,6 +68,23 @@ export async function startAIMockServer(
         const send = (status: number, body: unknown) => {
             response.writeHead(status, { 'Content-Type': 'application/json' })
             response.end(JSON.stringify(body))
+        }
+        const path = new URL(request.url ?? '/', 'http://localhost').pathname
+        if (request.method === 'GET' && path === '/health') {
+            return send(200, { status: 'ok' })
+        }
+        if (request.method === 'GET' && path === '/models') {
+            return send(200, {
+                data: routerModels.map((model) => ({
+                    id: model.id,
+                    status: { value: 'loaded' },
+                    architecture: {
+                        input_modalities: model.vision
+                            ? ['text', 'image']
+                            : ['text'],
+                    },
+                })),
+            })
         }
         if (request.method === 'GET' && request.url === '/v1/models') {
             return send(200, {

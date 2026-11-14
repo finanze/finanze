@@ -15,6 +15,8 @@ class AIClientFeature(str, Enum):
     CUSTOM_MODELS = "CUSTOM_MODELS"
     SERVER_INFO = "SERVER_INFO"
     ATTACHMENTS = "ATTACHMENTS"
+    # Response schemas may leave nullable fields out of required, no strict mode
+    OPTIONAL_FIELDS = "OPTIONAL_FIELDS"
 
 
 class AIInputModality(str, Enum):
@@ -96,6 +98,8 @@ class AIModel:
     # None means the provider does not report which inputs the model accepts.
     input_modalities: Optional[set[AIInputModality]] = None
     vision_limits: Optional[AIVisionLimits] = None
+    # Tokens shared by prompt and output, None when unknown
+    context_length: Optional[int] = None
 
 
 @dataclass

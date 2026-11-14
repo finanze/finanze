@@ -554,9 +554,13 @@ export async function downloadLocalModel(
   return (await getApiClient()).post("/ai/local/models/download", request)
 }
 
-export async function deleteLocalModel(modelId: string): Promise<void> {
+export async function deleteLocalModel(
+  modelId: string,
+  visionOnly = false,
+): Promise<void> {
+  const query = `model_id=${encodeURIComponent(modelId)}`
   return (await getApiClient()).delete(
-    `/ai/local/models?model_id=${encodeURIComponent(modelId)}`,
+    `/ai/local/models?${visionOnly ? `${query}&vision_only=true` : query}`,
   )
 }
 

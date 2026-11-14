@@ -8,6 +8,7 @@ from domain.ai import (
     AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
+    AIInputModality,
     AIModel,
     AIModelCapability,
     AIServerError,
@@ -28,6 +29,7 @@ from infrastructure.client.ai.chat_completions import (
     parse_decisions,
 )
 from infrastructure.client.ai.http_ai_client import REASONING_EFFORTS, HttpAIClient
+from infrastructure.client.ai.input_modalities import parse_input_modalities
 from infrastructure.client.ai.openai_compatible.server_details import (
     describe_server,
     detect_server_kind,
@@ -60,6 +62,13 @@ def model_capabilities(entry: dict) -> set[AIModelCapability]:
     if isinstance(modalities, list) and DECISIONS_OUTPUT in modalities:
         capabilities.add(AIModelCapability.DECISIONS)
     return capabilities
+
+
+def _input_modalities(entry: dict) -> Optional[set[AIInputModality]]:
+    architecture = entry.get("architecture")
+    if not isinstance(architecture, dict):
+        return None
+    return parse_input_modalities(architecture.get("input_modalities"))
 
 
 class OpenAICompatibleClient(HttpAIClient):
@@ -141,6 +150,7 @@ class OpenAICompatibleClient(HttpAIClient):
                 id=str(entry["id"]),
                 name=str(entry.get("name") or entry["id"]),
                 capabilities=model_capabilities(entry),
+                input_modalities=_input_modalities(entry),
             )
             for entry in body.get("data") or []
             if isinstance(entry, dict) and entry.get("id")
