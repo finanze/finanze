@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import shutil
@@ -297,6 +298,28 @@ class DBManager(DatasourceInitiator, Backupable):
             return None
 
         return hashlib.sha3_256(self._pass.encode("utf-8")).hexdigest()
+
+    async def verify_password(self, password: str) -> bool:
+        user = self._user
+        if not self._unlocked or user is None or not password:
+            return False
+
+        return await asyncio.to_thread(
+            self._check_password, user.path / DB_NAME, password
+        )
+
+    @staticmethod
+    def _check_password(user_db_path: Path, password: str) -> bool:
+        connection = DBManager._base_connect(user_db_path)
+        try:
+            sanitized_pass = DBManager._sanitize_password(password)
+            connection.execute(f"PRAGMA key='{sanitized_pass}';")
+            connection.execute("SELECT count(*) FROM sqlite_master;")
+            return True
+        except DatabaseError:
+            return False
+        finally:
+            connection.close()
 
     def get_user(self) -> Optional[User]:
         return self._user

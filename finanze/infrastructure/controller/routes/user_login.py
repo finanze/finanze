@@ -22,7 +22,9 @@ async def user_login(user_login_uc: UserLogin):
     login_request = LoginRequest(username=username, password=password)
 
     try:
-        await user_login_uc.execute(login_request)
+        result = await user_login_uc.execute(login_request)
+        if result and result.session_token:
+            return jsonify({"token": result.session_token}), 200
         return "", 204
 
     except DecryptionError as e:

@@ -359,3 +359,45 @@ class TestGuestRegistration:
         updated_user = data_manager.update_user.call_args[0][0]
         assert updated_user.guest is False
         source_initiator.initialize.assert_called_once()
+
+
+class TestRegisterUserApiSession:
+    def _build(self, mocks):
+        api_session_port = MagicMock()
+        api_session_port.create.return_value = "issued-token"
+        use_case = RegisterUserImpl(*mocks, api_session_port=api_session_port)
+        return use_case, api_session_port
+
+    @pytest.mark.asyncio
+    async def test_registration_issues_session_token(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        use_case, api_session_port = self._build(_create_mocks(unlocked=False))
+
+        result = await use_case.execute(
+            LoginRequest(username="alice", password="secret12")
+        )
+
+        assert result.session_token == "issued-token"
+        api_session_port.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_guest_registration_issues_no_token(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        use_case, api_session_port = self._build(_create_mocks(unlocked=False))
+
+        result = await use_case.execute(LoginRequest(username="alice", guest=True))
+
+        assert result.session_token is None
+        api_session_port.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_failed_initialization_issues_no_token(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        mocks = _create_mocks(unlocked=False)
+        mocks[0].initialize.side_effect = RuntimeError("init failed")
+        use_case, api_session_port = self._build(mocks)
+
+        with pytest.raises(RuntimeError):
+            await use_case.execute(LoginRequest(username="alice", password="secret12"))
+
+        api_session_port.create.assert_not_called()

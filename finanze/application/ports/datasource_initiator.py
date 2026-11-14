@@ -23,6 +23,9 @@ class DatasourceInitiator(metaclass=abc.ABCMeta):
     async def change_password(self, params: DatasourceInitParams, new_password: str):
         raise NotImplementedError
 
+    async def verify_password(self, password: str) -> bool:
+        raise NotImplementedError
+
     @abc.abstractmethod
     async def get_hashed_password(self) -> Optional[str]:
         raise NotImplementedError

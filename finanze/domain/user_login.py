@@ -11,6 +11,11 @@ class LoginRequest:
 
 
 @dataclass
+class LoginResult:
+    session_token: Optional[str] = None
+
+
+@dataclass
 class ChangePasswordRequest:
     username: str
     old_password: str

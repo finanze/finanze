@@ -365,7 +365,12 @@ export async function login(
   authRequest: AuthRequest,
 ): Promise<{ code: AuthResultCode; message?: string }> {
   try {
-    await (await getApiClient()).post("/login", authRequest)
+    const client = await getApiClient()
+    const data = await client.post<{ token?: string } | null>(
+      "/login",
+      authRequest,
+    )
+    if (data?.token) client.setSessionToken(data.token)
     return { code: AuthResultCode.SUCCESS }
   } catch (error: any) {
     console.error("Login error:", error)
@@ -394,7 +399,9 @@ export const changePassword = async (
 }
 
 export async function logout(): Promise<void> {
-  return (await getApiClient()).post("/logout")
+  const client = await getApiClient()
+  await client.post("/logout")
+  client.setSessionToken(null)
 }
 
 export async function getContributions(
@@ -720,7 +727,12 @@ export async function signup(
   authRequest: AuthRequest,
 ): Promise<{ success: boolean }> {
   try {
-    await (await getApiClient()).post("/signup", authRequest)
+    const client = await getApiClient()
+    const data = await client.post<{ token?: string } | null>(
+      "/signup",
+      authRequest,
+    )
+    if (data?.token) client.setSessionToken(data.token)
     return { success: true }
   } catch (error: any) {
     console.error("Signup error:", error)

@@ -20,6 +20,12 @@ def app_args() -> argparse.ArgumentParser:
         default=default_user_dir,
     )
     parser.add_argument(
+        "--host",
+        help="Host interface on which the API server will listen (default: 127.0.0.1).",
+        type=str,
+        default=os.environ.get("FINANZE_HOST", "127.0.0.1"),
+    )
+    parser.add_argument(
         "--port",
         help="Port on which the API server will run.",
         type=int,
@@ -70,6 +76,9 @@ def parse_args() -> argparse.Namespace:
 
     args.logged_username = os.environ.get("USERNAME")
     args.logged_password = os.environ.get("PASSWORD")
+    args.api_session = os.environ.get(
+        "FINANZE_API_SESSION", "true"
+    ).strip().lower() not in ("0", "false", "no", "off")
 
     configure_logging(args)
     logging.info(f"Using data directory: {args.data_dir}")

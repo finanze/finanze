@@ -33,7 +33,9 @@ async def register_user(register_user_uc: RegisterUser):
     )
 
     try:
-        await register_user_uc.execute(login_request)
+        result = await register_user_uc.execute(login_request)
+        if result and result.session_token:
+            return jsonify({"token": result.session_token}), 200
         return "", 204
 
     except DecryptionError as e:

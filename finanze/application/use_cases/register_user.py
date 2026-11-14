@@ -4,6 +4,7 @@ import re
 from typing import Optional
 from uuid import uuid4
 
+from application.ports.api_session_port import ApiSessionPort
 from application.ports.cloud_register import CloudRegister
 from application.ports.config_port import ConfigPort
 from application.ports.data_manager import DataManager
@@ -14,7 +15,7 @@ from domain.data_init import DatasourceInitContext, DatasourceInitParams
 from domain.exception.exceptions import InvalidPassword, InvalidUsername
 from domain.use_cases.register_user import RegisterUser
 from domain.user import UserRegistration
-from domain.user_login import LoginRequest
+from domain.user_login import LoginRequest, LoginResult
 
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.$€#]{2,}$")
 PASSWORD_PATTERN = re.compile(r"^[\x21-\x7e]{8,}$")
@@ -29,6 +30,7 @@ class RegisterUserImpl(RegisterUser):
         sheets_initiator: SheetsInitiator,
         cloud_register: CloudRegister,
         error_reporter: Optional[ErrorReporterPort] = None,
+        api_session_port: Optional[ApiSessionPort] = None,
     ):
         self._source_initiator = source_initiator
         self._data_manager = data_manager
@@ -36,9 +38,10 @@ class RegisterUserImpl(RegisterUser):
         self._sheets_initiator = sheets_initiator
         self._cloud_register = cloud_register
         self._error_reporter = error_reporter
+        self._api_session_port = api_session_port
         self._log = logging.getLogger(__name__)
 
-    async def execute(self, login_request: LoginRequest):
+    async def execute(self, login_request: LoginRequest) -> LoginResult:
         if not USERNAME_PATTERN.match(login_request.username):
             raise InvalidUsername()
 
@@ -82,7 +85,7 @@ class RegisterUserImpl(RegisterUser):
 
         if login_request.guest:
             self._source_initiator.set_user(user)
-            return
+            return LoginResult()
 
         if existing_user and existing_user.guest:
             user.guest = False
@@ -94,3 +97,7 @@ class RegisterUserImpl(RegisterUser):
             context=DatasourceInitContext(config=self._config_port),
         )
         await self._source_initiator.initialize(params)
+
+        if self._api_session_port is None:
+            return LoginResult()
+        return LoginResult(session_token=self._api_session_port.create())

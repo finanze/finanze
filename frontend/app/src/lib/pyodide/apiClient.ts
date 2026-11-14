@@ -45,6 +45,8 @@ export class PyodideApiClient implements ApiClient {
 
   async refreshApiBaseUrl(): Promise<void> {}
 
+  setSessionToken(): void {}
+
   async get<T>(path: string, options?: HelperOptions): Promise<T> {
     return this.request("GET", path, undefined, options)
   }

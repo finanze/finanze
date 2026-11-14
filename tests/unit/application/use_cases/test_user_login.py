@@ -5,7 +5,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 from application.use_cases.user_login import UserLoginImpl
-from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
+from domain.exception.exceptions import (
+    InvalidUserCredentials,
+    UserAlreadyLoggedIn,
+    UserNotFound,
+)
 from domain.user import User
 from domain.user_login import LoginRequest
 
@@ -254,3 +258,103 @@ class TestUserLoginRollback:
         disconnect_idx = call_names.index("config_port_disconnect")
         init_idx = call_names.index("source_initiator_initialize")
         assert disconnect_idx > init_idx
+
+
+def _build_with_session(source_initiator, data_manager, config_port, sheets, cloud):
+    api_session_port = MagicMock()
+    api_session_port.create.return_value = "issued-token"
+    use_case = UserLoginImpl(
+        source_initiator=source_initiator,
+        data_manager=data_manager,
+        config_port=config_port,
+        sheets_initiator=sheets,
+        cloud_register=cloud,
+        api_session_port=api_session_port,
+    )
+    return use_case, api_session_port
+
+
+class TestUserLoginApiSession:
+    @pytest.mark.asyncio
+    async def test_returns_no_token_without_session_port(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=False, user=user)
+        use_case = UserLoginImpl(*mocks)
+
+        result = await use_case.execute(
+            LoginRequest(username="alice", password="secret")
+        )
+
+        assert result.session_token is None
+
+    @pytest.mark.asyncio
+    async def test_unlock_issues_session_token(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=False, user=user)
+        use_case, api_session_port = _build_with_session(*mocks)
+
+        result = await use_case.execute(
+            LoginRequest(username="alice", password="secret")
+        )
+
+        assert result.session_token == "issued-token"
+        api_session_port.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_unlock_issues_no_token(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=False, user=user)
+        mocks[0].initialize.side_effect = RuntimeError("bad key")
+        use_case, api_session_port = _build_with_session(*mocks)
+
+        with pytest.raises(RuntimeError):
+            await use_case.execute(LoginRequest(username="alice", password="bad"))
+
+        api_session_port.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_already_unlocked_issues_token_after_verifying_password(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=True, user=user)
+        source_initiator = mocks[0]
+        source_initiator.get_user.return_value = user
+        source_initiator.verify_password = AsyncMock(return_value=True)
+        use_case, api_session_port = _build_with_session(*mocks)
+
+        result = await use_case.execute(
+            LoginRequest(username="alice", password="secret")
+        )
+
+        assert result.session_token == "issued-token"
+        source_initiator.verify_password.assert_awaited_once_with("secret")
+        source_initiator.initialize.assert_not_called()
+        mocks[2].connect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_already_unlocked_rejects_wrong_password(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=True, user=user)
+        source_initiator = mocks[0]
+        source_initiator.get_user.return_value = user
+        source_initiator.verify_password = AsyncMock(return_value=False)
+        use_case, api_session_port = _build_with_session(*mocks)
+
+        with pytest.raises(InvalidUserCredentials):
+            await use_case.execute(LoginRequest(username="alice", password="wrong"))
+
+        api_session_port.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_already_unlocked_rejects_other_username(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=True, user=user)
+        source_initiator = mocks[0]
+        source_initiator.get_user.return_value = user
+        source_initiator.verify_password = AsyncMock(return_value=True)
+        use_case, api_session_port = _build_with_session(*mocks)
+
+        with pytest.raises(InvalidUserCredentials):
+            await use_case.execute(LoginRequest(username="bob", password="secret"))
+
+        source_initiator.verify_password.assert_not_called()
+        api_session_port.create.assert_not_called()

@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { BACKEND_URL } from '../../helpers/constants'
+import { sessionHeaders } from '../../helpers/session'
 
 test.describe('Telemetry consent', () => {
     test('is opt-in and propagates to the backend', async ({
@@ -24,10 +25,16 @@ test.describe('Telemetry consent', () => {
         await errorReporting.click()
         await expect(errorReporting).toHaveAttribute('data-state', 'checked')
 
-        const consent = await page.evaluate(async (url) => {
-            const res = await fetch(`${url}/api/v1/telemetry/consent`)
-            return res.json()
-        }, BACKEND_URL)
+        const headers = await sessionHeaders(page)
+        const consent = await page.evaluate(
+            async ({ url, headers }) => {
+                const res = await fetch(`${url}/api/v1/telemetry/consent`, {
+                    headers,
+                })
+                return res.json()
+            },
+            { url: BACKEND_URL, headers },
+        )
 
         expect(consent.errorReporting).toBe(true)
 
