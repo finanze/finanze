@@ -5,6 +5,7 @@ import {
 } from '../helpers/ai-mock-server.js'
 import {
     clickIn,
+    confirmImport,
     ensureSignedIn,
     openMoreMenuPage,
     overlay,
@@ -132,12 +133,7 @@ describe('AI file import', () => {
         await preview
             .$(`.//*[contains(normalize-space(), "${receipt}")]`)
             .waitForExist({ timeout: 10_000 })
-        await clickIn(preview, 'Import data')
-
-        await waitForText(
-            'File imported successfully. Refreshing your data...',
-            60_000,
-        )
+        await confirmImport(preview)
         expect(server.calls).toHaveLength(1)
         const messages = server.calls[0].body.messages as {
             content: unknown
@@ -201,11 +197,7 @@ describe('AI file import', () => {
         await preview
             .$(`.//*[contains(normalize-space(), "${movement(1)}")]`)
             .waitForExist({ timeout: 10_000 })
-        await clickIn(preview, 'Import data')
-        await waitForText(
-            'File imported successfully. Refreshing your data...',
-            60_000,
-        )
+        await confirmImport(preview)
 
         const calls = server.calls.slice(firstCall)
         expect(calls).toHaveLength(SCANNED_PAGES)

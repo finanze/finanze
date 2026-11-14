@@ -1,6 +1,7 @@
 import {
     HEADING_XPATH,
     clickIn,
+    confirmImport,
     dismissShareSheet,
     ensureSignedIn,
     openMoreMenuPage,
@@ -70,13 +71,7 @@ async function importStatement(name: string, movements: number) {
     await preview
         .$(`.//*[contains(normalize-space(), "${movements} transactions")]`)
         .waitForDisplayed({ timeout: 10_000 })
-    await clickIn(preview, 'Import data')
-
-    await waitForText(
-        'File imported successfully. Refreshing your data...',
-        60_000,
-    )
-    await preview.waitForDisplayed({ reverse: true, timeout: 15_000 })
+    await confirmImport(preview)
 }
 
 describe('File import and export', () => {
@@ -127,13 +122,7 @@ describe('File import and export', () => {
         await preview
             .$('.//*[contains(normalize-space(), "2 transactions")]')
             .waitForDisplayed({ timeout: 10_000 })
-        await clickIn(preview, 'Import data')
-
-        await waitForText(
-            'File imported successfully. Refreshing your data...',
-            60_000,
-        )
-        await preview.waitForDisplayed({ reverse: true, timeout: 15_000 })
+        await confirmImport(preview)
     })
 
     it('imports every movement of a landscape bank statement PDF spanning several pages', async () => {
@@ -169,7 +158,7 @@ describe('File import and export', () => {
         await clickIn(dialog, 'All time')
         await clickIn(dialog, 'Export')
 
-        await dismissShareSheet(30_000)
+        await dismissShareSheet(90_000)
         await dialog.waitForDisplayed({ reverse: true, timeout: 30_000 })
 
         const exported = await readLatestExport('.csv')

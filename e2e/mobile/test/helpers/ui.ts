@@ -101,6 +101,18 @@ export async function waitForText(text: string, timeout = 15_000) {
     await $(TEXT_XPATH(text)).waitForDisplayed({ timeout })
 }
 
+export async function confirmImport(
+    preview: ReturnType<typeof overlay>,
+): Promise<void> {
+    await clickIn(preview, 'Import data')
+    // Slow polling misses the 3s success toast; both dialogs only close once the import is stored.
+    await preview.waitForDisplayed({ reverse: true, timeout: 90_000 })
+    await overlay('Import data from file').waitForDisplayed({
+        reverse: true,
+        timeout: 15_000,
+    })
+}
+
 export function textFile(name: string, type: string, text: string): UploadFile {
     return { name, type, content: Buffer.from(text).toString('base64') }
 }
@@ -164,10 +176,36 @@ export async function dismissShareSheet(timeout = 15_000): Promise<void> {
                 .waitForExist({ timeout })
                 .catch(() => false)
             if (opened) {
-                // The iOS share sheet has no close button; tapping above it dismisses it.
+                // The iOS share sheet has no close button; tap above it and swipe it down if the tap is swallowed.
                 const { width } = await driver.getWindowSize()
-                await driver.execute('mobile: tap', { x: width / 2, y: 80 })
-                await sheet.waitForExist({ reverse: true, timeout })
+                const dismissed = (wait: number) =>
+                    sheet.waitForExist({ reverse: true, timeout: wait }).then(
+                        () => true,
+                        () => false,
+                    )
+                await browser.waitUntil(
+                    async () => {
+                        if (!(await sheet.isExisting())) return true
+                        await driver.execute('mobile: tap', {
+                            x: width / 2,
+                            y: 80,
+                        })
+                        if (await dismissed(5_000)) return true
+                        const element = await sheet
+                        await driver
+                            .execute('mobile: swipe', {
+                                direction: 'down',
+                                elementId: element.elementId,
+                            })
+                            .catch(() => undefined)
+                        return dismissed(5_000)
+                    },
+                    {
+                        timeout,
+                        interval: 1_000,
+                        timeoutMsg: 'iOS share sheet was not dismissed',
+                    },
+                )
             }
         }
     } finally {
