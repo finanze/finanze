@@ -214,6 +214,7 @@ export class PyodideWorkerClient {
       "jsBridge.",
       "FileTransfer.",
       "BackupProcessor.",
+      "PdfRenderer.",
       "NativeCookies.",
       "Capacitor.Plugins.CapacitorHttp.",
       "TlsHttp.",

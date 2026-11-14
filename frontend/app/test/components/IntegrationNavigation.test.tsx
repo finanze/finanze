@@ -36,6 +36,7 @@ vi.mock("@/i18n", () => ({
   }),
 }))
 vi.mock("@/context/AppContext", () => ({ useAppContext: () => state.app }))
+vi.mock("@/components/ai/AIModelsCard", () => ({ AIModelsCard: () => null }))
 vi.mock("@/context/EntityWorkflowContext", () => ({
   useEntityWorkflow: () => ({ view: "entities", selectedEntity: null }),
 }))
@@ -318,18 +319,29 @@ describe("Settings integration migration", () => {
   )
 
   it.each([
-    { native: true, cloud: false, count: 2 },
-    { native: true, cloud: true, count: 3 },
-    { native: false, cloud: false, count: 3 },
-    { native: false, cloud: true, count: 4 },
+    {
+      native: true,
+      cloud: false,
+      count: 3,
+      aiTab: en.settings.aiTab.titleNoMcp,
+    },
+    {
+      native: true,
+      cloud: true,
+      count: 4,
+      aiTab: en.settings.aiTab.titleNoMcp,
+    },
+    { native: false, cloud: false, count: 3, aiTab: en.settings.aiTab.title },
+    { native: false, cloud: true, count: 4, aiTab: en.settings.aiTab.title },
   ])(
     "keeps $count settings tabs with native=$native and cloud=$cloud",
-    ({ native, cloud, count }) => {
+    ({ native, cloud, count, aiTab }) => {
       state.native = native
       state.app.featureFlags = { CLOUD: cloud ? FFStatus.ON : FFStatus.OFF }
       renderRoute("/settings")
       expect(screen.getAllByRole("tab")).toHaveLength(count)
       expect(screen.getByRole("tablist")).toHaveClass(`sm:grid-cols-${count}`)
+      expect(screen.getByRole("tab", { name: aiTab })).toBeInTheDocument()
       expect(
         screen.queryByRole("tab", { name: en.settings.integrations }),
       ).not.toBeInTheDocument()
@@ -338,4 +350,13 @@ describe("Settings integration migration", () => {
       ).toHaveAttribute("aria-selected", "true")
     },
   )
+
+  it("opens the AI & MCP settings tab from the legacy MCP link", () => {
+    state.native = false
+    state.app.featureFlags = { CLOUD: FFStatus.OFF }
+    renderRoute("/settings?tab=mcp")
+    expect(
+      screen.getByRole("tab", { name: en.settings.aiTab.title }),
+    ).toHaveAttribute("aria-selected", "true")
+  })
 })

@@ -1458,7 +1458,7 @@ export function RealEstateFormModal({
                     <div>
                       <Label htmlFor="name">
                         {t.realEstate.basicInfo.name}
-                        <span className="text-gray-400 ml-1">*</span>
+                        <span className="ml-1 text-red-500">*</span>
                       </Label>
                       <Input
                         id="name"
@@ -1508,7 +1508,7 @@ export function RealEstateFormModal({
                     <div>
                       <Label>
                         {t.realEstate.basicInfo.purchaseDate}
-                        <span className="text-gray-400 ml-1">*</span>
+                        <span className="ml-1 text-red-500">*</span>
                       </Label>
                       <DatePicker
                         value={formData.purchase_info.date}
@@ -1678,7 +1678,7 @@ export function RealEstateFormModal({
                     <div>
                       <Label>
                         {t.realEstate.purchase.price}
-                        <span className="text-gray-400 ml-1">*</span>
+                        <span className="ml-1 text-red-500">*</span>
                       </Label>
                       <div className="relative">
                         <DecimalInput
@@ -2537,7 +2537,7 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <Label>
                                       {t.realEstate.placeholders.loanName}
-                                      <span className="text-gray-400 ml-1">
+                                      <span className="ml-1 text-red-500">
                                         *
                                       </span>
                                     </Label>
@@ -3322,9 +3322,7 @@ export function RealEstateFormModal({
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.fromLabel}
-                                    <span className="text-gray-400 ml-1">
-                                      *
-                                    </span>
+                                    <span className="ml-1 text-red-500">*</span>
                                   </Label>
                                   <DatePicker
                                     value={flow.periodic_flow?.since || ""}
@@ -3358,9 +3356,7 @@ export function RealEstateFormModal({
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.untilLabel}
-                                    <span className="text-gray-400 ml-1">
-                                      *
-                                    </span>
+                                    <span className="ml-1 text-red-500">*</span>
                                   </Label>
                                   <DatePicker
                                     value={flow.periodic_flow?.until || ""}
@@ -3465,7 +3461,7 @@ export function RealEstateFormModal({
                                 <div>
                                   <Label className="inline-flex items-center gap-1">
                                     {t.realEstate.labels.monthlyPayment}
-                                    <span className="text-gray-400">*</span>
+                                    <span className="text-red-500">*</span>
                                     <Popover>
                                       <PopoverTrigger asChild>
                                         <span
@@ -3875,7 +3871,7 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <Label>
                                       {t.realEstate.placeholders.expenseName}
-                                      <span className="text-gray-400 ml-1">
+                                      <span className="ml-1 text-red-500">
                                         *
                                       </span>
                                     </Label>
@@ -3920,7 +3916,7 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <Label>
                                       {t.realEstate.labels.amount}
-                                      <span className="text-gray-400 ml-1">
+                                      <span className="ml-1 text-red-500">
                                         *
                                       </span>
                                     </Label>
@@ -4474,7 +4470,7 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <Label>
                                       {t.realEstate.placeholders.utilityName}
-                                      <span className="text-gray-400 ml-1">
+                                      <span className="ml-1 text-red-500">
                                         *
                                       </span>
                                     </Label>
@@ -4522,9 +4518,7 @@ export function RealEstateFormModal({
                                 >
                                   <Label>
                                     {t.realEstate.labels.amount}
-                                    <span className="text-gray-400 ml-1">
-                                      *
-                                    </span>
+                                    <span className="ml-1 text-red-500">*</span>
                                   </Label>
                                   <div className="relative">
                                     <DecimalInput
@@ -4982,7 +4976,7 @@ export function RealEstateFormModal({
                                     <div className="flex-1">
                                       <Label>
                                         {t.realEstate.placeholders.rentName}
-                                        <span className="text-gray-400 ml-1">
+                                        <span className="ml-1 text-red-500">
                                           *
                                         </span>
                                       </Label>
@@ -5022,7 +5016,7 @@ export function RealEstateFormModal({
                                   <div>
                                     <Label>
                                       {t.realEstate.labels.monthlyAmount}
-                                      <span className="text-gray-400 ml-1">
+                                      <span className="ml-1 text-red-500">
                                         *
                                       </span>
                                     </Label>
@@ -5045,7 +5039,7 @@ export function RealEstateFormModal({
                                   <div>
                                     <Label>
                                       {t.realEstate.loans.paymentDate}
-                                      <span className="text-gray-400 ml-1">
+                                      <span className="ml-1 text-red-500">
                                         *
                                       </span>
                                     </Label>

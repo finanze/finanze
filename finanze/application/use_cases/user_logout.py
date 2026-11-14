@@ -6,6 +6,7 @@ from application.ports.cloud_register import CloudRegister
 from application.ports.config_port import ConfigPort
 from application.ports.datasource_initiator import DatasourceInitiator
 from application.ports.error_reporter_port import ErrorReporterPort
+from application.ports.import_preview_store import ImportPreviewStore
 from application.ports.sheets_initiator import SheetsInitiator
 from domain.use_cases.user_logout import UserLogout
 
@@ -19,6 +20,7 @@ class UserLogoutImpl(UserLogout):
         cloud_register: CloudRegister,
         error_reporter: Optional[ErrorReporterPort] = None,
         agent_runtime_port: Optional[AgentRuntimePort] = None,
+        import_preview_store: Optional[ImportPreviewStore] = None,
     ):
         self._source_initiator = source_initiator
         self._config_port = config_port
@@ -26,6 +28,7 @@ class UserLogoutImpl(UserLogout):
         self._cloud_register = cloud_register
         self._error_reporter = error_reporter
         self._agent_runtime_port = agent_runtime_port
+        self._import_preview_store = import_preview_store
         self._log = logging.getLogger(__name__)
 
     async def execute(self):
@@ -34,6 +37,8 @@ class UserLogoutImpl(UserLogout):
         await self._cloud_register.disconnect()
         if self._agent_runtime_port:
             await self._agent_runtime_port.release_all()
+        if self._import_preview_store:
+            self._import_preview_store.clear()
         await self._source_initiator.lock()
 
         if self._error_reporter:

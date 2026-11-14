@@ -2,5 +2,7 @@ websockets==17.3
 requests-toolbelt==1.0.0
 openpyxl==3.1.5
 et-xmlfile==2.0.0
+xlrd==2.0.2
+pypdf==7.0.1
 base58==2.1.1
 ecdsa==0.19.2

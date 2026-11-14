@@ -8,12 +8,17 @@ async def download_local_model(download_local_model_uc: DownloadLocalModel):
     catalog_id = body.get("catalog_id")
     repo = body.get("repo")
     quant = body.get("quant")
+    vision = body.get("vision", False)
     if not all(isinstance(v, str) or v is None for v in (catalog_id, repo, quant)):
         return jsonify({"message": "Error: invalid model"}), 400
+    if not isinstance(vision, bool):
+        return jsonify({"message": "Error: invalid vision flag"}), 400
     if not catalog_id and not (repo and quant):
         return jsonify({"message": "Error: missing model"}), 400
 
     await download_local_model_uc.execute(
-        DownloadLocalModelRequest(catalog_id=catalog_id, repo=repo, quant=quant)
+        DownloadLocalModelRequest(
+            catalog_id=catalog_id, repo=repo, quant=quant, vision=vision
+        )
     )
     return "", 204

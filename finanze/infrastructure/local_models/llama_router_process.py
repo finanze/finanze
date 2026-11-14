@@ -113,6 +113,7 @@ class LlamaRouterProcess:
     WATCHDOG_INTERVAL_SECONDS = 30.0
     MODEL_SLEEP_SECONDS = 600
     CONTEXT_SIZE = 8192
+    IMAGE_MAX_TOKENS = 2048
 
     def __init__(
         self,
@@ -205,6 +206,10 @@ class LlamaRouterProcess:
             "--no-ui",
             "--reasoning-budget",
             "0",
+            # Model instances must never fetch from Hugging Face, e.g. an mmproj the user did not choose
+            "--offline",
+            "--image-max-tokens",
+            str(self.IMAGE_MAX_TOKENS),
         ]
         self._log.info(f"Starting built-in llama.cpp server on port {port}")
         try:
@@ -219,6 +224,7 @@ class LlamaRouterProcess:
             api_key=api_key,
             mode=LocalRuntimeMode.BUILT_IN,
             source=LocalRuntimeSource.BUILT_IN,
+            context_length=self.CONTEXT_SIZE,
         )
         await self._wait_healthy(connection)
         self._connection = connection

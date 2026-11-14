@@ -8,6 +8,7 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.transactions import (
+    MAX_COUNTERPARTY_LENGTH,
     AccountTx,
     AddManualTransactionRequest,
     BaseTx,
@@ -25,8 +26,6 @@ from domain.transactions import (
     is_valid_iban_format,
     normalize_iban,
 )
-
-MAX_COUNTERPARTY_LENGTH = 200
 
 
 def _parse_datetime(value: str) -> datetime:

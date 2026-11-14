@@ -188,6 +188,7 @@ def test_features(tmp_path):
     assert client.features() == {
         AIClientFeature.GENERATION,
         AIClientFeature.MODEL_LISTING,
+        AIClientFeature.ATTACHMENTS,
     }
 
 

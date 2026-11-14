@@ -42,7 +42,12 @@ from domain.labeling import (
     matching_rules,
     transfer_conditions,
 )
-from domain.settings import ExternalLabelingConfig, SettingsSection
+from domain.settings import (
+    AIProviderEntry,
+    PartialSettings,
+    SettingsSection,
+    effective_ai_providers,
+)
 from domain.settlement import SETTLEMENT_MAX_DAYS, match_settlements
 from domain.transactions import (
     ACCOUNT_MOVEMENT_TYPES,
@@ -84,6 +89,11 @@ def _rule_labels(rule: LabelingRule) -> list[TxLabel]:
         TxLabel(label_id=label_id, origin=LabelOrigin.RULE, rule_id=rule.id)
         for label_id in rule.label_ids
     ]
+
+
+def _labeling_entries(settings: PartialSettings) -> list[AIProviderEntry]:
+    default = settings.ai.providers if settings.ai else []
+    return effective_ai_providers(default, settings.labeling.external.providers)
 
 
 class TransactionLabelerAdapter(TransactionLabeler):
@@ -191,11 +201,12 @@ class TransactionLabelerAdapter(TransactionLabeler):
         return applied
 
     async def external_availability_error(self) -> Optional[LabelingResult]:
-        settings = await self._config_port.load_sections({SettingsSection.LABELING})
+        settings = await self._load_settings()
         config = settings.labeling.external
-        if not config.enabled or not config.providers:
+        entries = _labeling_entries(settings)
+        if not config.enabled or not entries:
             return None
-        candidates = await self._candidates(config)
+        candidates = await self._candidates(entries)
         if not candidates:
             return LabelingResult(
                 external_error=ExternalLabelingUnavailable.__name__,
@@ -211,9 +222,14 @@ class TransactionLabelerAdapter(TransactionLabeler):
             external_error_details="The configured models are no longer available",
         )
 
-    async def _candidates(self, config: ExternalLabelingConfig):
+    async def _load_settings(self) -> PartialSettings:
+        return await self._config_port.load_sections(
+            {SettingsSection.LABELING, SettingsSection.AI}
+        )
+
+    async def _candidates(self, entries: list[AIProviderEntry]):
         candidates = []
-        for entry in config.providers:
+        for entry in entries:
             try:
                 provider_id = ExternalIntegrationId(entry.provider)
             except ValueError:
@@ -234,14 +250,15 @@ class TransactionLabelerAdapter(TransactionLabeler):
     ) -> LabelingResult:
         result = LabelingResult()
         try:
-            settings = await self._config_port.load_sections({SettingsSection.LABELING})
+            settings = await self._load_settings()
             config = settings.labeling.external
-            if not config.enabled or not config.providers:
+            entries = _labeling_entries(settings)
+            if not config.enabled or not entries:
                 return result
             if trigger == LabelingTrigger.AUTO and not config.autoRun:
                 return result
 
-            provider_candidates = await self._candidates(config)
+            provider_candidates = await self._candidates(entries)
             if not provider_candidates:
                 result.external_error = ExternalLabelingUnavailable.__name__
                 result.external_error_code = AIProviderErrorCode.UNAVAILABLE.value

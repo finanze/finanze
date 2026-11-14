@@ -4,7 +4,6 @@ from uuid import UUID
 
 from domain.ai import AIModelPricing
 from domain.dezimal import Dezimal
-from domain.external_integration import ExternalIntegrationId
 from domain.transactions import TxType
 from pydantic.dataclasses import dataclass
 
@@ -63,23 +62,3 @@ class ExternalLabelingModel:
     loaded: bool = False
     load_failed: bool = False
     pricing: Optional[AIModelPricing] = None
-
-
-@dataclass
-class ExternalLabelingProviderDetails:
-    id: ExternalIntegrationId
-    connected: bool
-    recommended_models: list[ExternalLabelingModel]
-    custom_models: bool = True
-    upstream_providers: bool = False
-    dynamic_models: bool = False
-
-
-@dataclass
-class ExternalLabelingProviders:
-    providers: list[ExternalLabelingProviderDetails]
-
-
-@dataclass
-class ExternalLabelingModels:
-    models: list[ExternalLabelingModel]

@@ -8,6 +8,7 @@ from domain.ai import (
     AIDecisionRequest,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIJsonSchema,
     AIMessage,
     AIMessageRole,
@@ -105,6 +106,7 @@ class TestOpenAIClientFeatures:
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
             AIClientFeature.CUSTOM_MODELS,
+            AIClientFeature.ATTACHMENTS,
         }
 
     @pytest.mark.asyncio
@@ -182,6 +184,39 @@ class TestOpenAIClientGetModel:
         client = _client((404, {"error": {"message": "Not found"}}))
         await client.get_model("ft:gpt/x", CREDENTIALS)
         assert _sent(client)[1].endswith("/models/ft%3Agpt%2Fx")
+
+    @pytest.mark.parametrize(
+        ("model_id", "expected"),
+        [
+            (
+                "gpt-6-luna",
+                {AIInputModality.TEXT, AIInputModality.IMAGE, AIInputModality.DOCUMENT},
+            ),
+            (
+                "o4-mini",
+                {AIInputModality.TEXT, AIInputModality.IMAGE, AIInputModality.DOCUMENT},
+            ),
+            ("o3-mini", {AIInputModality.TEXT}),
+            ("gpt-4", {AIInputModality.TEXT}),
+            ("gpt-3.5-turbo", {AIInputModality.TEXT}),
+            ("gpt-4-turbo-preview", {AIInputModality.TEXT}),
+            ("ft:my-model", None),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_reports_input_modalities_by_model_family(self, model_id, expected):
+        client = _client(
+            (200, {"id": model_id, "object": "model"}),
+            (404, {"error": {"message": "Model not supported"}}),
+        )
+        model = await client.get_model(model_id, CREDENTIALS)
+        assert model.input_modalities == expected
+
+    @pytest.mark.asyncio
+    async def test_non_text_models_report_no_modalities(self):
+        client = _client((200, {"id": "whisper-1", "object": "model"}))
+        model = await client.get_model("whisper-1", CREDENTIALS)
+        assert model.input_modalities is None
 
 
 class TestOpenAIClientGenerate:

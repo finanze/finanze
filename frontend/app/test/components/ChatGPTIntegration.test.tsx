@@ -35,6 +35,7 @@ const {
 
 vi.mock("@/i18n", () => ({ useI18n: () => ({ t: en, locale: "en-US" }) }))
 vi.mock("@/context/AppContext", () => ({ useAppContext: () => state.app }))
+vi.mock("@/components/ai/AIModelsCard", () => ({ AIModelsCard: () => null }))
 vi.mock("@/hooks/useModalBackHandler", () => ({ useModalBackHandler: vi.fn() }))
 vi.mock("@/services/api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
@@ -147,10 +148,16 @@ describe("ChatGPT sign-in", () => {
     },
   )
 
-  it("shows a beta badge on the integration card", () => {
+  it("shows a beta badge on the AI providers section", () => {
     renderTab()
 
-    expect(screen.getByText(en.settings.integrationBeta)).toBeInTheDocument()
+    const heading = screen.getByRole("heading", {
+      name: new RegExp(en.settings.integrationCategories.AI_PROVIDER),
+    })
+    expect(
+      within(heading).getByText(en.settings.integrationBeta),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText(en.settings.integrationBeta)).toHaveLength(1)
   })
 
   it("groups OpenAI methods without sharing connection state", async () => {

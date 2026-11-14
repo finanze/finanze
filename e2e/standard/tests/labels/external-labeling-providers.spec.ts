@@ -7,6 +7,70 @@ import es from '../../../../frontend/app/src/i18n/locales/es.json' with { type: 
 import itTranslations from '../../../../frontend/app/src/i18n/locales/it.json' with { type: 'json' }
 
 test.describe('External labeling providers', () => {
+    test('labeling follows the default AI models configured in settings', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        const navigation = page.getByRole('navigation')
+        await navigation
+            .getByRole('button', { name: en.common.entities, exact: true })
+            .click()
+        await page
+            .getByRole('tab', { name: en.entities.tabProviders, exact: true })
+            .click()
+        await expect(page.getByTestId('ai-models-card')).toHaveCount(0)
+        await page.getByTestId('ai-models-settings-link').click()
+        await expect(
+            page.getByRole('tab', { name: en.settings.aiTab.title }),
+        ).toHaveAttribute('aria-selected', 'true')
+        const models = page.getByTestId('ai-models-card')
+        await expect(models).toContainText(en.settings.aiModels.empty)
+        await models.getByTestId('ai-models-add-provider').click()
+        await page.getByTestId('ai-models-provider-option-OPENAI').click()
+        await expect(models.getByTestId('ai-models-priority-0')).toContainText(
+            'gpt-6-luna',
+        )
+        await models.getByTestId('ai-models-save').click()
+        await expect(models.getByTestId('ai-models-save')).toBeHidden()
+
+        await navigateToMyMoneyPage(page, 'Activity')
+        await page.getByRole('tab', { name: en.labels.tabs.automation }).click()
+        const card = page.getByTestId('external-labeling-card')
+        await card.getByTestId('external-labeling-switch').click()
+        await expect(card.getByTestId('external-priority-0')).toContainText(
+            'gpt-6-luna',
+        )
+        await expect(card.getByTestId('external-editor')).toHaveAttribute(
+            'aria-disabled',
+            'true',
+        )
+        await expect(card.getByTestId('external-add-provider')).toHaveCount(0)
+
+        await card.getByTestId('external-custom-toggle').click()
+        await expect(card.getByTestId('external-editor')).not.toHaveAttribute(
+            'aria-disabled',
+            'true',
+        )
+        await expect(card.getByTestId('external-priority-0')).toContainText(
+            'gpt-6-luna',
+        )
+        await expect(card.getByTestId('external-add-provider')).toBeVisible()
+        await card.getByTestId('external-custom-toggle').click()
+        await expect(card.getByTestId('external-editor')).toHaveAttribute(
+            'aria-disabled',
+            'true',
+        )
+
+        await card.getByTestId('external-edit-default').click()
+        await expect(page.getByTestId('ai-models-card')).toHaveClass(/ring-2/)
+        const priority = page.getByTestId('ai-models-priority-0')
+        await expect(priority).toContainText('gpt-6-luna')
+        await priority.getByRole('button', { name: /Remove/ }).click()
+        await models.getByTestId('ai-models-save').click()
+        await expect(models.getByTestId('ai-models-save')).toBeHidden()
+        await expect(models).toContainText(en.settings.aiModels.empty)
+    })
+
     test('switches integration names across languages without changing priorities or refetching integrations', async ({
         authenticatedPage: page,
     }, testInfo) => {
@@ -55,7 +119,7 @@ test.describe('External labeling providers', () => {
             },
         )
         await page.route(
-            (url) => url.pathname === '/api/v1/labeling/external/providers',
+            (url) => url.pathname === '/api/v1/ai/providers',
             (route) =>
                 route.fulfill({
                     json: {
@@ -83,6 +147,7 @@ test.describe('External labeling providers', () => {
         await page.getByRole('tab', { name: en.labels.tabs.automation }).click()
         const card = page.getByTestId('external-labeling-card')
         await card.getByTestId('external-labeling-switch').click()
+        await card.getByTestId('external-custom-toggle').click()
         await card.getByTestId('external-add-provider').click()
         await page
             .getByTestId('external-provider-option-OPENAI_COMPATIBLE')
@@ -236,7 +301,7 @@ test.describe('External labeling providers', () => {
             },
         )
         await page.route(
-            (url) => url.pathname === '/api/v1/labeling/external/providers',
+            (url) => url.pathname === '/api/v1/ai/providers',
             (route) =>
                 route.fulfill({
                     json: {
@@ -313,6 +378,7 @@ test.describe('External labeling providers', () => {
         await page.getByRole('tab', { name: /Automation/ }).click()
         const card = page.getByTestId('external-labeling-card')
         await card.getByTestId('external-labeling-switch').click()
+        await card.getByTestId('external-custom-toggle').click()
         const add = card.getByTestId('external-add-provider')
         await add.click()
         await page.getByTestId('external-provider-option-OPENROUTER').click()
@@ -329,7 +395,7 @@ test.describe('External labeling providers', () => {
         await expect(card.getByTestId('external-priority-2')).toContainText(
             'chat-model',
         )
-        await expect(add).toBeDisabled()
+        await expect(card.getByText('3/5', { exact: true })).toBeVisible()
         await card
             .getByTestId('external-priority-1')
             .getByRole('button', { name: 'Move up', exact: true })
@@ -424,6 +490,7 @@ test.describe('External labeling providers', () => {
         const card = page.getByTestId('external-labeling-card')
         await card.waitFor({ timeout: 10_000 })
         await card.getByTestId('external-labeling-switch').click()
+        await card.getByTestId('external-custom-toggle').click()
         const add = card.getByTestId('external-add-provider')
         await add.click()
         await expect(card.getByTestId('external-priority-0')).toBeHidden()

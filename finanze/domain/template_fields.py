@@ -555,41 +555,71 @@ FUND_TYPE_TX = TemplateField(
 PORTFOLIO_NAME_TX = TemplateField(
     key="portfolio", field="portfolio_name", type=TemplateFieldType.TEXT
 )
+COUNTERPARTY = TemplateField(
+    key="counterparty", field="counterparty", type=TemplateFieldType.TEXT
+)
 
-BASE_TX_FIELDS = [
-    REFERENCE.require(),
-    NAME.require(),
-    AMOUNT.require(),
-    CURRENCY.require(),
-    TX_TYPE.require(),
-    PRODUCT_TYPE.with_template(TemplateType.EXPORT),
-    DATE.require(),
-    ENTITY,
-]
+
+def _base_tx_fields(name_field: TemplateField) -> list[TemplateField]:
+    return [
+        REFERENCE,
+        name_field,
+        AMOUNT.require(),
+        CURRENCY.require(),
+        TX_TYPE.require(),
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
+        DATE.require(),
+        ENTITY,
+    ]
+
+
+AMOUNT_IN = TemplateField(
+    key="amount_in",
+    field="amount_in",
+    type=TemplateFieldType.DECIMAL,
+    template_type=TemplateType.IMPORT,
+)
+AMOUNT_OUT = TemplateField(
+    key="amount_out",
+    field="amount_out",
+    type=TemplateFieldType.DECIMAL,
+    template_type=TemplateType.IMPORT,
+)
 
 ACCOUNT_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.ACCOUNT,
-    fields=BASE_TX_FIELDS
-    + [
+    fields=[
+        REFERENCE,
+        NAME.require(),
+        AMOUNT.require(AMOUNT_IN, AMOUNT_OUT),
+        AMOUNT_IN.require(AMOUNT, AMOUNT_OUT),
+        AMOUNT_OUT.require(AMOUNT, AMOUNT_IN),
+        CURRENCY.require(),
+        TX_TYPE,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
+        DATE.require(),
+        ENTITY,
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
         INTEREST_RATE,
         AVERAGE_BALANCE,
         NET_AMOUNT,
+        COUNTERPARTY,
+        IBAN,
     ],
 )
 
 STOCK_ETF_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.STOCK_ETF,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require(ISIN, TICKER))
     + [
-        ISIN,
-        TICKER,
+        ISIN.require(NAME, TICKER),
+        TICKER.require(NAME, ISIN),
         MARKET,
         SHARES.require(),
-        PRICE.require(),
+        PRICE,
         SPLIT_RATIO,
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
@@ -607,11 +637,11 @@ CURRENCY_AMOUNT = TemplateField(
 CRYPTO_CURRENCY_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.CRYPTO,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require())
     + [
         SYMBOL.require(),
         CURRENCY_AMOUNT.require(),
-        PRICE.require(),
+        PRICE,
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
         ORDER_DATE,
@@ -623,12 +653,12 @@ CRYPTO_CURRENCY_TX_FIELDS = FieldGroup(
 FUND_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.FUND,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require(ISIN))
     + [
-        ISIN,
+        ISIN.require(NAME),
         MARKET,
         SHARES.require(),
-        PRICE.require(),
+        PRICE,
         SPLIT_RATIO,
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
@@ -641,7 +671,7 @@ FUND_TX_FIELDS = FieldGroup(
 FUND_PORTFOLIO_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.FUND_PORTFOLIO,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require())
     + [
         PORTFOLIO_NAME_TX.require(),
         FEES.default(Dezimal(0)),
@@ -652,7 +682,7 @@ FUND_PORTFOLIO_TX_FIELDS = FieldGroup(
 FACTORING_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.FACTORING,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require())
     + [
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
@@ -663,7 +693,7 @@ FACTORING_TX_FIELDS = FieldGroup(
 REAL_ESTATE_CF_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.REAL_ESTATE_CF,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require())
     + [
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
@@ -674,7 +704,7 @@ REAL_ESTATE_CF_TX_FIELDS = FieldGroup(
 DEPOSIT_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
     product=ProductType.DEPOSIT,
-    fields=BASE_TX_FIELDS
+    fields=_base_tx_fields(NAME.require())
     + [
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),

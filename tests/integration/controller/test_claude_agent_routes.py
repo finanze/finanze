@@ -10,11 +10,9 @@ import pytest_asyncio
 from application.use_cases.connect_external_integration import (
     ConnectExternalIntegrationImpl,
 )
+from application.use_cases.get_ai_models import GetAIModelsImpl
 from application.use_cases.get_external_integrations import (
     GetExternalIntegrationsImpl,
-)
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
 )
 from domain.ai import (
     AIGenerationRequest,
@@ -42,14 +40,10 @@ from infrastructure.controller.exception_handler import register_exception_handl
 from infrastructure.controller.routes.connect_external_integration import (
     connect_external_integration,
 )
+from infrastructure.controller.routes.get_ai_models import get_ai_models
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
-from infrastructure.controller.routes.get_external_labeling_models import (
-    get_external_labeling_models,
-)
-from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
-from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
@@ -146,9 +140,7 @@ async def ctx(tmp_path, monkeypatch):
     integrations = {CLAUDE: claude}
     get_uc = GetExternalIntegrationsImpl(repository, integrations)
     connect_uc = ConnectExternalIntegrationImpl(repository, integrations)
-    models_uc = GetExternalLabelingModelsImpl(
-        repository, {CLAUDE: AILabelingProvider(claude, LABELING_PRESETS[CLAUDE])}
-    )
+    models_uc = GetAIModelsImpl(repository, {CLAUDE: claude})
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -163,11 +155,9 @@ async def ctx(tmp_path, monkeypatch):
     async def connect_route(integration_id: str):
         return await connect_external_integration(connect_uc, integration_id)
 
-    @app.route(
-        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
-    )
+    @app.route("/api/v1/ai/providers/<provider_id>/models", methods=["GET"])
     async def models_route(provider_id: str):
-        return await get_external_labeling_models(models_uc, provider_id)
+        return await get_ai_models(models_uc, provider_id)
 
     yield SimpleNamespace(
         http=app.test_client(),
@@ -216,9 +206,7 @@ async def test_connects_lists_models_and_labels_with_signed_in_claude_code(ctx):
         "-p --input-format stream-json",
     ]
 
-    models = await ctx.http.get(
-        f"/api/v1/labeling/external/providers/{CLAUDE.value}/models"
-    )
+    models = await ctx.http.get(f"/api/v1/ai/providers/{CLAUDE.value}/models")
     assert models.status_code == 200
     assert [
         (model["id"], model["name"]) for model in (await models.get_json())["models"]

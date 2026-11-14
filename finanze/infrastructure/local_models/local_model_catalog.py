@@ -14,6 +14,8 @@ def _entry(
     license: str,
     decisions: bool = False,
     languages: list[str] | None = None,
+    vision_size: int | None = None,
+    vision_ram: int | None = None,
 ) -> LocalModelCatalogEntry:
     return LocalModelCatalogEntry(
         id=f"{repo}:{quant}",
@@ -26,10 +28,24 @@ def _entry(
         license=license,
         decisions=decisions,
         languages=languages,
+        vision_size=vision_size,
+        vision_ram=vision_ram,
     )
 
 
 LOCAL_MODEL_CATALOG = [
+    _entry(
+        "unsloth/Qwen3.5-0.8B-GGUF",
+        "Q4_K_M",
+        "Qwen3.5 0.8B",
+        532517120,
+        900 * MB,
+        "0.8B",
+        "apache-2.0",
+        languages=["multilingual"],
+        vision_size=207346528,
+        vision_ram=500 * MB,
+    ),
     _entry(
         "unsloth/Qwen3.5-2B-GGUF",
         "Q4_K_M",
@@ -39,6 +55,8 @@ LOCAL_MODEL_CATALOG = [
         "2B",
         "apache-2.0",
         languages=["multilingual"],
+        vision_size=671372992,
+        vision_ram=1000 * MB,
     ),
     _entry(
         "ibm-granite/granite-4.0-micro-GGUF",
@@ -59,6 +77,8 @@ LOCAL_MODEL_CATALOG = [
         "3B",
         "apache-2.0",
         languages=["multilingual"],
+        vision_size=841501856,
+        vision_ram=1200 * MB,
     ),
     _entry(
         "ggml-org/gemma-3-4b-it-GGUF",
@@ -69,6 +89,8 @@ LOCAL_MODEL_CATALOG = [
         "4B",
         "gemma",
         languages=["multilingual"],
+        vision_size=851251104,
+        vision_ram=1200 * MB,
     ),
     _entry(
         "unsloth/Qwen3-4B-Instruct-2507-GGUF",
@@ -89,6 +111,8 @@ LOCAL_MODEL_CATALOG = [
         "2B",
         "apache-2.0",
         languages=["multilingual"],
+        vision_size=986833728,
+        vision_ram=1300 * MB,
     ),
     _entry(
         "unsloth/gemma-4-E4B-it-GGUF",
@@ -99,6 +123,8 @@ LOCAL_MODEL_CATALOG = [
         "4B",
         "apache-2.0",
         languages=["multilingual"],
+        vision_size=991552320,
+        vision_ram=1300 * MB,
     ),
     _entry(
         "mistralai/Ministral-3-8B-Instruct-2512-GGUF",
@@ -109,6 +135,8 @@ LOCAL_MODEL_CATALOG = [
         "8B",
         "apache-2.0",
         languages=["multilingual"],
+        vision_size=858283168,
+        vision_ram=1200 * MB,
     ),
     _entry(
         "unsloth/Qwen3.5-9B-GGUF",
@@ -119,6 +147,8 @@ LOCAL_MODEL_CATALOG = [
         "9B",
         "apache-2.0",
         languages=["multilingual"],
+        vision_size=921705024,
+        vision_ram=1300 * MB,
     ),
 ]
 

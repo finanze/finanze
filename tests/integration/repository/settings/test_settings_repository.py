@@ -220,6 +220,7 @@ class TestLoadSections:
             "importing",
             "assets",
             "labeling",
+            "ai",
         }
 
     @pytest.mark.asyncio
@@ -254,6 +255,7 @@ class TestLoadSections:
             "importing",
             "assets",
             "labeling",
+            "ai",
         }
 
     @pytest.mark.asyncio
@@ -308,6 +310,7 @@ class TestSavePartial:
             "export",
             "importing",
             "assets",
+            "ai",
         }
         settings = await repository.load()
         assert settings.labeling == labeling_settings().labeling

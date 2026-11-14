@@ -9,6 +9,7 @@ from domain.local_model import (
     HuggingFaceModelKind,
     HuggingFaceQuantOption,
     HuggingFaceQuants,
+    find_mmproj_sibling,
 )
 from infrastructure.client.ai.server_url import TRANSPORT_ERRORS
 from infrastructure.client.http.http_session import get_http_session
@@ -152,8 +153,13 @@ class HuggingFaceCatalogClient(HuggingFaceCatalog):
             file = resolve_tag_file(paths, quant)
             if file is None or listed_tag(file) != quant:
                 continue
+            vision_file = find_mmproj_sibling(paths, file)
             quants[quant] = HuggingFaceQuantOption(
-                quant=quant, file=file, size=sizes[file]
+                quant=quant,
+                file=file,
+                size=sizes[file],
+                vision_file=vision_file,
+                vision_size=sizes[vision_file] if vision_file else None,
             )
 
         return HuggingFaceQuants(

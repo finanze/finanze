@@ -68,11 +68,12 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 - 💵 Earnings and expenses tracking with periodic asset contributions to forecast future positions
 - 📊 Cashflow budgets for needs, wants, and investments, with remaining income and per-label spending breakdowns
 - 🤖 AI-assisted transaction labeling with custom rules and model suggestions from cloud, self-hosted, or on-device AI providers
+- 🧠 AI file import that extracts positions and transactions from statements, PDFs and images
 - 💱 Multicurrency support with automatic exchange rate fetching
 - 🔐 Local encrypted database for secure data storage
 - 🤖 MCP server for AI clients
-- 📤 Dynamic and customizable data export to Google Sheets
-- 📥 Manual data importing
+- 📤 Dynamic and customizable data export to Google Sheets, CSV, TSV and Excel
+- 📥 File importing from CSV, TSV, Excel, HTML and PDF with automatic column detection, plus Google Sheets
 - ⚙️ Highly configurable with templating for exports and imports
 - 📊 Complex savings & retirement calculator with multiple scenarios and variables
 
@@ -82,13 +83,15 @@ Set monthly targets for needs, wants, and investment contributions, then compare
 
 ### Transaction Labels, Rules, and AI
 
-Create labels and reusable rules to categorize transactions. Rules can match transaction text, type, amount, currency, dates, entities, or IBANs. Preview matches before applying rules, including to existing transactions.
+Create labels and reusable rules to categorize transactions. Rules can match transaction text, type, amount, currency, dates, entities, or IBANs. Preview matches before applying rules, including to existing transactions. AI providers can suggest labels, and decision-capable models can return confidence scores when supported.
 
-For AI suggestions, connect OpenAI (API key), ChatGPT (Plus or Pro plan), OpenRouter, GitHub Copilot, Anthropic Claude through Claude Code, a custom OpenAI-compatible endpoint, or local models. Configure them under **Entities > Providers > AI providers**. GitHub Copilot and Claude Code are available in desktop and self-hosted distributions. Decision-capable models can return confidence scores when supported.
+### AI Providers
+
+AI powers transaction labeling and file importing. Connect OpenAI (API key), ChatGPT (Plus or Pro plan), OpenRouter, GitHub Copilot, Anthropic Claude through Claude Code, a custom OpenAI-compatible endpoint, or local models under **Entities > Providers > AI providers**. GitHub Copilot and Claude Code are available in desktop and self-hosted distributions.
 
 ### Local and Self-Hosted Models
 
-- **Local models:** Run GGUF models with the built-in llama.cpp engine on desktop. Download recommended or Hugging Face models, import a GGUF file, or connect your own llama.cpp server in router mode.
+- **Local models:** Run GGUF models with the built-in llama.cpp engine on desktop. Download recommended or Hugging Face models, import a GGUF file, or connect your own llama.cpp server in router mode. Models with a vision projector (`mmproj`) can read images and scanned PDFs.
 - **Custom AI:** Connect an OpenAI-compatible API such as Ollama, LM Studio, vLLM, or a single-model llama.cpp server with its base URL and optional API key.
 
 The built-in engine runs models on-device and is desktop-only. External endpoints must be reachable from Finanze.
@@ -223,19 +226,21 @@ Manual commodity input is feature that allows to track market value for them. Cu
 
 ### Export and Importing
 
-This project allows to create specific tables in different formats, aggregating and formatting the scraped data.
-Currently two modalities are supported:
+Positions and transactions can be imported and exported in several ways:
 
-- **Google Sheets**: supported for exporting and importing, which requires to set up a Google Service Account.
-  Also keep in mind that in this modality when importing, the spreadsheets data is considered like a fake source, so
-  each time data is
-  imported will override previous data from Google Sheets (won't affect real data or manually provided).
-- **Files**: CSV, TSV and Excel files are supported for exporting and importing, no special setup is needed for this.
+- **Files**: export to CSV, TSV and Excel. Import from CSV, TSV, Excel (XLS/XLSX), HTML tables and text-based PDFs.
+  Columns are detected automatically, or mapped manually or with a saved template, with a preview before saving.
+- **AI import**: extracts data without templates from the file formats above, plain text and images (PNG, JPEG, WebP,
+  GIF, plus HEIC on mobile), including scanned PDFs. Supports extra instructions and fallback providers. Images and
+  scanned PDFs require a vision-capable model. Results are previewed before saving.
+- **Google Sheets**: export and import by connecting a Google account under **Entities > Providers**. Imported
+  spreadsheet data is its own source, so each import replaces previous Google Sheets data without affecting real or
+  manual data.
 
 #### Templating
 
 Exporting and importing is highly customizable using templates, which allows to define the structure of the tables,
-data formatting, filters and other features. It's required for importing.
+data formatting, filters and other features. Templates are optional for file imports and define Google Sheets imports.
 
 Check [Export & Import Configuration](#export--import-configuration) for more technical info.
 

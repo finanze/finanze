@@ -20,6 +20,7 @@ from domain.exception.exceptions import (
     LabelingRuleNotFound,
     InvalidLabelingRule,
     ExternalLabelingUnavailable,
+    AIProviderError,
     InvalidProvidedCredentials,
     InvalidUserCredentials,
     UnauthorizedToken,
@@ -183,6 +184,13 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, ExternalLabelingUnavailable):
             status = 502
             data = {"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}
+        elif isinstance(e, AIProviderError):
+            status = 502
+            data = {
+                "code": "AI_PROVIDER_ERROR",
+                "reason": e.code.value,
+                "message": e.details,
+            }
         elif isinstance(e, InvalidUserCredentials):
             status = 401
             data = {"code": "INVALID_CREDENTIALS", "message": str(e)}

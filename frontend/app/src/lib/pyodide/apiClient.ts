@@ -243,7 +243,9 @@ export class PyodideApiClient implements ApiClient {
     await ensureInitialized(method, fullPath)
 
     let payload = body
+    let headers: Record<string, string> = { ...(options?.headers || {}) }
     if (body instanceof FormData) {
+      headers = { "Content-Type": "multipart/form-data", ...headers }
       const formDataPayload: Record<string, any> = {}
       for (const [key, value] of (body as any).entries()) {
         if (value instanceof Blob) {
@@ -260,8 +262,6 @@ export class PyodideApiClient implements ApiClient {
       }
       payload = formDataPayload
     }
-
-    const headers = options?.headers || {}
 
     try {
       const response = await callPythonFunction<PythonResponse>(

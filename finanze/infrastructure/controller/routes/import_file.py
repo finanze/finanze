@@ -8,8 +8,40 @@ from domain.file_upload import FileUpload
 from domain.global_position import ProductType
 from domain.importing import ImportFileRequest
 from domain.settings import TemplateConfig
+from domain.template import TemplatedField
 from domain.use_cases.import_file import ImportFile
 from quart import jsonify, request
+
+MAX_AI_INSTRUCTIONS_LENGTH = 1000
+
+
+def _parse_template_fields(raw: str) -> list[TemplatedField]:
+    parsed = json.loads(raw)
+    if not isinstance(parsed, list):
+        raise ValueError("templateFields must be an array")
+    fields: list[TemplatedField] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise ValueError("Each templateField must be an object")
+        field_name = item.get("field")
+        if not isinstance(field_name, str) or not field_name.strip():
+            raise ValueError("Each templateField requires a string 'field'")
+        custom_name = item.get("name")
+        if custom_name is not None and not isinstance(custom_name, str):
+            raise ValueError("templateField 'name' must be a string or null")
+        default_val = item.get("default")
+        if default_val is None and "default_value" in item:
+            default_val = item.get("default_value")
+        fields.append(
+            TemplatedField(
+                field=field_name.strip(),
+                name=custom_name.strip()
+                if isinstance(custom_name, str) and custom_name.strip()
+                else None,
+                default_value=default_val,
+            )
+        )
+    return fields
 
 
 async def import_file_route(import_file_uc: ImportFile):
@@ -26,22 +58,31 @@ async def import_file_route(import_file_uc: ImportFile):
         )
 
     uploaded_file = (await request.files).get("file")
-    if not uploaded_file:
+    form = await request.form
+    preview_token = (form.get("previewToken") or "").strip() or None
+    if not uploaded_file and not preview_token:
         return (
             jsonify({"code": "INVALID_REQUEST", "message": "Missing file"}),
             HTTPStatus.BAD_REQUEST,
         )
 
-    form = await request.form
     date_format = form.get("dateFormat")
     datetime_format = form.get("datetimeFormat")
     number_format_raw = form.get("numberFormat")
     feature_raw = form.get("feature")
     product_raw = form.get("product")
-    template_id = form.get("templateId")
+    template_id = (form.get("templateId") or "").strip() or None
+    template_fields_raw = form.get("templateFields")
     template_params_raw = form.get("templateParams")
+    use_ai = (form.get("useAi") or "").strip().lower() == "true"
+    ai_instructions = (form.get("aiInstructions") or "").strip() or None
+    if ai_instructions and len(ai_instructions) > MAX_AI_INSTRUCTIONS_LENGTH:
+        return (
+            jsonify({"code": "INVALID_REQUEST", "message": "Instructions too long"}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
-    if not all([feature_raw, product_raw, template_id]):
+    if not all([feature_raw, product_raw]):
         return (
             jsonify({"code": "INVALID_REQUEST", "message": "Missing required fields"}),
             HTTPStatus.BAD_REQUEST,
@@ -88,11 +129,30 @@ async def import_file_route(import_file_uc: ImportFile):
                 HTTPStatus.BAD_REQUEST,
             )
 
-    file_upload = FileUpload(
-        filename=uploaded_file.filename,
-        content_type=uploaded_file.content_type,
-        content_length=uploaded_file.content_length or 0,
-        data=uploaded_file.stream,
+    template_fields = None
+    if template_fields_raw:
+        try:
+            template_fields = _parse_template_fields(template_fields_raw)
+        except ValueError as exc:
+            return (
+                jsonify(
+                    {
+                        "code": "INVALID_REQUEST",
+                        "message": f"Invalid template fields: {exc}",
+                    }
+                ),
+                HTTPStatus.BAD_REQUEST,
+            )
+
+    file_upload = (
+        FileUpload(
+            filename=uploaded_file.filename,
+            content_type=uploaded_file.content_type,
+            content_length=uploaded_file.content_length or 0,
+            data=uploaded_file.stream,
+        )
+        if uploaded_file
+        else None
     )
 
     preview_raw = request.args.get("preview")
@@ -119,8 +179,15 @@ async def import_file_route(import_file_uc: ImportFile):
         product=product,
         datetime_format=datetime_format,
         date_format=date_format,
-        template=TemplateConfig(id=template_id, params=template_params),
+        template=TemplateConfig(id=template_id, params=template_params)
+        if template_id
+        else None,
         preview=preview,
+        template_fields=template_fields,
+        template_params=template_params,
+        use_ai=use_ai,
+        ai_instructions=ai_instructions,
+        preview_token=preview_token,
     )
 
     try:
@@ -138,5 +205,11 @@ async def import_file_route(import_file_uc: ImportFile):
         response["data"] = result.data
     if result.errors:
         response["errors"] = result.errors
+    if result.preview_token:
+        response["previewToken"] = result.preview_token
+    if result.ai:
+        response["ai"] = result.ai
+    if result.detail:
+        response["detail"] = result.detail
 
     return jsonify(response), HTTPStatus.OK

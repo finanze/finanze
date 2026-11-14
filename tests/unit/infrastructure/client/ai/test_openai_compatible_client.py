@@ -8,6 +8,7 @@ from domain.ai import (
     AIDecisionRequest,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIJsonSchema,
     AIMessage,
     AIMessageRole,
@@ -76,6 +77,7 @@ def test_features_include_model_listing():
         AIClientFeature.MODEL_LISTING,
         AIClientFeature.CUSTOM_MODELS,
         AIClientFeature.SERVER_INFO,
+        AIClientFeature.ATTACHMENTS,
     }
 
 
@@ -191,6 +193,32 @@ class TestListModels:
             AIModelCapability.STRUCTURED_OUTPUT,
             AIModelCapability.TEMPERATURE,
         }
+        assert models[2].input_modalities is None
+
+    @pytest.mark.asyncio
+    async def test_reads_llama_cpp_input_modalities(self):
+        client = _client(
+            (
+                200,
+                {
+                    "data": [
+                        {
+                            "id": "vision",
+                            "architecture": {"input_modalities": ["text", "image"]},
+                        },
+                        {"id": "text", "architecture": {"input_modalities": ["text"]}},
+                        {"id": "plain"},
+                    ]
+                },
+            )
+        )
+        by_id = {m.id: m for m in await client.list_models(CREDENTIALS)}
+        assert by_id["vision"].input_modalities == {
+            AIInputModality.TEXT,
+            AIInputModality.IMAGE,
+        }
+        assert by_id["text"].input_modalities == {AIInputModality.TEXT}
+        assert by_id["plain"].input_modalities is None
 
     @pytest.mark.asyncio
     async def test_get_model(self):

@@ -8,7 +8,12 @@ from typing import Optional
 
 from application.ports.local_model_imports import LocalModelImports
 from domain.exception.exceptions import LocalModelError, LocalModelErrorCode
-from domain.local_model import IMPORTED_MODEL_PREFIX, ImportedLocalModel
+from domain.local_model import (
+    IMPORTED_MODEL_PREFIX,
+    MMPROJ_KEYWORD,
+    ImportedLocalModel,
+    find_mmproj_sibling,
+)
 
 GGUF_MAGIC = b"GGUF"
 FORBIDDEN_PATH_CHARS = ("\n", "\r", ";", "#", "[", "]")
@@ -24,7 +29,21 @@ def _slug(name: str) -> str:
 
 def _is_model_file(path: Path) -> bool:
     name = path.name.lower()
-    return name.endswith(".gguf") and "mmproj" not in name
+    return name.endswith(".gguf") and MMPROJ_KEYWORD not in name
+
+
+def _mmproj_for(path: Path) -> Optional[Path]:
+    try:
+        names = [f.name for f in path.parent.iterdir() if f.is_file()]
+    except OSError:
+        return None
+    name = find_mmproj_sibling(names, path.name)
+    if name is None:
+        return None
+    mmproj = path.parent / name
+    if any(c in str(mmproj) for c in FORBIDDEN_PATH_CHARS):
+        return None
+    return mmproj
 
 
 def _imported(model_id: str, path: str) -> ImportedLocalModel:
@@ -32,7 +51,21 @@ def _imported(model_id: str, path: str) -> ImportedLocalModel:
         size = os.stat(path).st_size
     except OSError:
         return ImportedLocalModel(id=model_id, path=path, exists=False)
-    return ImportedLocalModel(id=model_id, path=path, exists=True, size=size)
+    mmproj = _mmproj_for(Path(path))
+    mmproj_size = None
+    if mmproj is not None:
+        try:
+            mmproj_size = os.stat(mmproj).st_size
+        except OSError:
+            mmproj = None
+    return ImportedLocalModel(
+        id=model_id,
+        path=path,
+        exists=True,
+        size=size,
+        mmproj_path=str(mmproj) if mmproj is not None else None,
+        mmproj_size=mmproj_size,
+    )
 
 
 def _atomic_write(path: Path, content: str):
@@ -107,6 +140,15 @@ class LocalModelFileImports(LocalModelImports):
             pass
         except OSError as e:
             raise LocalModelError(LocalModelErrorCode.INVALID_FILE, str(e)) from e
+        if model.mmproj_path and not any(
+            m.mmproj_path == model.mmproj_path for m in self._collect()
+        ):
+            try:
+                os.unlink(model.mmproj_path)
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                self._log.warning(f"Could not remove local model projector: {e}")
         await self.sync()
         return True
 
@@ -117,6 +159,8 @@ class LocalModelFileImports(LocalModelImports):
                 continue
             lines.append(f"[{model.id}]")
             lines.append(f"model = {model.path}")
+            if model.mmproj_path:
+                lines.append(f"mmproj = {model.mmproj_path}")
             lines.append("")
         _atomic_write(presets_path(self._models_dir), "\n".join(lines))
 

@@ -8,6 +8,7 @@ from domain.ai import (
     AIDecisionRequest,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIJsonSchema,
     AIMessage,
     AIMessageRole,
@@ -98,6 +99,7 @@ class TestOpenRouterClientFeatures:
             AIClientFeature.DECISIONS,
             AIClientFeature.UPSTREAM_PROVIDERS,
             AIClientFeature.CUSTOM_MODELS,
+            AIClientFeature.ATTACHMENTS,
         }
 
 
@@ -151,6 +153,34 @@ class TestOpenRouterClientGetModel:
     async def test_returns_none_when_not_found(self):
         client = _client((404, {"error": {"message": "Not found"}}))
         assert await client.get_model("openai/missing", CREDENTIALS) is None
+
+    @pytest.mark.parametrize(
+        ("architecture", "expected"),
+        [
+            (
+                {"input_modalities": ["text", "image", "file"]},
+                {AIInputModality.TEXT, AIInputModality.IMAGE, AIInputModality.DOCUMENT},
+            ),
+            ({"input_modalities": ["text", "audio"]}, {AIInputModality.TEXT}),
+            ({}, None),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_maps_input_modalities(self, architecture, expected):
+        client = _client(
+            (
+                200,
+                {
+                    "data": {
+                        "name": "Model",
+                        "architecture": {"output_modalities": ["text"], **architecture},
+                        "supported_parameters": ["response_format"],
+                    }
+                },
+            )
+        )
+        model = await client.get_model("openai/gpt-6-luna", CREDENTIALS)
+        assert model.input_modalities == expected
 
     @pytest.mark.asyncio
     async def test_returns_none_without_author(self):

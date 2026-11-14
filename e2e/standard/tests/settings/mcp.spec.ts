@@ -26,7 +26,7 @@ test.describe('MCP server settings', () => {
         authenticatedPage: page,
     }) => {
         await page.locator('button[aria-label="Settings"]').first().click()
-        await page.getByRole('tab', { name: 'MCP' }).click()
+        await page.getByRole('tab', { name: 'AI & MCP' }).click()
 
         const enabled = page.getByTestId('mcp-enabled')
         const readOnly = page.getByTestId('mcp-read-only')
@@ -149,7 +149,7 @@ test.describe('MCP server settings', () => {
         expect(withoutBudget.tools).toContain('get_positions')
 
         await page.getByRole('tab', { name: 'General', exact: true }).click()
-        await page.getByRole('tab', { name: 'MCP', exact: true }).click()
+        await page.getByRole('tab', { name: 'AI & MCP', exact: true }).click()
         await expect(categories).toHaveAttribute('aria-expanded', 'false')
         await categories.click()
         await expect(budgetRead).toHaveAttribute('data-state', 'unchecked')

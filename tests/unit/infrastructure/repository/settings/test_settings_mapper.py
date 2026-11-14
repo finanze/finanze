@@ -6,6 +6,9 @@ import pytest
 
 from domain.settings import (
     CURRENT_VERSION,
+    MAX_AI_PROVIDERS,
+    AIConfig,
+    AIImportConfig,
     AutoRefreshMaxOutdatedTime,
     AutoRefreshMode,
     EditMode,
@@ -110,15 +113,33 @@ class TestProviderCompatibility:
     @pytest.mark.parametrize(
         "providers",
         [
-            [{"provider": "OPENAI", "model": str(index)} for index in range(4)],
+            [
+                {"provider": "OPENAI", "model": str(index)}
+                for index in range(MAX_AI_PROVIDERS + 1)
+            ],
             [{"provider": "OPENAI", "model": "same"}] * 2,
             [{"provider": "OPENAI", "model": "  "}],
             [{"provider": "", "model": "model"}],
         ],
     )
-    def test_rejects_invalid_priorities(self, providers):
+    @pytest.mark.parametrize(
+        "config_type", [ExternalLabelingConfig, AIConfig, AIImportConfig]
+    )
+    def test_rejects_invalid_priorities(self, providers, config_type):
         with pytest.raises(ValueError):
-            ExternalLabelingConfig(providers=providers)
+            config_type(providers=providers)
+
+    def test_ai_section_round_trips_and_defaults_when_missing(self):
+        entries = [
+            {"provider": "OPENAI", "model": "gpt-6-luna", "upstreamProvider": None}
+        ]
+        ai = parse_section("ai", {"providers": entries})
+        assert settings_to_sections(PartialSettings(ai=ai))["ai"] == {
+            "providers": entries
+        }
+        assert sections_to_settings({}, "now").ai.providers == []
+        importing = parse_section("importing", {}).ai
+        assert (importing.providers, importing.instructions) == ([], None)
 
 
 class TestLegacyToSections:

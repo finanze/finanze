@@ -36,6 +36,7 @@ import { MobileReleaseUpdateModal } from "./components/MobileReleaseUpdateModal"
 import { GlobalEntityModals } from "./components/GlobalEntityModals"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
+import { FileImportJobProvider } from "./context/FileImportJobContext"
 import { BackupAlertSync } from "./components/BackupAlertSync"
 import { useState, useEffect, useRef } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
@@ -156,158 +157,168 @@ function App() {
         <LabelsProvider>
           <PinnedShortcutsProvider>
             <BottomNavProvider>
-              <BackupAlertSync />
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/banking" element={<BankingPage />} />
-                  <Route path="/real-estate" element={<RealEstatePage />} />
-                  <Route
-                    path="/real-estate/:id"
-                    element={<RealEstateDetailsPage />}
-                  />
-                  <Route
-                    path="/entities"
-                    element={<EntityIntegrationsPage />}
-                  />
-                  <Route path="/transactions" element={<TransactionsPage />} />
-                  <Route path="/investments" element={<InvestmentsPage />} />
-                  <Route
-                    path="/investments/stocks-etfs"
-                    element={<StocksInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/funds"
-                    element={<FundsInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/deposits"
-                    element={<DepositsInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/factoring"
-                    element={<FactoringInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/real-estate-cf"
-                    element={<RealEstateCFInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/crypto"
-                    element={<CryptoInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/market-forecast"
-                    element={<MarketForecastInvestmentPage />}
-                  />
-                  <Route
-                    path="/investments/commodities"
-                    element={<CommoditiesInvestmentPage />}
-                  />
-                  <Route path="/management" element={<ManagementPage />} />
-                  <Route
-                    path="/management/recurring"
-                    element={<RecurringMoneyPage />}
-                  />
-                  <Route
-                    path="/management/pending"
-                    element={<PendingMoneyPage />}
-                  />
-                  <Route
-                    path="/management/auto-contributions"
-                    element={
-                      <Navigate
-                        to="/management/recurring?tab=investments"
-                        replace
-                      />
-                    }
-                  />
-                  <Route
-                    path="/management/labels"
-                    element={<LegacyLabelsRedirect />}
-                  />
-                  <Route
-                    path="/management/cashflow"
-                    element={<CashflowPage />}
-                  />
-                  <Route path="/calculations" element={<CalculationsPage />} />
-                  <Route path="/export" element={<ExportPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </Layout>
+              <FileImportJobProvider>
+                <BackupAlertSync />
+                <Layout>
+                  <Routes>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/banking" element={<BankingPage />} />
+                    <Route path="/real-estate" element={<RealEstatePage />} />
+                    <Route
+                      path="/real-estate/:id"
+                      element={<RealEstateDetailsPage />}
+                    />
+                    <Route
+                      path="/entities"
+                      element={<EntityIntegrationsPage />}
+                    />
+                    <Route
+                      path="/transactions"
+                      element={<TransactionsPage />}
+                    />
+                    <Route path="/investments" element={<InvestmentsPage />} />
+                    <Route
+                      path="/investments/stocks-etfs"
+                      element={<StocksInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/funds"
+                      element={<FundsInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/deposits"
+                      element={<DepositsInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/factoring"
+                      element={<FactoringInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/real-estate-cf"
+                      element={<RealEstateCFInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/crypto"
+                      element={<CryptoInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/market-forecast"
+                      element={<MarketForecastInvestmentPage />}
+                    />
+                    <Route
+                      path="/investments/commodities"
+                      element={<CommoditiesInvestmentPage />}
+                    />
+                    <Route path="/management" element={<ManagementPage />} />
+                    <Route
+                      path="/management/recurring"
+                      element={<RecurringMoneyPage />}
+                    />
+                    <Route
+                      path="/management/pending"
+                      element={<PendingMoneyPage />}
+                    />
+                    <Route
+                      path="/management/auto-contributions"
+                      element={
+                        <Navigate
+                          to="/management/recurring?tab=investments"
+                          replace
+                        />
+                      }
+                    />
+                    <Route
+                      path="/management/labels"
+                      element={<LegacyLabelsRedirect />}
+                    />
+                    <Route
+                      path="/management/cashflow"
+                      element={<CashflowPage />}
+                    />
+                    <Route
+                      path="/calculations"
+                      element={<CalculationsPage />}
+                    />
+                    <Route path="/export" element={<ExportPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Layout>
 
-              {/* Release Update Modal */}
-              {!isNativeMobile() &&
-                showReleaseModal &&
-                updateInfo?.hasUpdate &&
-                updateInfo.release && (
-                  <ReleaseUpdateModal
-                    isOpen={showReleaseModal}
-                    onClose={handleCloseReleaseModal}
-                    currentVersion={updateInfo.currentVersion}
-                    latestVersion={updateInfo.latestVersion}
-                    release={updateInfo.release}
-                    onSkipVersion={handleSkipVersion}
-                    autoUpdateSupported={autoUpdateState.isSupported}
-                    isAutoUpdateDownloading={autoUpdateState.isDownloading}
-                    autoUpdateProgress={autoUpdateState.progress}
-                    autoUpdateDownloadedBytes={autoUpdateState.downloadedBytes}
-                    autoUpdateTotalBytes={autoUpdateState.totalBytes}
-                    isAutoUpdateDownloaded={autoUpdateState.isDownloaded}
-                    autoUpdateErrorMessage={
-                      autoUpdateState.error?.message ?? null
-                    }
-                    onStartAutoUpdate={() => {
-                      void startAutoUpdateDownload()
-                    }}
-                    onInstallAutoUpdate={() => {
-                      void startAutoUpdateInstallation()
-                    }}
-                  />
-                )}
-
-              {/* Android APK Update Modal */}
-              {androidUpdateEnabled &&
-                showReleaseModal &&
-                updateInfo?.hasUpdate &&
-                updateInfo.release &&
-                (() => {
-                  const apkAsset = getPlatformAssets(
-                    updateInfo.release,
-                    PlatformType.ANDROID,
-                  )[0]
-                  if (!apkAsset) return null
-                  return (
-                    <MobileReleaseUpdateModal
+                {/* Release Update Modal */}
+                {!isNativeMobile() &&
+                  showReleaseModal &&
+                  updateInfo?.hasUpdate &&
+                  updateInfo.release && (
+                    <ReleaseUpdateModal
                       isOpen={showReleaseModal}
                       onClose={handleCloseReleaseModal}
                       currentVersion={updateInfo.currentVersion}
                       latestVersion={updateInfo.latestVersion}
                       release={updateInfo.release}
                       onSkipVersion={handleSkipVersion}
-                      isDownloading={apkUpdaterState.isDownloading}
-                      isDownloaded={apkUpdaterState.isDownloaded}
-                      needsPermission={apkUpdaterState.needsPermission}
-                      progress={apkUpdaterState.progress}
-                      downloadedBytes={apkUpdaterState.downloadedBytes}
-                      totalBytes={apkUpdaterState.totalBytes}
-                      errorMessage={apkUpdaterState.error}
-                      onDownload={() => {
-                        void downloadApk(
-                          apkAsset.url,
-                          apkAsset.name,
-                          apkAsset.size,
-                        )
+                      autoUpdateSupported={autoUpdateState.isSupported}
+                      isAutoUpdateDownloading={autoUpdateState.isDownloading}
+                      autoUpdateProgress={autoUpdateState.progress}
+                      autoUpdateDownloadedBytes={
+                        autoUpdateState.downloadedBytes
+                      }
+                      autoUpdateTotalBytes={autoUpdateState.totalBytes}
+                      isAutoUpdateDownloaded={autoUpdateState.isDownloaded}
+                      autoUpdateErrorMessage={
+                        autoUpdateState.error?.message ?? null
+                      }
+                      onStartAutoUpdate={() => {
+                        void startAutoUpdateDownload()
                       }}
-                      onInstall={() => {
-                        void installApk()
+                      onInstallAutoUpdate={() => {
+                        void startAutoUpdateInstallation()
                       }}
                     />
-                  )
-                })()}
+                  )}
 
-              <GlobalEntityModals />
+                {/* Android APK Update Modal */}
+                {androidUpdateEnabled &&
+                  showReleaseModal &&
+                  updateInfo?.hasUpdate &&
+                  updateInfo.release &&
+                  (() => {
+                    const apkAsset = getPlatformAssets(
+                      updateInfo.release,
+                      PlatformType.ANDROID,
+                    )[0]
+                    if (!apkAsset) return null
+                    return (
+                      <MobileReleaseUpdateModal
+                        isOpen={showReleaseModal}
+                        onClose={handleCloseReleaseModal}
+                        currentVersion={updateInfo.currentVersion}
+                        latestVersion={updateInfo.latestVersion}
+                        release={updateInfo.release}
+                        onSkipVersion={handleSkipVersion}
+                        isDownloading={apkUpdaterState.isDownloading}
+                        isDownloaded={apkUpdaterState.isDownloaded}
+                        needsPermission={apkUpdaterState.needsPermission}
+                        progress={apkUpdaterState.progress}
+                        downloadedBytes={apkUpdaterState.downloadedBytes}
+                        totalBytes={apkUpdaterState.totalBytes}
+                        errorMessage={apkUpdaterState.error}
+                        onDownload={() => {
+                          void downloadApk(
+                            apkAsset.url,
+                            apkAsset.name,
+                            apkAsset.size,
+                          )
+                        }}
+                        onInstall={() => {
+                          void installApk()
+                        }}
+                      />
+                    )
+                  })()}
+
+                <GlobalEntityModals />
+              </FileImportJobProvider>
             </BottomNavProvider>
           </PinnedShortcutsProvider>
         </LabelsProvider>

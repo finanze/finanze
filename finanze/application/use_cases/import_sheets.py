@@ -37,6 +37,8 @@ from domain.importing import (
     ImportResult,
     ImportResultCode,
     TemplatedDataParserParams,
+    exclude_duplicated_txs,
+    stored_entity_ids,
 )
 from domain.settings import (
     ImportSheetConfig,
@@ -168,7 +170,12 @@ class ImportSheetsImpl(ImportSheets):
                     )
                 )
                 await self._transaction_port.delete_by_source(DataSource.SHEETS)
-                transactions = imported_txs.transactions
+                existing_keys = await self._transaction_port.get_ref_keys(
+                    stored_entity_ids(imported_txs)
+                )
+                transactions, duplicated = exclude_duplicated_txs(
+                    imported_txs, existing_keys
+                )
                 new_account_ids = []
                 if transactions:
                     for entity in imported_txs.created_entities:
@@ -233,6 +240,7 @@ class ImportSheetsImpl(ImportSheets):
                     + tx_sheet_errors
                     + import_position_result.errors
                     + imported_txs.errors
+                    + duplicated
                 )
                 data = ImportedData(
                     positions=import_position_result.positions,
@@ -313,5 +321,5 @@ class ImportSheetsImpl(ImportSheets):
             date_format=config.dateFormat
             or global_config.dateFormat
             or DEFAULT_DATE_FORMAT,
-            params={},
+            params=config.template.params or {},
         )

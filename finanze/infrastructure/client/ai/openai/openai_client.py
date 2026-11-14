@@ -20,11 +20,13 @@ from domain.exception.exceptions import (
     TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationPayload
+from infrastructure.client.ai.attachments import responses_input
 from infrastructure.client.ai.http_ai_client import (
     REASONING_EFFORTS,
     HttpAIClient,
     to_dezimal,
 )
+from infrastructure.client.ai.input_modalities import openai_input_modalities
 from infrastructure.client.ai.responses_api import parse_response_output
 from infrastructure.client.http.http_response import HttpResponse
 
@@ -69,6 +71,7 @@ class OpenAIClient(HttpAIClient):
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
             AIClientFeature.CUSTOM_MODELS,
+            AIClientFeature.ATTACHMENTS,
         }
 
     async def setup(self, payload: ExternalIntegrationPayload):
@@ -92,12 +95,17 @@ class OpenAIClient(HttpAIClient):
         await self._check(response)
         data = await response.json()
         capabilities = set()
+        input_modalities = None
         if _is_text_model(model_id):
             capabilities.add(AIModelCapability.STRUCTURED_OUTPUT)
+            input_modalities = openai_input_modalities(model_id)
             if await self._supports_decisions(model_id, credentials):
                 capabilities.add(AIModelCapability.DECISIONS)
         return AIModel(
-            id=data.get("id") or model_id, name=model_id, capabilities=capabilities
+            id=data.get("id") or model_id,
+            name=model_id,
+            capabilities=capabilities,
+            input_modalities=input_modalities,
         )
 
     async def decide(
@@ -171,10 +179,7 @@ class OpenAIClient(HttpAIClient):
             )
         body = {
             "model": request.model,
-            "input": [
-                {"role": message.role.value.lower(), "content": message.content}
-                for message in request.messages
-            ],
+            "input": responses_input(request.messages),
             "store": False,
         }
         if request.instructions:

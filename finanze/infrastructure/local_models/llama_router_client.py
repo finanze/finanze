@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 from typing import Optional
 
 from application.ports.local_model_router import LocalModelRouter
@@ -14,6 +16,8 @@ from infrastructure.client.http.http_session import get_http_session
 from infrastructure.local_models.llama_download_progress import LlamaDownloadProgress
 
 DECISIONS_OUTPUT = "decisions"
+IMAGE_INPUT = "image"
+MMPROJ_SIDECAR = "mmproj"
 ROUTER_STATES = {
     "unloaded": LocalModelState.UNLOADED,
     "downloaded": LocalModelState.UNLOADED,
@@ -21,6 +25,13 @@ ROUTER_STATES = {
     "loaded": LocalModelState.LOADED,
     "sleeping": LocalModelState.SLEEPING,
     "downloading": LocalModelState.DOWNLOADING,
+    "incomplete": LocalModelState.INCOMPLETE,
+}
+RUNNING_STATES = {
+    LocalModelState.LOADING,
+    LocalModelState.LOADED,
+    LocalModelState.SLEEPING,
+    LocalModelState.DOWNLOADING,
 }
 
 
@@ -29,6 +40,10 @@ def _int(value) -> Optional[int]:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _strings(value) -> list[str]:
+    return [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
 
 
 def parse_router_model(entry: dict) -> Optional[LocalRouterModel]:
@@ -45,7 +60,7 @@ def parse_router_model(entry: dict) -> Optional[LocalRouterModel]:
     architecture = (
         entry.get("architecture") if isinstance(entry.get("architecture"), dict) else {}
     )
-    modalities = architecture.get("output_modalities") or []
+    modalities = _strings(architecture.get("output_modalities"))
     removable = entry.get("can_remove")
     return LocalRouterModel(
         id=str(model_id),
@@ -53,12 +68,16 @@ def parse_router_model(entry: dict) -> Optional[LocalRouterModel]:
         size=_int(meta.get("size")),
         decisions=DECISIONS_OUTPUT in modalities,
         removable=removable if isinstance(removable, bool) else None,
+        vision=IMAGE_INPUT in _strings(architecture.get("input_modalities")),
+        has_mmproj=MMPROJ_SIDECAR in _strings(entry.get("sidecars")),
     )
 
 
 class LlamaRouterClient(LocalModelRouter):
     TIMEOUT_SECONDS = 15.0
     DOWNLOAD_TIMEOUT_SECONDS = 120.0
+    UNLOAD_TIMEOUT_SECONDS = 30.0
+    UNLOAD_POLL_SECONDS = 0.5
 
     def __init__(self, progress: Optional[LlamaDownloadProgress] = None):
         self._session = get_http_session()
@@ -103,16 +122,7 @@ class LlamaRouterClient(LocalModelRouter):
     async def list_models(
         self, connection: LocalRouterConnection, reload: bool = False
     ) -> list[LocalRouterModel]:
-        params = {"reload": "1"} if reload else None
-        body = await self._json(connection, "GET", "/models", params=params)
-        models = []
-        for entry in body.get("data") or []:
-            if not isinstance(entry, dict):
-                continue
-            model = parse_router_model(entry)
-            if model is not None:
-                models.append(model)
-
+        models = await self._router_models(connection, reload)
         downloading = {m.id for m in models if m.state == LocalModelState.DOWNLOADING}
         self._progress.watch(connection, downloading)
         for model in models:
@@ -122,12 +132,28 @@ class LlamaRouterClient(LocalModelRouter):
                 model.size = total or model.size
         return models
 
-    async def download(self, connection: LocalRouterConnection, model_id: str):
+    async def _router_models(
+        self, connection: LocalRouterConnection, reload: bool = False
+    ) -> list[LocalRouterModel]:
+        params = {"reload": "1"} if reload else None
+        body = await self._json(connection, "GET", "/models", params=params)
+        models = []
+        for entry in body.get("data") or []:
+            if not isinstance(entry, dict):
+                continue
+            model = parse_router_model(entry)
+            if model is not None:
+                models.append(model)
+        return models
+
+    async def download(
+        self, connection: LocalRouterConnection, model_id: str, vision: bool = False
+    ):
         response = await self._call(
             connection,
             "POST",
             "/models",
-            json={"model": model_id, "sidecars": []},
+            json={"model": model_id, "sidecars": [MMPROJ_SIDECAR] if vision else []},
             timeout=self.DOWNLOAD_TIMEOUT_SECONDS,
         )
         if response.status == 400:
@@ -138,9 +164,13 @@ class LlamaRouterClient(LocalModelRouter):
         await self._check(response)
 
     async def delete(self, connection: LocalRouterConnection, model_id: str):
-        response = await self._call(
-            connection, "DELETE", "/models", params={"model": model_id}
-        )
+        await self._delete(connection, {"model": model_id})
+
+    async def delete_vision(self, connection: LocalRouterConnection, model_id: str):
+        await self._delete(connection, {"model": model_id, "sidecar": MMPROJ_SIDECAR})
+
+    async def _delete(self, connection: LocalRouterConnection, params: dict):
+        response = await self._call(connection, "DELETE", "/models", params=params)
         if response.status == 400:
             raise LocalModelError(
                 LocalModelErrorCode.NOT_DELETABLE,
@@ -151,8 +181,22 @@ class LlamaRouterClient(LocalModelRouter):
     async def load(self, connection: LocalRouterConnection, model_id: str):
         await self._json(connection, "POST", "/models/load", json={"model": model_id})
 
+    # The router stops a loaded instance in the background, wait until it is gone
     async def unload(self, connection: LocalRouterConnection, model_id: str):
         await self._json(connection, "POST", "/models/unload", json={"model": model_id})
+        deadline = time.monotonic() + self.UNLOAD_TIMEOUT_SECONDS
+        while True:
+            model = next(
+                (m for m in await self._router_models(connection) if m.id == model_id),
+                None,
+            )
+            if model is None or model.state not in RUNNING_STATES:
+                return
+            if time.monotonic() >= deadline:
+                raise LocalModelError(
+                    LocalModelErrorCode.SERVER_ERROR, f"{model_id} did not unload"
+                )
+            await asyncio.sleep(self.UNLOAD_POLL_SECONDS)
 
     @staticmethod
     def _headers(connection: LocalRouterConnection) -> dict:

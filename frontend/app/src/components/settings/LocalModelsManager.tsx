@@ -4,6 +4,7 @@ import {
   Download,
   FileUp,
   FolderOpen,
+  Image as ImageIcon,
   RefreshCw,
   Search,
   Trash2,
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { Switch } from "@/components/ui/Switch"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import {
   deleteLocalModel,
@@ -70,6 +72,7 @@ const STATE_CLASSES: Record<LocalModelState, string> = {
   [LocalModelState.DOWNLOADING]: "text-amber-600 dark:text-amber-400",
   [LocalModelState.FAILED]: "text-red-600 dark:text-red-400",
   [LocalModelState.MISSING]: "text-red-600 dark:text-red-400",
+  [LocalModelState.INCOMPLETE]: "text-amber-600 dark:text-amber-400",
 }
 
 const normalizeRepo = (value: string) =>
@@ -187,7 +190,11 @@ export function LocalModelsManager({
   const [customServer, setCustomServer] = useState(true)
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [refreshing, setRefreshing] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<LocalModel | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{
+    model: LocalModel
+    visionOnly: boolean
+  } | null>(null)
+  const [vision, setVision] = useState<Record<string, boolean>>({})
   const [repoInput, setRepoInput] = useState("")
   const [repoError, setRepoError] = useState<string | null>(null)
   const [quants, setQuants] = useState<HuggingFaceQuants | null>(null)
@@ -208,6 +215,9 @@ export function LocalModelsManager({
     [overview.models],
   )
   const catalog = overview.catalog.filter(entry => !installedIds.has(entry.id))
+  const selectedOption = quants?.quants.find(
+    option => option.quant === selectedQuant,
+  )
 
   const canImport =
     builtIn &&
@@ -268,7 +278,16 @@ export function LocalModelsManager({
     })
 
   const handleCatalogDownload = (entry: LocalModelCatalogEntry) =>
-    startDownload(`catalog-${entry.id}`, entry.name, { catalog_id: entry.id })
+    startDownload(`catalog-${entry.id}`, entry.name, {
+      catalog_id: entry.id,
+      vision: !!entry.vision_size && !!vision[entry.id],
+    })
+
+  const handleAddVision = (model: LocalModel) =>
+    startDownload(`vision-${model.id}`, model.name, {
+      catalog_id: model.id,
+      vision: true,
+    })
 
   const handleFindQuants = async () => {
     const repo = normalizeRepo(repoInput)
@@ -298,11 +317,12 @@ export function LocalModelsManager({
   }
 
   const handleQuantDownload = () => {
-    if (!quants || !selectedQuant) return
-    const id = `${quants.repo}:${selectedQuant}`
+    if (!quants || !selectedOption) return
+    const id = `${quants.repo}:${selectedOption.quant}`
     void startDownload("huggingface", id, {
       repo: quants.repo,
-      quant: selectedQuant,
+      quant: selectedOption.quant,
+      vision: !!selectedOption.vision_size && !!vision.huggingface,
     })
   }
 
@@ -327,11 +347,18 @@ export function LocalModelsManager({
     })
 
   const handleConfirmDelete = async () => {
-    const model = pendingDelete
-    if (!model) return
-    await runAction(`delete-${model.id}`, async () => {
-      await deleteLocalModel(model.id)
-      showToast(copy.deleted.replace("{model}", model.name), "success")
+    if (!pendingDelete) return
+    const { model, visionOnly } = pendingDelete
+    const key = visionOnly ? `vision-${model.id}` : `delete-${model.id}`
+    await runAction(key, async () => {
+      await deleteLocalModel(model.id, visionOnly)
+      showToast(
+        (visionOnly ? copy.visionRemoved : copy.deleted).replace(
+          "{model}",
+          model.name,
+        ),
+        "success",
+      )
       await onReload()
     })
     setPendingDelete(null)
@@ -343,10 +370,24 @@ export function LocalModelsManager({
     bytes >
       capabilities.system_memory * ramWarningRatio(capabilities.system_memory)
 
+  const visionSwitch = (key: string, size: number) => (
+    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+      <Switch
+        size="sm"
+        checked={!!vision[key]}
+        onCheckedChange={checked =>
+          setVision(prev => ({ ...prev, [key]: checked }))
+        }
+      />
+      {copy.includeVision.replace("{size}", formatFileSize(size))}
+    </label>
+  )
+
   const renderModel = (model: LocalModel) => {
     const downloading = model.state === LocalModelState.DOWNLOADING
     const progress = downloadProgress(model)
     const deleting = !!busy[`delete-${model.id}`]
+    const visionBusy = !!busy[`vision-${model.id}`]
     const stateLabel = (copy.states as Record<string, string>)[model.state]
 
     return (
@@ -364,6 +405,12 @@ export function LocalModelsManager({
             {model.decisions && (
               <Badge variant="outline" className="text-[10px]">
                 {copy.decisions}
+              </Badge>
+            )}
+            {model.vision && (
+              <Badge variant="outline" className="gap-1 text-[10px]">
+                <ImageIcon className="h-2.5 w-2.5" />
+                {t.settings.aiModalities.IMAGE}
               </Badge>
             )}
           </div>
@@ -411,6 +458,45 @@ export function LocalModelsManager({
               </span>
             </p>
           )}
+          {(model.vision_addable || model.vision_removable) && (
+            <div className="flex flex-wrap gap-1">
+              {model.vision_addable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => void handleAddVision(model)}
+                  disabled={visionBusy}
+                >
+                  {visionBusy ? (
+                    <LoadingSpinner size="sm" className="mr-1.5" />
+                  ) : (
+                    <ImageIcon className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {copy.addVision.replace(
+                    "{size}",
+                    formatFileSize(model.vision_size ?? 0),
+                  )}
+                </Button>
+              )}
+              {model.vision_removable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-red-600"
+                  onClick={() => setPendingDelete({ model, visionOnly: true })}
+                  disabled={visionBusy}
+                >
+                  {visionBusy ? (
+                    <LoadingSpinner size="sm" className="mr-1.5" />
+                  ) : (
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {copy.removeVision}
+                </Button>
+              )}
+            </div>
+          )}
           {model.path && (
             <p className="truncate font-mono text-xs text-muted-foreground">
               {model.path}
@@ -438,7 +524,7 @@ export function LocalModelsManager({
             variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600"
-            onClick={() => setPendingDelete(model)}
+            onClick={() => setPendingDelete({ model, visionOnly: false })}
             disabled={deleting}
             aria-label={t.common.delete}
             title={t.common.delete}
@@ -456,7 +542,10 @@ export function LocalModelsManager({
 
   const renderCatalogEntry = (entry: LocalModelCatalogEntry) => {
     const key = `catalog-${entry.id}`
-    const ramWarning = exceedsMemory(entry.ram)
+    const withVision = !!entry.vision_size && !!vision[entry.id]
+    const size = entry.size + (withVision ? (entry.vision_size ?? 0) : 0)
+    const ram = entry.ram + (withVision ? (entry.vision_ram ?? 0) : 0)
+    const ramWarning = exceedsMemory(ram)
     return (
       <div
         key={entry.id}
@@ -475,13 +564,13 @@ export function LocalModelsManager({
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>{copy.params.replace("{params}", entry.params)}</span>
             <span>
-              {copy.downloadSize.replace("{size}", formatFileSize(entry.size))}
+              {copy.downloadSize.replace("{size}", formatFileSize(size))}
             </span>
             <span
               className={cn(ramWarning && "text-amber-600 dark:text-amber-400")}
               title={ramWarning ? copy.ramWarning : undefined}
             >
-              {copy.ram.replace("{ram}", formatFileSize(entry.ram))}
+              {copy.ram.replace("{ram}", formatFileSize(ram))}
             </span>
             <span>{entry.license}</span>
           </div>
@@ -493,6 +582,7 @@ export function LocalModelsManager({
               )}
             </p>
           )}
+          {entry.vision_size ? visionSwitch(entry.id, entry.vision_size) : null}
           {ramWarning && (
             <p className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
               <AlertTriangle className="h-3 w-3" />
@@ -520,13 +610,14 @@ export function LocalModelsManager({
     )
   }
 
-  const selectedOption = quants?.quants.find(
-    option => option.quant === selectedQuant,
-  )
   const unsupportedModel =
     quants !== null &&
     quants.quants.length > 0 &&
     quants.kind === HuggingFaceModelKind.ENCODER
+  const quantVision = !!selectedOption?.vision_size && !!vision.huggingface
+  const quantSize =
+    (selectedOption?.size ?? 0) +
+    (quantVision ? (selectedOption?.vision_size ?? 0) : 0)
 
   return (
     <div
@@ -699,32 +790,40 @@ export function LocalModelsManager({
               )}
             </div>
           )}
-          {quants &&
-            !unsupportedModel &&
-            exceedsMemory(selectedOption?.size) && (
-              <p
-                className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400"
-                data-testid="local-quant-ram-warning"
-              >
-                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                {copy.ramWarning}
-              </p>
-            )}
+          {quants && !unsupportedModel && selectedOption?.vision_size
+            ? visionSwitch("huggingface", selectedOption.vision_size)
+            : null}
+          {quants && !unsupportedModel && exceedsMemory(quantSize) && (
+            <p
+              className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400"
+              data-testid="local-quant-ram-warning"
+            >
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              {copy.ramWarning}
+            </p>
+          )}
         </div>
       </section>
 
       <ConfirmationDialog
         isOpen={!!pendingDelete}
-        title={copy.deleteTitle}
-        message={(pendingDelete?.source === LocalModelSource.IMPORTED
-          ? copy.deleteImportedMessage
-          : copy.deleteMessage
-        ).replace("{model}", pendingDelete?.name ?? "")}
-        confirmText={t.common.delete}
+        title={pendingDelete?.visionOnly ? copy.removeVision : copy.deleteTitle}
+        message={(pendingDelete?.visionOnly
+          ? copy.removeVisionMessage
+          : pendingDelete?.model.source === LocalModelSource.IMPORTED
+            ? copy.deleteImportedMessage
+            : copy.deleteMessage
+        ).replace("{model}", pendingDelete?.model.name ?? "")}
+        confirmText={pendingDelete?.visionOnly ? copy.remove : t.common.delete}
         cancelText={t.common.cancel}
         onConfirm={() => void handleConfirmDelete()}
         onCancel={() => setPendingDelete(null)}
-        isLoading={!!pendingDelete && !!busy[`delete-${pendingDelete.id}`]}
+        isLoading={
+          !!pendingDelete &&
+          !!busy[
+            `${pendingDelete.visionOnly ? "vision" : "delete"}-${pendingDelete.model.id}`
+          ]
+        }
       />
     </div>
   )

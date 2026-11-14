@@ -9,6 +9,7 @@ from domain.exception.exceptions import LocalModelError
 from domain.external_integration import ExternalIntegrationId
 from domain.local_model import (
     IMPORTED_MODEL_PREFIX,
+    USABLE_LOCAL_MODEL_STATES,
     ImportedLocalModel,
     LocalModel,
     LocalModelSource,
@@ -115,16 +116,19 @@ class GetLocalModelsImpl(GetLocalModels):
             else is_hugging_face_model_id(model.id)
         )
         size = model.size
+        vision_size = None
         if imported is not None:
             source = LocalModelSource.IMPORTED
             name = model.id[len(IMPORTED_MODEL_PREFIX) :]
             deletable = built_in
             size = size or imported.size
+            vision_size = imported.mmproj_size
         elif entry is not None:
             source = LocalModelSource.CATALOG
             name = entry.name
             deletable = cached
             size = size or entry.size
+            vision_size = entry.vision_size
         elif cached:
             source = LocalModelSource.HUGGING_FACE
             name = model.id
@@ -136,6 +140,9 @@ class GetLocalModelsImpl(GetLocalModels):
         state = model.state
         if imported is not None and not imported.exists:
             state = LocalModelState.MISSING
+        settled = state in USABLE_LOCAL_MODEL_STATES
+        if model.vision and size and vision_size and settled:
+            size += vision_size
         return LocalModel(
             id=model.id,
             name=name,
@@ -146,4 +153,15 @@ class GetLocalModelsImpl(GetLocalModels):
             decisions=model.decisions or bool(entry and entry.decisions),
             deletable=deletable,
             path=imported.path if imported is not None and built_in else None,
+            vision=model.vision,
+            vision_size=vision_size,
+            vision_addable=(
+                cached
+                and settled
+                and entry is not None
+                and bool(entry.vision_size)
+                and not model.vision
+                and not model.has_mmproj
+            ),
+            vision_removable=cached and settled and model.has_mmproj,
         )

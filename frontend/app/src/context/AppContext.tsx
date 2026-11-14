@@ -40,6 +40,7 @@ import type {
   LabelingSettings,
 } from "@/types/labeling"
 import type { AccountAssetConfig } from "@/types/accountExclusions"
+import type { AIImportSettings, AISettings } from "@/types/ai"
 import {
   getFeatureFlags,
   subscribeFeatureFlags,
@@ -55,6 +56,7 @@ export interface AppSettings {
     sheets?: {
       [key: string]: any
     }
+    ai?: AIImportSettings
   }
   general: {
     defaultCurrency: string
@@ -70,6 +72,7 @@ export interface AppSettings {
   }
   data?: DataConfig
   labeling?: LabelingSettings
+  ai?: AISettings
 }
 
 export type SettingsKey = keyof AppSettings
@@ -236,6 +239,10 @@ const mergeSettingsWithDefaults = (
           ...defaultSettings.importing,
           ...(incoming?.importing ?? {}),
           sheets: mergedImportingSheets,
+          ai: {
+            providers: incoming?.importing?.ai?.providers ?? [],
+            instructions: incoming?.importing?.ai?.instructions ?? null,
+          },
         }
       : incoming?.importing,
     assets: mergedAssets,
@@ -256,6 +263,7 @@ const mergeSettingsWithDefaults = (
         },
       },
     },
+    ai: { providers: incoming?.ai?.providers ?? [] },
   }
 }
 

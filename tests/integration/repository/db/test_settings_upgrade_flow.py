@@ -41,6 +41,7 @@ from tests.legacy_config_samples import (
     pre07_integrations_settings,
     read_sample,
     v6_settings,
+    with_shared_ai_providers,
 )
 
 SETTINGS_MIGRATION = "v0.11.0:4_settings"
@@ -132,7 +133,9 @@ class TestLoginUpgrade:
         manager, repository, client = await _login(user)
 
         assert SETTINGS_MIGRATION in await _applied_migrations(client)
-        assert_same_settings(await repository.load(), sample.expected())
+        assert_same_settings(
+            await repository.load(), with_shared_ai_providers(sample.expected())
+        )
         assert (user.path / "config.yml").read_text() == content
         await manager.lock()
 

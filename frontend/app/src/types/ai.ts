@@ -1,5 +1,60 @@
 export enum AITask {
   LABELING = "LABELING",
+  IMPORTING = "IMPORTING",
+}
+
+export enum AIInputModality {
+  TEXT = "TEXT",
+  IMAGE = "IMAGE",
+  DOCUMENT = "DOCUMENT",
+}
+
+export const MAX_AI_PROVIDERS = 5
+
+export interface AIProviderEntry {
+  provider: string
+  model: string
+  upstreamProvider?: string | null
+}
+
+export interface AISettings {
+  providers: AIProviderEntry[]
+}
+
+export interface AIImportSettings {
+  providers: AIProviderEntry[]
+  instructions?: string | null
+}
+
+export interface AICatalogModel {
+  id: string
+  name: string
+  description?: string | null
+  probabilistic: boolean
+  size?: number | null
+  loaded?: boolean
+  load_failed?: boolean
+  pricing?: AIModelPricing | null
+  input_modalities?: AIInputModality[] | null
+  eligible?: boolean | null
+}
+
+export interface AIProviderDetails {
+  id: string
+  connected: boolean
+  recommended_models: AICatalogModel[]
+  custom_models: boolean
+  upstream_providers: boolean
+  dynamic_models?: boolean
+  attachments?: boolean
+}
+
+export interface AIProviders {
+  providers: AIProviderDetails[]
+}
+
+export interface AIModels {
+  models: AICatalogModel[]
 }
 
 export enum AIModelCapability {
@@ -71,6 +126,7 @@ export enum LocalModelState {
   DOWNLOADING = "DOWNLOADING",
   FAILED = "FAILED",
   MISSING = "MISSING",
+  INCOMPLETE = "INCOMPLETE",
 }
 
 export enum LocalRuntimeMode {
@@ -94,6 +150,10 @@ export interface LocalModel {
   decisions: boolean
   deletable: boolean
   path?: string | null
+  vision?: boolean
+  vision_size?: number | null
+  vision_addable?: boolean
+  vision_removable?: boolean
 }
 
 export interface LocalModelCatalogEntry {
@@ -107,6 +167,8 @@ export interface LocalModelCatalogEntry {
   license: string
   decisions: boolean
   languages?: string[] | null
+  vision_size?: number | null
+  vision_ram?: number | null
 }
 
 export interface LocalModelsCapabilities {
@@ -134,12 +196,15 @@ export interface DownloadLocalModelRequest {
   catalog_id?: string
   repo?: string
   quant?: string
+  vision?: boolean
 }
 
 export interface HuggingFaceQuantOption {
   quant: string
   file: string
   size?: number | null
+  vision_file?: string | null
+  vision_size?: number | null
 }
 
 export enum HuggingFaceModelKind {
@@ -160,4 +225,6 @@ export interface ImportedLocalModel {
   path: string
   exists: boolean
   size?: number | null
+  mmproj_path?: string | null
+  mmproj_size?: number | null
 }
