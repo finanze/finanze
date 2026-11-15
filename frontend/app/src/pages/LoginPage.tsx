@@ -105,6 +105,7 @@ export default function LoginPage() {
     isChangingPassword,
     pendingPasswordChangeUser,
     cancelPasswordChange,
+    apiSessionEnabled,
   } = useAuth()
   const { showToast } = useAppContext()
   const { t } = useI18n()
@@ -134,7 +135,10 @@ export default function LoginPage() {
   const isLoginMode = !isSignupMode && !isChangingPassword
 
   const showRememberOption =
-    !isMobile && !isChangingPassword && (!isElectron() || isCustomServer)
+    apiSessionEnabled &&
+    !isMobile &&
+    !isChangingPassword &&
+    (!isElectron() || isCustomServer)
   const remember = showRememberOption && rememberSession
 
   const handleRememberSessionChange = (checked: boolean) => {

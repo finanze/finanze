@@ -51,4 +51,5 @@ class GetStatusImpl(GetStatus):
             features=features,
             user=current_user,
             pending_register=last_logged.guest if last_logged else False,
+            api_session=self._api_session_port is not None,
         )

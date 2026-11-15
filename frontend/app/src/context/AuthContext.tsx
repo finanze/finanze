@@ -33,6 +33,7 @@ interface AuthContextType {
   isChangingPassword: boolean
   lastLoggedUser: string | null
   pendingRegister: boolean
+  apiSessionEnabled: boolean
   pendingPasswordChangeUser: string | null
   login: (
     username: string,
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     string | null
   >(null)
   const [pendingRegister, setPendingRegister] = useState(false)
+  const [apiSessionEnabled, setApiSessionEnabled] = useState(false)
   const deferredFlagsRef = useRef<Promise<void> | null>(null)
 
   // Mobile core /status is served before feature flags are fetched (deferred init).
@@ -94,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       features,
       user: statusUser,
       pendingRegister: pending,
+      apiSession,
     } = await checkStatus()
 
     setFeatureFlags(features)
@@ -102,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(isUnlocked ? (statusUser ?? null) : null)
     setLastLoggedUser(last_logged || null)
     setPendingRegister(pending ?? false)
+    setApiSessionEnabled(apiSession ?? false)
   }
 
   useEffect(() => {
@@ -289,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isChangingPassword,
         lastLoggedUser,
         pendingRegister,
+        apiSessionEnabled,
         pendingPasswordChangeUser,
         login,
         signup,

@@ -55,6 +55,7 @@ class TestGetStatusApiSession:
 
         assert result.status == LoginStatusCode.UNLOCKED
         assert result.user is user
+        assert result.api_session is False
 
     @pytest.mark.asyncio
     async def test_unlocked_with_valid_token(self):
@@ -67,6 +68,7 @@ class TestGetStatusApiSession:
 
         assert result.status == LoginStatusCode.UNLOCKED
         assert result.user is user
+        assert result.api_session is True
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("token", [None, "", "forged"])

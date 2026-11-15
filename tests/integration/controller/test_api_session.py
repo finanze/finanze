@@ -173,6 +173,10 @@ async def _status(client, headers=None):
 
 class TestLockedServer:
     @pytest.mark.asyncio
+    async def test_status_reports_api_session_enabled(self, http):
+        assert (await _status(http))["apiSession"] is True
+
+    @pytest.mark.asyncio
     async def test_requests_pass_through_while_locked(self, http):
         response = await http.get(PING_URL)
         assert response.status_code == 200

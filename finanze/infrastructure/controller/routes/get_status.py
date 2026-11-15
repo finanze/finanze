@@ -41,6 +41,7 @@ async def status(get_status_uc: GetStatus):
         "user": user,
         "lastLogged": result.last_logged,
         "pendingRegister": result.pending_register,
+        "apiSession": result.api_session,
     }
 
     return jsonify(response), 200

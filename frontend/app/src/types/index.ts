@@ -302,6 +302,7 @@ export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
   lastLogged?: string | null
   pendingRegister?: boolean
+  apiSession?: boolean
   user?: User | null
   server: {
     version: string
