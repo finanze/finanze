@@ -30,6 +30,7 @@ async def register_user(register_user_uc: RegisterUser):
         username=username,
         password=password,
         guest=guest,
+        remember=bool(body.get("remember", False)),
     )
 
     try:

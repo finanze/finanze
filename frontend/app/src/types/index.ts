@@ -180,6 +180,7 @@ export interface AuthRequest {
   username: string
   password?: string
   guest?: boolean
+  remember?: boolean
 }
 
 export enum AuthResultCode {

@@ -4,7 +4,7 @@ from typing import Optional
 
 class ApiSessionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def create(self) -> str:
+    def create(self, remember: bool = False) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod

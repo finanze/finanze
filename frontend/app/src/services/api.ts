@@ -370,7 +370,7 @@ export async function login(
       "/login",
       authRequest,
     )
-    if (data?.token) client.setSessionToken(data.token)
+    if (data?.token) client.setSessionToken(data.token, authRequest.remember)
     return { code: AuthResultCode.SUCCESS }
   } catch (error: any) {
     console.error("Login error:", error)
@@ -732,7 +732,7 @@ export async function signup(
       "/signup",
       authRequest,
     )
-    if (data?.token) client.setSessionToken(data.token)
+    if (data?.token) client.setSessionToken(data.token, authRequest.remember)
     return { success: true }
   } catch (error: any) {
     console.error("Signup error:", error)

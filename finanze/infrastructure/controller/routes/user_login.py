@@ -19,7 +19,11 @@ async def user_login(user_login_uc: UserLogin):
     if not password:
         return jsonify({"message": "Password not provided"}), 400
 
-    login_request = LoginRequest(username=username, password=password)
+    login_request = LoginRequest(
+        username=username,
+        password=password,
+        remember=bool(body.get("remember", False)),
+    )
 
     try:
         result = await user_login_uc.execute(login_request)

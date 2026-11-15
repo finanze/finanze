@@ -476,6 +476,7 @@
     "errorDetailsTitle": "Technical details",
     "syncPasswordHint": "Use the same encryption key across devices if sync is enabled",
     "enableBiometric": "Enable {type}",
+    "rememberSession": "Remember me",
     "biometricFaceId": "Face ID",
     "biometricFingerprint": "Fingerprint",
     "biometricAuth": "Biometric",

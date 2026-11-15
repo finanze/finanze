@@ -34,7 +34,19 @@ describe("API session token lifecycle", () => {
     mocks.post.mockResolvedValue({ token: "tok" })
 
     expect(await login(credentials)).toEqual({ code: AuthResultCode.SUCCESS })
-    expect(mocks.setSessionToken).toHaveBeenCalledWith("tok")
+    expect(mocks.setSessionToken).toHaveBeenCalledWith("tok", undefined)
+  })
+
+  it("forwards the remember flag to the server and token storage", async () => {
+    mocks.post.mockResolvedValue({ token: "tok" })
+
+    await login({ ...credentials, remember: true })
+
+    expect(mocks.post).toHaveBeenCalledWith("/login", {
+      ...credentials,
+      remember: true,
+    })
+    expect(mocks.setSessionToken).toHaveBeenCalledWith("tok", true)
   })
 
   it("keeps working with servers that answer without a token", async () => {
@@ -56,8 +68,10 @@ describe("API session token lifecycle", () => {
   it("stores the token returned by signup", async () => {
     mocks.post.mockResolvedValue({ token: "signup-tok" })
 
-    expect(await signup(credentials)).toEqual({ success: true })
-    expect(mocks.setSessionToken).toHaveBeenCalledWith("signup-tok")
+    expect(await signup({ ...credentials, remember: true })).toEqual({
+      success: true,
+    })
+    expect(mocks.setSessionToken).toHaveBeenCalledWith("signup-tok", true)
   })
 
   it("clears the token after logout", async () => {

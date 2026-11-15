@@ -34,6 +34,34 @@ test.describe('API session', () => {
         await other.close()
     })
 
+    test('remember me keeps the session for new tabs', async ({
+        authenticatedPage: page,
+    }) => {
+        const other = await page.context().newPage()
+        await other.goto('/')
+
+        await other.locator('#password').waitFor({ timeout: 20_000 })
+        const remember = other.locator('#rememberSession')
+        await expect(remember).toHaveAttribute('aria-checked', 'false')
+        await remember.click()
+        await expect(remember).toHaveAttribute('aria-checked', 'true')
+
+        await other.fill('#password', TEST_PASSWORD)
+        await other.locator('button[type="submit"]').click()
+        await expect(
+            other.getByRole('heading', { name: 'Summary' }),
+        ).toBeVisible({ timeout: 20_000 })
+        await other.close()
+
+        const reopened = await page.context().newPage()
+        await reopened.goto('/')
+        await expect(
+            reopened.getByRole('heading', { name: 'Summary' }),
+        ).toBeVisible({ timeout: 20_000 })
+        await expect(reopened.locator('#password')).toHaveCount(0)
+        await reopened.close()
+    })
+
     test('requests without a valid session are rejected', async ({
         authenticatedPage: page,
     }) => {

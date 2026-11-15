@@ -100,4 +100,6 @@ class RegisterUserImpl(RegisterUser):
 
         if self._api_session_port is None:
             return LoginResult()
-        return LoginResult(session_token=self._api_session_port.create())
+        return LoginResult(
+            session_token=self._api_session_port.create(remember=login_request.remember)
+        )

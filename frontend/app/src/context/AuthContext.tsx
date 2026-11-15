@@ -37,8 +37,13 @@ interface AuthContextType {
   login: (
     username: string,
     password: string,
+    remember?: boolean,
   ) => Promise<{ code: AuthResultCode; message?: string }>
-  signup: (username: string, password: string) => Promise<boolean>
+  signup: (
+    username: string,
+    password: string,
+    remember?: boolean,
+  ) => Promise<boolean>
   guestSignup: (username: string) => Promise<boolean>
   logout: () => Promise<void>
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>
@@ -122,13 +127,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (
     username: string,
     password: string,
+    remember = false,
   ): Promise<{ code: AuthResultCode; message?: string }> => {
     setIsLoading(true)
     try {
       if (await isRegionBlocked()) {
         return { code: AuthResultCode.REGION_RESTRICTED }
       }
-      const result = await apiLogin({ username, password })
+      const result = await apiLogin({ username, password, remember })
       const isSuccess = result.code === AuthResultCode.SUCCESS
       setIsAuthenticated(isSuccess)
       if (isSuccess) {
@@ -157,11 +163,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (
     username: string,
     password: string,
+    remember = false,
   ): Promise<boolean> => {
     setIsLoading(true)
     try {
       if (await isRegionBlocked()) return false
-      const { success } = await apiSignup({ username, password })
+      const { success } = await apiSignup({ username, password, remember })
       if (success) {
         // Signup automatically logs the user in, so set auth state
         connectBackgroundWorker(username)

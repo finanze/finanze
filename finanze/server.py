@@ -515,7 +515,11 @@ class FinanzeServer:
         db_client = self._db_client
         db_manager = DBManager(db_client)
         data_manager = UserDataManager(args.data_dir)
-        api_session_port = InMemoryApiSessionStore() if args.api_session else None
+        api_session_port = (
+            InMemoryApiSessionStore(remember_ttl=args.api_session_remember_ttl)
+            if args.api_session
+            else None
+        )
 
         telemetry_consent_port = FileTelemetryConsent(args.data_dir)
         await self._setup_error_reporting(telemetry_consent_port)

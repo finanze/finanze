@@ -474,6 +474,7 @@
     "errorDetailsTitle": "Detalles técnicos",
     "syncPasswordHint": "Usa la misma clave de cifrado en todos tus dispositivos si tienes la sincronización activada",
     "enableBiometric": "Activar {type}",
+    "rememberSession": "Recordarme",
     "biometricFaceId": "Face ID",
     "biometricFingerprint": "Huella",
     "biometricAuth": "Biometría",

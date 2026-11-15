@@ -1,3 +1,4 @@
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -17,6 +18,7 @@ from application.use_cases.user_logout import UserLogoutImpl
 from domain.platform import OS
 from domain.status import BackendDetails, BackendOptions
 from domain.user_login import LoginRequest
+from infrastructure.api_session import in_memory_api_session_store
 from infrastructure.api_session.in_memory_api_session_store import (
     InMemoryApiSessionStore,
 )
@@ -38,6 +40,7 @@ PASSWORD = "securePass123"
 PING_URL = "/api/v1/ping"
 SETTINGS_URL = "/api/v1/settings"
 STATUS_URL = "/api/v1/status"
+REMEMBER_DAYS = 30
 
 
 @pytest_asyncio.fixture
@@ -60,7 +63,9 @@ async def env(tmp_path):
     feature_flag_port = MagicMock(spec=FeatureFlagPort)
     feature_flag_port.get_all.return_value = {}
 
-    api_session_port = InMemoryApiSessionStore()
+    api_session_port = InMemoryApiSessionStore(
+        remember_ttl=timedelta(days=REMEMBER_DAYS)
+    )
     common = (db_manager, data_manager, settings_repository, sheets_initiator)
     register_user_uc = RegisterUserImpl(
         *common, cloud_register, api_session_port=api_session_port
@@ -153,9 +158,10 @@ async def _signup(client):
     return (await response.get_json())["token"]
 
 
-async def _login(client, username=USERNAME, password=PASSWORD):
+async def _login(client, username=USERNAME, password=PASSWORD, remember=False):
     return await client.post(
-        "/api/v1/login", json={"username": username, "password": password}
+        "/api/v1/login",
+        json={"username": username, "password": password, "remember": remember},
     )
 
 
@@ -318,6 +324,29 @@ class TestLogout:
         for stale in (first_token, second_token):
             assert (await http.get(PING_URL, headers=_auth(stale))).status_code == 401
         assert (await http.get(PING_URL, headers=_auth(new_token))).status_code == 200
+
+
+class TestRememberedSession:
+    @pytest.mark.asyncio
+    async def test_remembered_token_expires_after_configured_days(
+        self, http, other_http, monkeypatch
+    ):
+        transient_token = await _signup(http)
+        response = await _login(other_http, remember=True)
+        assert response.status_code == 200
+        remembered_token = (await response.get_json())["token"]
+
+        later = in_memory_api_session_store._now() + timedelta(days=REMEMBER_DAYS + 1)
+        monkeypatch.setattr(in_memory_api_session_store, "_now", lambda: later)
+
+        response = await other_http.get(PING_URL, headers=_auth(remembered_token))
+        assert response.status_code == 401
+        assert (await _status(other_http, _auth(remembered_token)))[
+            "status"
+        ] == "LOCKED"
+        assert (
+            await http.get(PING_URL, headers=_auth(transient_token))
+        ).status_code == 200
 
 
 class TestVerifyPassword:

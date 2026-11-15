@@ -34,7 +34,7 @@ import {
 import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { getApiServerInfo, checkStatus } from "@/services/api"
 import { setFeatureFlags } from "@/context/featureFlagsStore"
-import { isNativeMobile, isAndroid } from "@/lib/platform"
+import { isNativeMobile, isAndroid, isElectron } from "@/lib/platform"
 import { StatusBar, Style } from "@capacitor/status-bar"
 import { useTheme } from "@/context/ThemeContext"
 import {
@@ -64,6 +64,7 @@ import {
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_\-.$€#]{2,}$/
 const PASSWORD_PATTERN = /^[\x21-\x7e]{8,}$/
+const REMEMBER_SESSION_KEY = "finanze_remember_session"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -79,6 +80,10 @@ export default function LoginPage() {
   const [detailsCopied, setDetailsCopied] = useState(false)
   const [cloudRestoreMode, setCloudRestoreMode] = useState(false)
   const [showConsentDialog, setShowConsentDialog] = useState(false)
+  const [isCustomServer, setIsCustomServer] = useState(false)
+  const [rememberSession, setRememberSession] = useState(
+    () => localStorage.getItem(REMEMBER_SESSION_KEY) === "true",
+  )
 
   useModalBackHandler(showAdvancedSettings, () =>
     setShowAdvancedSettings(false),
@@ -127,6 +132,15 @@ export default function LoginPage() {
   }
 
   const isLoginMode = !isSignupMode && !isChangingPassword
+
+  const showRememberOption =
+    !isMobile && !isChangingPassword && (!isElectron() || isCustomServer)
+  const remember = showRememberOption && rememberSession
+
+  const handleRememberSessionChange = (checked: boolean) => {
+    setRememberSession(checked)
+    localStorage.setItem(REMEMBER_SESSION_KEY, String(checked))
+  }
 
   const biometricTypeForDisplay = biometricAvailability?.biometricType
 
@@ -250,6 +264,7 @@ export default function LoginPage() {
     const checkVersionMismatch = async () => {
       try {
         const serverInfo = await getApiServerInfo()
+        setIsCustomServer(serverInfo.isCustomServer)
         if (!serverInfo.isCustomServer) {
           setVersionMismatch(null)
           return
@@ -337,14 +352,14 @@ export default function LoginPage() {
           await deleteStoredCredentialsIfDisabled()
         }
       } else if (isSignupMode) {
-        const signupResult = await signup(username, password)
+        const signupResult = await signup(username, password, remember)
         if (!signupResult) {
           setError(t.login.invalidCredentials)
         } else {
           await saveCredentialsIfEnabled()
         }
       } else {
-        const { code, message } = await login(username, password)
+        const { code, message } = await login(username, password, remember)
         switch (code) {
           case AuthResultCode.SUCCESS:
             await saveCredentialsIfEnabled()
@@ -1052,6 +1067,22 @@ export default function LoginPage() {
                   />
                 </div>
               )}
+
+            {showRememberOption && (
+              <div className="flex items-center justify-between py-2">
+                <Label
+                  htmlFor="rememberSession"
+                  className="text-sm cursor-pointer"
+                >
+                  {t.login.rememberSession}
+                </Label>
+                <Switch
+                  id="rememberSession"
+                  checked={rememberSession}
+                  onCheckedChange={handleRememberSessionChange}
+                />
+              </div>
+            )}
 
             {error && (
               <motion.div

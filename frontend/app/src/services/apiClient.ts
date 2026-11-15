@@ -11,7 +11,7 @@ export interface ApiClient {
 
   refreshApiBaseUrl(): Promise<void>
 
-  setSessionToken(token: string | null): void
+  setSessionToken(token: string | null, remember?: boolean): void
 
   get<T>(path: string, options?: HelperOptions): Promise<T>
 

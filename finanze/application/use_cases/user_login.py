@@ -77,7 +77,7 @@ class UserLoginImpl(UserLogin):
             f"User '{login_request.username} {user.hashed_id()}' ({str(user.id)} - {str(user.path)}) logged in successfully"
         )
 
-        return LoginResult(session_token=self._new_session_token())
+        return LoginResult(session_token=self._new_session_token(login_request))
 
     async def _start_session(self, login_request: LoginRequest) -> LoginResult:
         if self._api_session_port is None:
@@ -91,9 +91,9 @@ class UserLoginImpl(UserLogin):
         ):
             raise InvalidUserCredentials()
 
-        return LoginResult(session_token=self._new_session_token())
+        return LoginResult(session_token=self._new_session_token(login_request))
 
-    def _new_session_token(self) -> Optional[str]:
+    def _new_session_token(self, login_request: LoginRequest) -> Optional[str]:
         if self._api_session_port is None:
             return None
-        return self._api_session_port.create()
+        return self._api_session_port.create(remember=login_request.remember)

@@ -378,7 +378,18 @@ class TestRegisterUserApiSession:
         )
 
         assert result.session_token == "issued-token"
-        api_session_port.create.assert_called_once()
+        api_session_port.create.assert_called_once_with(remember=False)
+
+    @pytest.mark.asyncio
+    async def test_registration_forwards_remember_flag(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        use_case, api_session_port = self._build(_create_mocks(unlocked=False))
+
+        await use_case.execute(
+            LoginRequest(username="alice", password="secret12", remember=True)
+        )
+
+        api_session_port.create.assert_called_once_with(remember=True)
 
     @pytest.mark.asyncio
     async def test_guest_registration_issues_no_token(self, monkeypatch):

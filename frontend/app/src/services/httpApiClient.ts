@@ -13,19 +13,23 @@ const SESSION_TOKEN_KEY = "finanze_api_session"
 const readSessionToken = (): string | null => {
   if (typeof window === "undefined") return null
   try {
-    return window.sessionStorage.getItem(SESSION_TOKEN_KEY)
+    return (
+      window.sessionStorage.getItem(SESSION_TOKEN_KEY) ??
+      window.localStorage.getItem(SESSION_TOKEN_KEY)
+    )
   } catch {
     return null
   }
 }
 
-const writeSessionToken = (token: string | null): void => {
+const writeSessionToken = (token: string | null, remember: boolean): void => {
   if (typeof window === "undefined") return
   try {
+    window.sessionStorage.removeItem(SESSION_TOKEN_KEY)
+    window.localStorage.removeItem(SESSION_TOKEN_KEY)
     if (token) {
-      window.sessionStorage.setItem(SESSION_TOKEN_KEY, token)
-    } else {
-      window.sessionStorage.removeItem(SESSION_TOKEN_KEY)
+      const storage = remember ? window.localStorage : window.sessionStorage
+      storage.setItem(SESSION_TOKEN_KEY, token)
     }
   } catch {
     return
@@ -116,9 +120,9 @@ export class HttpApiClient implements ApiClient {
     await ensureApiUrlInitialized()
   }
 
-  setSessionToken(token: string | null): void {
+  setSessionToken(token: string | null, remember = false): void {
     sessionToken = token
-    writeSessionToken(token)
+    writeSessionToken(token, remember)
   }
 
   async get<T>(path: string, options?: HelperOptions): Promise<T> {

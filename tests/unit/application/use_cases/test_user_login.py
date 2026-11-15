@@ -298,7 +298,19 @@ class TestUserLoginApiSession:
         )
 
         assert result.session_token == "issued-token"
-        api_session_port.create.assert_called_once()
+        api_session_port.create.assert_called_once_with(remember=False)
+
+    @pytest.mark.asyncio
+    async def test_unlock_forwards_remember_flag(self):
+        user = _make_user("alice")
+        mocks = _create_mocks(unlocked=False, user=user)
+        use_case, api_session_port = _build_with_session(*mocks)
+
+        await use_case.execute(
+            LoginRequest(username="alice", password="secret", remember=True)
+        )
+
+        api_session_port.create.assert_called_once_with(remember=True)
 
     @pytest.mark.asyncio
     async def test_failed_unlock_issues_no_token(self):
@@ -322,10 +334,11 @@ class TestUserLoginApiSession:
         use_case, api_session_port = _build_with_session(*mocks)
 
         result = await use_case.execute(
-            LoginRequest(username="alice", password="secret")
+            LoginRequest(username="alice", password="secret", remember=True)
         )
 
         assert result.session_token == "issued-token"
+        api_session_port.create.assert_called_once_with(remember=True)
         source_initiator.verify_password.assert_awaited_once_with("secret")
         source_initiator.initialize.assert_not_called()
         mocks[2].connect.assert_not_called()
