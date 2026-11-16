@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import en from "@/i18n/locales/en.json"
 import es from "@/i18n/locales/es.json"
 import itTranslations from "@/i18n/locales/it.json"
+import de from "@/i18n/locales/de.json"
 import {
   getIntegrationFamilyName,
   getIntegrationMethodName,
@@ -16,6 +17,7 @@ describe("integration display names", () => {
       itTranslations,
       ["IA personalizzata", "Modelli locali", "Agente di Claude"],
     ],
+    [de, ["Eigene KI", "Lokale Modelle", "Claude Agent"]],
   ] as const)(
     "resolves each locale's descriptive names without metadata",
     (translations, names) => {
@@ -47,7 +49,7 @@ describe("integration display names", () => {
     },
   )
 
-  it.each([en, es, itTranslations])(
+  it.each([en, es, itTranslations, de])(
     "uses backend brand names without requiring translation entries",
     translations => {
       const integration = Object.freeze({ id: "OPENAI", name: "OpenAI" })

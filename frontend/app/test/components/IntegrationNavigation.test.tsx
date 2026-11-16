@@ -12,13 +12,14 @@ import SettingsPage from "@/pages/SettingsPage"
 import en from "@/i18n/locales/en.json"
 import es from "@/i18n/locales/es.json"
 import itTranslations from "@/i18n/locales/it.json"
+import de from "@/i18n/locales/de.json"
 import { FFStatus, PlatformType } from "@/types"
 
 const { state, setupIntegration, disableIntegration } = vi.hoisted(() => ({
   state: {
     app: {} as Record<string, unknown>,
     native: false,
-    locale: "en-US" as "en-US" | "es-ES" | "it-IT",
+    locale: "en-US" as "en-US" | "es-ES" | "it-IT" | "de-DE",
   },
   setupIntegration: vi.fn(),
   disableIntegration: vi.fn(),
@@ -31,7 +32,9 @@ vi.mock("@/i18n", () => ({
         ? es
         : state.locale === "it-IT"
           ? itTranslations
-          : en,
+          : state.locale === "de-DE"
+            ? de
+            : en,
     locale: state.locale,
   }),
 }))
@@ -128,6 +131,7 @@ describe("Integration tabs", () => {
   it.each([
     ["es-ES", es],
     ["it-IT", itTranslations],
+    ["de-DE", de],
   ] as const)(
     "localizes descriptive integration names in %s",
     (locale, translations) => {

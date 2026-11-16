@@ -750,7 +750,8 @@
     "applicationLanguageOptions": {
       "en-US": "Inglese",
       "es-ES": "Spagnolo",
-      "it-IT": "Italiano"
+      "it-IT": "Italiano",
+      "de-DE": "Tedesco"
     },
     "defaultCurrency": "Valuta Principale",
     "defaultCommodityWeightUnit": "Unità di peso predefinita per le materie prime",

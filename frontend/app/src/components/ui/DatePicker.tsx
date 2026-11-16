@@ -16,7 +16,7 @@ import {
   useReducedMotion,
   type Transition,
 } from "framer-motion"
-import { enUS, es, it } from "date-fns/locale"
+import { de, enUS, es, it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { Button } from "./Button"
 import { Popover, PopoverContent, PopoverTrigger } from "./Popover"
@@ -36,6 +36,7 @@ const localeMap = {
   "en-US": enUS,
   "es-ES": es,
   "it-IT": it,
+  "de-DE": de,
 }
 
 type SwipeState = {

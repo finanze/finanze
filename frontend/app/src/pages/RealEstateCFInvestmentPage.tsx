@@ -21,7 +21,7 @@ import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency, formatDate, lowercaseLabel } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
@@ -1099,7 +1099,7 @@ function RealEstateViewContent({
     selectedEntities.length > 0
       ? t.investments.noPositionsFound.replace(
           "{type}",
-          t.common.realEstateCf.toLowerCase(),
+          lowercaseLabel(t.common.realEstateCf, locale),
         )
       : t.investments.noInvestmentsRegistered
 
@@ -1615,7 +1615,10 @@ function RealEstateViewContent({
                                   <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                     {t.investments.ofInvestmentType.replace(
                                       "{type}",
-                                      t.common.realEstateCf.toLowerCase(),
+                                      lowercaseLabel(
+                                        t.common.realEstateCf,
+                                        locale,
+                                      ),
                                     )}
                                   </div>
                                   <div className="font-medium text-blue-600 dark:text-blue-400">

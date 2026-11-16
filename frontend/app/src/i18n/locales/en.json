@@ -751,7 +751,8 @@
     "applicationLanguageOptions": {
       "en-US": "English",
       "es-ES": "Spanish",
-      "it-IT": "Italian"
+      "it-IT": "Italian",
+      "de-DE": "German"
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",

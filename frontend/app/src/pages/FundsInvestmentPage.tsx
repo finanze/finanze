@@ -15,7 +15,11 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
-import { formatCurrency, formatGainLoss } from "@/lib/formatters"
+import {
+  formatCurrency,
+  formatGainLoss,
+  lowercaseLabel,
+} from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getFundAssetKey,
@@ -702,7 +706,7 @@ function FundsInvestmentPageContent({
     selectedEntities.length > 0
       ? t.investments.noPositionsFound.replace(
           "{type}",
-          t.common.fundsInvestments.toLowerCase(),
+          lowercaseLabel(t.common.fundsInvestments, locale),
         )
       : t.investments.noInvestmentsRegistered
 
@@ -1404,7 +1408,7 @@ function FundsInvestmentPageContent({
                                   <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                     {t.investments.ofInvestmentType.replace(
                                       "{type}",
-                                      t.common.funds.toLowerCase(),
+                                      lowercaseLabel(t.common.funds, locale),
                                     )}
                                   </div>
                                   <div className="font-medium text-blue-600 dark:text-blue-400">
