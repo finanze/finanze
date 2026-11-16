@@ -131,11 +131,15 @@ async function createManualTransaction(
     await selectCustomDropdown(page, 'transaction-type', 'Interest')
     await page.locator('#transaction-amount').fill(amount)
     await page.locator('#transaction-currency').selectOption('EUR')
+    const dialog = page.locator('.fixed.inset-0').last()
     if (iban) {
-        await page.locator('#transaction-iban').fill(iban)
+        const customIbanToggle = dialog.getByTestId('toggle-custom-iban')
+        if (await customIbanToggle.isVisible().catch(() => false)) {
+            await customIbanToggle.click()
+        }
+        await dialog.locator('#transaction-iban').fill(iban)
     }
 
-    const dialog = page.locator('.fixed.inset-0').last()
     await dialog.getByRole('button', { name: 'Save' }).click()
 
     await expect(

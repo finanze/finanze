@@ -84,10 +84,12 @@ export function useEntityAccounts({
           const isManual = account.source === DataSource.MANUAL
           if (manualOnly && !isManual) return
 
-          const typeLabel = t.enums.accountType[account.type]
-          const trimmedName = account.name?.trim() || null
           const normalizedIban =
             account.iban?.replace(/\s+/g, "").toUpperCase() || null
+          if (!isManual && !normalizedIban) return
+
+          const typeLabel = t.enums.accountType[account.type]
+          const trimmedName = account.name?.trim() || null
           const total = Number(account.total) || 0
           const currency = (account.currency || defaultCurrency).toUpperCase()
 
