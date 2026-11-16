@@ -8,6 +8,7 @@ from application.ports.transaction_label_port import TransactionLabelPort
 from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from application.use_cases.manual_transaction_common import (
     ManualTransactionVirtualImportHelper,
 )
@@ -22,6 +23,7 @@ from domain.transactions import (
     BaseInvestmentTx,
     BaseTx,
     Transactions,
+    account_balance_delta,
 )
 from domain.use_cases.add_manual_transaction import AddManualTransaction
 
@@ -37,6 +39,7 @@ class AddManualTransactionImpl(AddManualTransaction):
         label_port: LabelPort,
         transaction_label_port: TransactionLabelPort,
         transaction_labeler: TransactionLabeler,
+        balance_updater: ManualAccountBalanceUpdater,
     ):
         self._entity_port = entity_port
         self._transaction_port = transaction_port
@@ -45,6 +48,7 @@ class AddManualTransactionImpl(AddManualTransaction):
         self._label_port = label_port
         self._transaction_label_port = transaction_label_port
         self._transaction_labeler = transaction_labeler
+        self._balance_updater = balance_updater
         self._helper = ManualTransactionVirtualImportHelper(virtual_import_registry)
 
     async def execute(self, request: AddManualTransactionRequest) -> UUID:
@@ -80,6 +84,26 @@ class AddManualTransactionImpl(AddManualTransaction):
 
         await self._validate_labels(account_txs)
 
+        balance_update = None
+        if request.balance_account_id is not None:
+            if len(resolved) != 1:
+                raise ValueError("Balance update requires a single transaction")
+            tx = resolved[0]
+            if not isinstance(tx, AccountTx):
+                raise ValueError(
+                    "Balance update is only supported for ACCOUNT transactions"
+                )
+            if tx.amount <= 0:
+                raise ValueError(
+                    "Balance update requires a positive transaction amount"
+                )
+            balance_update = await self._balance_updater.prepare(
+                account_id=request.balance_account_id,
+                amount=account_balance_delta(tx),
+                currency=tx.currency,
+                entity_id=tx.entity.id,
+            )
+
         async with self._transaction_handler_port.start():
             if account_txs:
                 await self._transaction_port.save(Transactions(account=account_txs))
@@ -104,6 +128,9 @@ class AddManualTransactionImpl(AddManualTransaction):
                 await self._transaction_labeler.link_settlements(
                     settlement_window(investment_txs)
                 )
+
+            if balance_update is not None:
+                await self._balance_updater.write(balance_update)
 
             for entity_id in {item.entity.id for item in resolved}:
                 await self._helper.refresh(entity_id, has_transactions=True)

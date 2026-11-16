@@ -232,6 +232,18 @@ def compute_net_amount(tx: BaseTx) -> Dezimal:
     return tx.amount - fees - retentions
 
 
+def account_balance_delta(tx: AccountTx) -> Dezimal:
+    if tx.type == TxType.FEE:
+        return -tx.amount
+    if tx.type in ACCOUNT_INCOMING_TYPES:
+        return compute_net_amount(tx)
+    if tx.type == TxType.OUTFLOW:
+        return -compute_net_amount(tx)
+    raise ValueError(
+        f"Unsupported account transaction type for balance update: {tx.type}"
+    )
+
+
 @dataclass
 class TransactionsResult:
     transactions: list[BaseTx]
@@ -296,6 +308,7 @@ class AddManualTransactionRequest:
     txs: list[BaseTx]
     historic_entry_id: Optional[UUID] = None
     external_labeling: Optional[bool] = None
+    balance_account_id: Optional[UUID] = None
 
 
 @dataclass

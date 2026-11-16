@@ -3354,10 +3354,6 @@
     "markCompleted": "Marcar como completado",
     "markCompletedTitle": "Completar {type}",
     "markCompletedConfirm": "¿Marcar este {type} como completado? Dejará de contarse en tus totales pendientes.",
-    "applyToAccountBalance": "Aplicar al saldo de una cuenta",
-    "applyToAccountBalanceHint": "El importe liquidado se sumará o restará de la cuenta seleccionada.",
-    "selectAccount": "Selecciona una cuenta",
-    "noManualAccounts": "No hay cuentas manuales a las que aplicar este cambio. Crea una para habilitar esta opción.",
     "markActive": "Reactivar",
     "statusFilter": "Estado",
     "filters": "Filtros",
@@ -4502,5 +4498,25 @@
     "resetConfirmMessage": "¿Estás seguro de que quieres restablecer la configuración avanzada a sus valores por defecto?",
     "resetConfirmWarning": "La aplicación se reiniciará después de restablecer.",
     "availableAfterLoading": "Disponible después de cargar"
+  },
+  "manualAccountBalance": {
+    "accountLabel": "Cuenta",
+    "optionalAccountPlaceholder": "Selecciona una cuenta (opcional)",
+    "enterIbanManually": "Introducir IBAN manualmente",
+    "selectFromAccounts": "Seleccionar de mis cuentas",
+    "clearAccount": "Quitar cuenta seleccionada",
+    "apply": "Aplicar al saldo de la cuenta",
+    "settleHint": "El importe liquidado se sumará o restará de la cuenta seleccionada.",
+    "transactionHint": "Suma o resta el importe neto de la transacción en esta cuenta manual.",
+    "selectAccount": "Selecciona una cuenta",
+    "selectAccountAboveHint": "Selecciona arriba una cuenta manual para actualizar su saldo.",
+    "selectAccountError": "Selecciona una cuenta manual a actualizar",
+    "noManualAccounts": "No hay cuentas manuales a las que aplicar este cambio. Crea una para habilitar esta opción.",
+    "noManualAccountsForEntity": "La entidad seleccionada no tiene cuentas manuales. Crea una en Banca para habilitar esta opción.",
+    "syncedAccountHint": "Las cuentas sincronizadas actualizan su saldo automáticamente al sincronizar. Selecciona una cuenta manual para ajustar su saldo.",
+    "customIbanHint": "Este IBAN no coincide con ninguna cuenta manual de la entidad seleccionada.",
+    "syncedBadge": "Sincronizada",
+    "manualBadge": "Manual",
+    "previewLabel": "Nuevo saldo"
   }
 }

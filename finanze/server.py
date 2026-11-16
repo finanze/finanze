@@ -118,6 +118,7 @@ from application.use_cases.suggest_template_fields import SuggestTemplateFieldsI
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
 from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
@@ -1141,6 +1142,11 @@ class FinanzeServer:
             real_estate_port=real_estate_repository,
             loan_calculator=loan_calculator,
         )
+        manual_account_balance_updater = ManualAccountBalanceUpdater(
+            position_port=position_repository,
+            snapshot_writer=manual_position_snapshot_writer,
+            exchange_rate_provider=exchange_rate_client,
+        )
         manual_historic_writer = ManualHistoricWriter(
             historic_repository,
             transaction_port=transaction_repository,
@@ -1165,6 +1171,7 @@ class FinanzeServer:
             label_port=label_repository,
             transaction_label_port=transaction_label_repository,
             transaction_labeler=transaction_labeler,
+            balance_updater=manual_account_balance_updater,
         )
         update_manual_transaction = UpdateManualTransactionImpl(
             entity_port=entity_repository,
@@ -1235,9 +1242,7 @@ class FinanzeServer:
         )
         settle_pending_flow = SettlePendingFlowImpl(
             pending_flow_port=pending_flow_repository,
-            position_port=position_repository,
-            snapshot_writer=manual_position_snapshot_writer,
-            exchange_rate_provider=exchange_rate_client,
+            balance_updater=manual_account_balance_updater,
             transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)

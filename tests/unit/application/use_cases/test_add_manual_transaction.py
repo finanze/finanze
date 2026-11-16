@@ -6,9 +6,10 @@ import pytest
 from dateutil.tz import tzlocal
 
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
-from domain.exception.exceptions import EntityNotFound
+from domain.exception.exceptions import EntityNotFound, ManualAccountNotFound
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.labeling import LabelingTrigger
@@ -65,9 +66,11 @@ def _make_fund_tx(entity, name="Buy Fund", tx_type=TxType.BUY):
     )
 
 
-def _build_uc(entity_port=None):
+def _build_uc(entity_port=None, balance_updater=None):
     if entity_port is None:
         entity_port = AsyncMock()
+    if balance_updater is None:
+        balance_updater = AsyncMock(spec=ManualAccountBalanceUpdater)
     transaction_port = AsyncMock()
     virtual_import_registry = AsyncMock()
     virtual_import_registry.get_last_import_records.return_value = []
@@ -82,12 +85,14 @@ def _build_uc(entity_port=None):
         label_port=AsyncMock(),
         transaction_label_port=AsyncMock(),
         transaction_labeler=transaction_labeler,
+        balance_updater=balance_updater,
     )
     return uc, {
         "entity_port": entity_port,
         "transaction_port": transaction_port,
         "historic_port": historic_port,
         "transaction_labeler": transaction_labeler,
+        "balance_updater": balance_updater,
     }
 
 
@@ -234,3 +239,137 @@ async def test_execute_account_tx_external_labeling_disabled_skips_external():
     labeler = mocks["transaction_labeler"]
     labeler.classify.assert_awaited_once()
     labeler.classify_external.assert_not_awaited()
+    mocks["balance_updater"].prepare.assert_not_awaited()
+    mocks["balance_updater"].write.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tx_type, amount, fees, retentions, expected_delta",
+    [
+        (TxType.INFLOW, "100", "2.50", "0", Dezimal("97.50")),
+        (TxType.INTEREST, "50", "1", "9", Dezimal("40")),
+        (TxType.OUTFLOW, "100", "2", "0", Dezimal("-102")),
+        (TxType.FEE, "15", "15", "0", Dezimal("-15")),
+    ],
+)
+async def test_execute_updates_manual_account_balance(
+    tx_type, amount, fees, retentions, expected_delta
+):
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+    prepared = MagicMock()
+    mocks["balance_updater"].prepare.return_value = prepared
+    account_id = uuid4()
+
+    tx = AccountTx(
+        id=None,
+        ref="TX-BAL",
+        name="Movement",
+        amount=Dezimal(amount),
+        currency="EUR",
+        type=tx_type,
+        date=datetime(2025, 3, 1, 12, tzinfo=tzlocal()),
+        entity=entity,
+        source=DataSource.MANUAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal(fees),
+        retentions=Dezimal(retentions),
+    )
+
+    await uc.execute(
+        AddManualTransactionRequest(
+            txs=[tx],
+            balance_account_id=account_id,
+            external_labeling=False,
+        )
+    )
+
+    mocks["balance_updater"].prepare.assert_awaited_once_with(
+        account_id=account_id,
+        amount=expected_delta,
+        currency="EUR",
+        entity_id=entity.id,
+    )
+    mocks["balance_updater"].write.assert_awaited_once_with(prepared)
+    mocks["transaction_port"].save.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_execute_balance_update_rejects_non_account_tx():
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+
+    with pytest.raises(ValueError, match="only supported for ACCOUNT"):
+        await uc.execute(
+            AddManualTransactionRequest(
+                txs=[_make_fund_tx(entity)],
+                balance_account_id=uuid4(),
+            )
+        )
+
+    mocks["transaction_port"].save.assert_not_awaited()
+    mocks["balance_updater"].prepare.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_balance_update_rejects_multiple_txs():
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+
+    with pytest.raises(ValueError, match="single transaction"):
+        await uc.execute(
+            AddManualTransactionRequest(
+                txs=[_make_account_tx(entity), _make_account_tx(entity)],
+                balance_account_id=uuid4(),
+            )
+        )
+
+    mocks["transaction_port"].save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_balance_update_rejects_non_positive_amount():
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+    tx = _make_account_tx(entity)
+    tx.amount = Dezimal(0)
+
+    with pytest.raises(ValueError, match="positive transaction amount"):
+        await uc.execute(
+            AddManualTransactionRequest(
+                txs=[tx],
+                balance_account_id=uuid4(),
+            )
+        )
+
+    mocks["transaction_port"].save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_balance_update_account_not_found_saves_nothing():
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+    account_id = uuid4()
+    mocks["balance_updater"].prepare.side_effect = ManualAccountNotFound(account_id)
+
+    with pytest.raises(ManualAccountNotFound):
+        await uc.execute(
+            AddManualTransactionRequest(
+                txs=[_make_account_tx(entity)],
+                balance_account_id=account_id,
+            )
+        )
+
+    mocks["transaction_port"].save.assert_not_awaited()
+    mocks["balance_updater"].write.assert_not_awaited()

@@ -299,6 +299,9 @@ class LazyComponents:
         from application.use_cases.forecast import ForecastImpl
         from application.use_cases.update_contributions import UpdateContributionsImpl
         from application.use_cases.update_position import UpdatePositionImpl
+        from application.use_cases.manual_account_balance import (
+            ManualAccountBalanceUpdater,
+        )
         from application.use_cases.manual_position_snapshot import (
             ManualPositionSnapshotWriter,
         )
@@ -706,6 +709,11 @@ class LazyComponents:
             d.re_repo,
             d.loan_calculator,
         )
+        manual_account_balance_updater = ManualAccountBalanceUpdater(
+            d.position_repo,
+            manual_position_snapshot_writer,
+            d.ex_client,
+        )
         manual_historic_writer = ManualHistoricWriter(
             historic_repo,
             transaction_port=d.tx_repo,
@@ -723,9 +731,7 @@ class LazyComponents:
         )
         self.settle_pending = SettlePendingFlowImpl(
             d.pending_repo,
-            d.position_repo,
-            manual_position_snapshot_writer,
-            d.ex_client,
+            manual_account_balance_updater,
             d.tx_handler,
         )
         self.add_manual_tx = AddManualTransactionImpl(
@@ -737,6 +743,7 @@ class LazyComponents:
             label_repo,
             tx_label_repo,
             transaction_labeler,
+            manual_account_balance_updater,
         )
         self.up_manual_tx = UpdateManualTransactionImpl(
             d.entity_repo,
