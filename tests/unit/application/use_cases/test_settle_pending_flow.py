@@ -6,6 +6,7 @@ import pytest
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.pending_flow_port import PendingFlowPort
 from application.ports.position_port import PositionPort
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
@@ -94,12 +95,15 @@ def _build_use_case():
     snapshot_writer = AsyncMock(spec=ManualPositionSnapshotWriter)
     exchange_rate_provider = AsyncMock(spec=ExchangeRateProvider)
     transaction_handler = _make_transaction_handler()
-
-    uc = SettlePendingFlowImpl(
-        pending_flow_port=pending_flow_port,
+    balance_updater = ManualAccountBalanceUpdater(
         position_port=position_port,
         snapshot_writer=snapshot_writer,
         exchange_rate_provider=exchange_rate_provider,
+    )
+
+    uc = SettlePendingFlowImpl(
+        pending_flow_port=pending_flow_port,
+        balance_updater=balance_updater,
         transaction_handler_port=transaction_handler,
     )
     return (

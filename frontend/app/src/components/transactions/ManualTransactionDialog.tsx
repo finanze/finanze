@@ -35,7 +35,6 @@ import { DataSource, EntityOrigin, type Entity } from "@/types"
 import { getCurrencySymbol, cn } from "@/lib/utils"
 import { resolveExternalProvider } from "@/lib/externalLabeling"
 import { getIntegrationName } from "@/lib/integrations"
-import { formatIban } from "@/lib/formatters"
 import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
 import {
   Popover,
@@ -56,6 +55,11 @@ import {
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { LabelSelector } from "@/components/labels/LabelSelector"
+import {
+  ManualTransactionAccountField,
+  resolveTransactionManualAccount,
+  useEntityAccounts,
+} from "@/components/manual/ManualAccountBalanceToggle"
 import {
   ManualTransactionPayload,
   type ManualAccountTransactionPayload,
@@ -1265,6 +1269,10 @@ export function ManualTransactionDialog({
   const [labelIds, setLabelIds] = useState<string[]>([])
   const [labelsTouched, setLabelsTouched] = useState(false)
   const [externalLabeling, setExternalLabeling] = useState(externalAutoRun)
+  const [selectedAccountId, setSelectedAccountId] = useState("")
+  const [customIbanMode, setCustomIbanMode] = useState(false)
+  const [applyToBalance, setApplyToBalance] = useState(false)
+  const [balanceAccountError, setBalanceAccountError] = useState(false)
   const sharesPriceEditedRef = useRef(false)
   const [originMoreOpen, setOriginMoreOpen] = useState(false)
   const [destMoreOpen, setDestMoreOpen] = useState(false)
@@ -1437,30 +1445,6 @@ export function ManualTransactionDialog({
         }
       }
 
-      if (formState.productType === ProductType.ACCOUNT) {
-        const seen = new Set<string>()
-        const ibans: SuggestionOption[] = []
-        entityPositions.forEach(ep => {
-          const accounts = ep.products[ProductType.ACCOUNT] as
-            Accounts | undefined
-          accounts?.entries?.forEach(account => {
-            const normalized = account.iban?.replace(/\s+/g, "").toUpperCase()
-            if (!normalized || seen.has(normalized)) return
-            seen.add(normalized)
-            const accountLabel = account.name?.trim()
-            ibans.push({
-              value: normalized,
-              label: accountLabel
-                ? `${formatIban(normalized, true)} · ${accountLabel}`
-                : (formatIban(normalized, true) ?? normalized),
-            })
-          })
-        })
-        if (ibans.length > 0) {
-          suggestions.iban = ibans
-        }
-      }
-
       if (formState.productType === ProductType.CRYPTO) {
         const seen = new Set<string>()
         const options: SuggestionOption[] = []
@@ -1577,6 +1561,42 @@ export function ManualTransactionDialog({
   const netAmountFormulaText = isOutgoingType
     ? t.transactions.form.netAmountFormulaOutgoing
     : t.transactions.form.netAmountFormulaIncoming
+
+  const accountBalanceDelta = useMemo(() => {
+    if (formState.productType !== ProductType.ACCOUNT) {
+      return null
+    }
+    const gross = Number.parseFloat(formState.amount.replace(",", "."))
+    if (!Number.isFinite(gross) || gross <= 0) {
+      return null
+    }
+    if (isFeeType) {
+      return -gross
+    }
+    if (netAmount === null) {
+      return null
+    }
+    return isOutgoingType ? -netAmount : netAmount
+  }, [
+    formState.amount,
+    formState.productType,
+    isFeeType,
+    isOutgoingType,
+    netAmount,
+  ])
+
+  const entityAccounts = useEntityAccounts({ entityId: formState.entityId })
+
+  const resolvedBalanceAccount = useMemo(
+    () =>
+      resolveTransactionManualAccount(
+        entityAccounts,
+        selectedAccountId,
+        entityAccounts.length === 0 || customIbanMode,
+        formState.extra.iban ?? "",
+      ),
+    [customIbanMode, entityAccounts, formState.extra.iban, selectedAccountId],
+  )
 
   const currencySymbol = useMemo(
     () => getCurrencySymbol(formState.currency || defaultCurrency),
@@ -1777,6 +1797,10 @@ export function ManualTransactionDialog({
     setErrors({})
     setLabelIds([])
     setLabelsTouched(false)
+    setSelectedAccountId("")
+    setCustomIbanMode(false)
+    setApplyToBalance(false)
+    setBalanceAccountError(false)
     sharesPriceEditedRef.current = false
   }, [defaultCurrency])
 
@@ -1914,6 +1938,33 @@ export function ManualTransactionDialog({
           break
       }
 
+      if (productType === ProductType.ACCOUNT) {
+        const txIban = (transaction.iban ?? "")
+          .replace(/\s+/g, "")
+          .toUpperCase()
+        const txEntityPositions =
+          positionsData?.positions?.[transaction.entity?.id || ""] ?? []
+        let matchedAccountId = ""
+        txEntityPositions.forEach(ep => {
+          const accounts = ep.products[ProductType.ACCOUNT] as
+            Accounts | undefined
+          accounts?.entries?.forEach(account => {
+            if (matchedAccountId || !account.id) return
+            const accIban = account.iban?.replace(/\s+/g, "").toUpperCase()
+            if (txIban && accIban === txIban) {
+              matchedAccountId = account.id
+            }
+          })
+        })
+        setSelectedAccountId(matchedAccountId)
+        setCustomIbanMode(Boolean(txIban) && !matchedAccountId)
+      } else {
+        setSelectedAccountId("")
+        setCustomIbanMode(false)
+      }
+      setApplyToBalance(false)
+      setBalanceAccountError(false)
+
       setFormState(nextState)
       setErrors({})
       setLabelIds((transaction.labels ?? []).map(label => label.label_id))
@@ -1962,8 +2013,16 @@ export function ManualTransactionDialog({
   )
 
   const mainFieldConfigs = useMemo(
-    () => fieldConfigs.filter(field => !moreDetailsFieldNames.has(field.name)),
-    [fieldConfigs, moreDetailsFieldNames],
+    () =>
+      fieldConfigs.filter(
+        field =>
+          !moreDetailsFieldNames.has(field.name) &&
+          !(
+            formState.productType === ProductType.ACCOUNT &&
+            field.name === "iban"
+          ),
+      ),
+    [fieldConfigs, formState.productType, moreDetailsFieldNames],
   )
 
   const moreDetailsFieldConfigs = useMemo(
@@ -2366,8 +2425,16 @@ export function ManualTransactionDialog({
       }
     }
 
+    const missingBalanceAccount =
+      mode === "create" &&
+      formState.productType === ProductType.ACCOUNT &&
+      !isPairedCreate &&
+      applyToBalance &&
+      !resolvedBalanceAccount
+    setBalanceAccountError(missingBalanceAccount)
+
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    return Object.keys(newErrors).length === 0 && !missingBalanceAccount
   }
 
   const buildInvestmentPayload = (
@@ -2548,6 +2615,10 @@ export function ManualTransactionDialog({
           external_labeling: showExternalLabelingToggle
             ? externalLabeling
             : undefined,
+          balance_account_id:
+            mode === "create" && applyToBalance && resolvedBalanceAccount
+              ? resolvedBalanceAccount.id
+              : undefined,
         }
         return payload
       }
@@ -2716,13 +2787,23 @@ export function ManualTransactionDialog({
                             const entityId = ids[0] ?? ""
                             const option = entities.find(e => e.id === entityId)
                             handleBaseChange("entityId", entityId)
-                            if (option) {
-                              setFormState(prev => ({
-                                ...prev,
-                                entityName: option.name,
-                                entityOrigin: option.origin,
-                              }))
-                            }
+                            setSelectedAccountId("")
+                            setCustomIbanMode(false)
+                            setApplyToBalance(false)
+                            setBalanceAccountError(false)
+                            setFormState(prev => ({
+                              ...prev,
+                              ...(option
+                                ? {
+                                    entityName: option.name,
+                                    entityOrigin: option.origin,
+                                  }
+                                : {}),
+                              extra:
+                                prev.productType === ProductType.ACCOUNT
+                                  ? { ...prev.extra, iban: "" }
+                                  : prev.extra,
+                            }))
                           }}
                           singleSelect
                           disabled={mode === "edit"}
@@ -2854,6 +2935,10 @@ export function ManualTransactionDialog({
                                 onClick={() => {
                                   clearError("productType")
                                   clearError("type")
+                                  setSelectedAccountId("")
+                                  setCustomIbanMode(false)
+                                  setApplyToBalance(false)
+                                  setBalanceAccountError(false)
                                   setFormState(prev => {
                                     const nextTypes = getTxTypesForProduct(type)
                                     const keepTransfer =
@@ -3476,30 +3561,75 @@ export function ManualTransactionDialog({
                         <h3 className="text-sm font-semibold text-muted-foreground">
                           {t.transactions.form.detailsSection}
                         </h3>
-                        <ExtraFieldsGrid
-                          fields={
-                            moreDetailsFieldConfigs.length > 0
-                              ? mainFieldConfigs
-                              : fieldConfigs
-                          }
-                          extra={formState.extra}
-                          errors={errors}
-                          errorPrefix="extra"
-                          idPrefix="transaction"
-                          productType={formState.productType}
-                          currencySymbol={currencySymbol}
-                          suggestionsByField={suggestionsByField}
-                          selectedEntityName={selectedEntityName}
-                          suggestionPopoverField={suggestionPopoverField}
-                          setSuggestionPopoverField={setSuggestionPopoverField}
-                          getSuggestionLabel={getSuggestionLabel}
-                          onExtraChange={handleExtraChange}
-                          onSuggestionApply={handleSuggestionApply}
-                          t={t}
-                          isSubmitting={isSubmitting}
-                          locale={locale}
-                          isSplit={isSplitType}
-                        />
+                        {formState.productType === ProductType.ACCOUNT && (
+                          <ManualTransactionAccountField
+                            mode={mode}
+                            accounts={entityAccounts}
+                            selectedEntityName={selectedEntityName}
+                            iban={formState.extra.iban ?? ""}
+                            onIbanChange={value =>
+                              handleExtraChange("iban", value)
+                            }
+                            ibanError={errors["extra.iban"]}
+                            selectedAccountId={selectedAccountId}
+                            onSelectedAccountIdChange={setSelectedAccountId}
+                            customIbanMode={customIbanMode}
+                            onCustomIbanModeChange={setCustomIbanMode}
+                            applyToBalance={applyToBalance}
+                            onApplyToBalanceChange={setApplyToBalance}
+                            balanceAccountError={balanceAccountError}
+                            onClearBalanceError={() =>
+                              setBalanceAccountError(false)
+                            }
+                            delta={accountBalanceDelta}
+                            currency={formState.currency || defaultCurrency}
+                            disabled={isSubmitting}
+                          />
+                        )}
+                        {(moreDetailsFieldConfigs.length > 0
+                          ? mainFieldConfigs
+                          : fieldConfigs.filter(
+                              field =>
+                                !(
+                                  formState.productType ===
+                                    ProductType.ACCOUNT && field.name === "iban"
+                                ),
+                            )
+                        ).length > 0 && (
+                          <ExtraFieldsGrid
+                            fields={
+                              moreDetailsFieldConfigs.length > 0
+                                ? mainFieldConfigs
+                                : fieldConfigs.filter(
+                                    field =>
+                                      !(
+                                        formState.productType ===
+                                          ProductType.ACCOUNT &&
+                                        field.name === "iban"
+                                      ),
+                                  )
+                            }
+                            extra={formState.extra}
+                            errors={errors}
+                            errorPrefix="extra"
+                            idPrefix="transaction"
+                            productType={formState.productType}
+                            currencySymbol={currencySymbol}
+                            suggestionsByField={suggestionsByField}
+                            selectedEntityName={selectedEntityName}
+                            suggestionPopoverField={suggestionPopoverField}
+                            setSuggestionPopoverField={
+                              setSuggestionPopoverField
+                            }
+                            getSuggestionLabel={getSuggestionLabel}
+                            onExtraChange={handleExtraChange}
+                            onSuggestionApply={handleSuggestionApply}
+                            t={t}
+                            isSubmitting={isSubmitting}
+                            locale={locale}
+                            isSplit={isSplitType}
+                          />
+                        )}
                         {moreDetailsFieldConfigs.length > 0 && (
                           <div>
                             <button

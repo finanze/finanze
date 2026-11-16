@@ -616,4 +616,132 @@ test.describe('Manual Transactions', () => {
         await expandTransaction(page, name)
         await expect(splitRow).toContainText(/Split ratio:\s*0[.,]2/)
     })
+
+    test('manual account transaction optionally updates manual account balance (OK and KO)', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+
+        const bankingBtn = page.getByRole('button', {
+            name: 'Banking',
+            exact: true,
+        })
+        if (await bankingBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+            await bankingBtn.click()
+        } else {
+            await page.getByRole('button', { name: 'My Assets' }).click()
+            await page.waitForTimeout(300)
+            await bankingBtn.click()
+        }
+        await expect(
+            page.getByRole('heading', { name: /^Accounts/ }),
+        ).toBeVisible({ timeout: 10_000 })
+
+        const entityName = `E2E BalBank ${Date.now()}`
+        const accountName = `E2E BalChecking ${Date.now()}`
+
+        const accountsHeader = page
+            .getByRole('heading', { name: /^Accounts/ })
+            .locator('..')
+            .locator('..')
+        await accountsHeader
+            .locator('button')
+            .filter({ has: page.locator('.lucide-plus') })
+            .click()
+
+        const accountDialog = page.locator('.fixed.inset-0').last()
+        await expect(accountDialog.getByText('Add an account')).toBeVisible({
+            timeout: 5_000,
+        })
+        await accountDialog
+            .getByRole('button', { name: 'Create entity' })
+            .click()
+        await accountDialog.locator('#new_entity_name').fill(entityName)
+        await accountDialog.locator('#name').fill(accountName)
+        await accountDialog.locator('#total').fill('1000')
+        await accountDialog.locator('#iban').fill('ES7130580990252765030000')
+        await accountDialog.getByRole('button', { name: 'Save' }).click()
+
+        const savePositionsBtn = page.getByTestId('save-positions')
+        await expect(savePositionsBtn).toBeEnabled({ timeout: 5_000 })
+        await savePositionsBtn.click()
+        await expect(
+            page.getByText('Manual positions saved successfully.'),
+        ).toBeVisible({ timeout: 10_000 })
+
+        const createdAccountCard = page
+            .locator('.hover\\:shadow-lg')
+            .filter({ hasText: accountName })
+        await expect(createdAccountCard).toContainText(/€1,000\.?00/)
+
+        await navigateToTransactions(page)
+        await page.getByRole('button', { name: 'Add' }).click()
+        const txDialog = page.locator('.fixed.inset-0').last()
+        await expect(txDialog.getByText('Add transaction')).toBeVisible({
+            timeout: 5_000,
+        })
+
+        // KO: entity without manual accounts keeps the balance switch disabled
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
+        await selectCustomDropdown(page, 'transaction-product', 'Account')
+        await selectCustomDropdown(page, 'transaction-type', 'Inflow')
+        const balanceSwitch = txDialog.getByTestId(
+            'manual-account-balance-switch',
+        )
+        await expect(balanceSwitch).toBeDisabled()
+        await txDialog.getByTestId('manual-account-balance-help').click()
+        await expect(
+            page.getByText(
+                'The selected entity has no manually entered accounts. Create one in Banking to enable this option.',
+            ),
+        ).toBeVisible()
+        await txDialog.getByTestId('manual-account-balance-help').click()
+
+        // OK: switching to an entity with a manual account enables toggle, previews & persists balance
+        await selectEntity(page, entityName, { inDialog: true })
+        await txDialog.locator('#transaction-name').fill('E2E Salary Inflow')
+        await txDialog.locator('#transaction-amount').fill('250')
+        await txDialog.locator('#transaction-currency').selectOption('EUR')
+        await txDialog
+            .locator('button[aria-controls="edit-more-details"]')
+            .click()
+        await txDialog.getByLabel('Fees').fill('2.50')
+
+        await expect(balanceSwitch).toBeEnabled()
+        await expect(
+            txDialog.getByTestId('manual-account-balance-select'),
+        ).toHaveCount(0)
+        await balanceSwitch.click()
+
+        await expect(
+            txDialog.getByTestId('transaction-account-select'),
+        ).toContainText(accountName)
+        const preview = txDialog.getByTestId('manual-account-balance-preview')
+        await expect(preview).toBeVisible()
+        await expect(preview).toContainText('€1,000.00')
+        await expect(preview).toContainText('€1,247.50')
+
+        await txDialog.getByRole('button', { name: 'Save' }).click()
+        await expect(
+            page.getByText('Manual transaction created successfully'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expandTransaction(page, 'E2E Salary Inflow')
+        await expect(page.getByTestId('tx-iban').first()).toHaveText(
+            'ES71 3058 0990 2527 6503 0000',
+        )
+
+        if (await bankingBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+            await bankingBtn.click()
+        } else {
+            await page.getByRole('button', { name: 'My Assets' }).click()
+            await page.waitForTimeout(300)
+            await bankingBtn.click()
+        }
+        await expect(
+            page.getByRole('heading', { name: /^Accounts/ }),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(
+            page.locator('.hover\\:shadow-lg').filter({ hasText: accountName }),
+        ).toContainText(/€1,247\.?50/, { timeout: 10_000 })
+    })
 })

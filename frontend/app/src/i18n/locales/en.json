@@ -3355,10 +3355,6 @@
     "markCompleted": "Mark as completed",
     "markCompletedTitle": "Complete {type}",
     "markCompletedConfirm": "Mark this {type} as completed? It will no longer be counted in your pending totals.",
-    "applyToAccountBalance": "Apply to account balance",
-    "applyToAccountBalanceHint": "The settled amount will be added to or subtracted from the selected account.",
-    "selectAccount": "Select an account",
-    "noManualAccounts": "There are no manually entered accounts to apply this change to. Create one to enable this option.",
     "markActive": "Reactivate",
     "statusFilter": "Status",
     "filters": "Filters",
@@ -4489,5 +4485,25 @@
     "resetConfirmMessage": "Are you sure you want to reset all advanced settings to their defaults?",
     "resetConfirmWarning": "The app will restart after resetting.",
     "availableAfterLoading": "Available after loading"
+  },
+  "manualAccountBalance": {
+    "accountLabel": "Account",
+    "optionalAccountPlaceholder": "Select an account (optional)",
+    "enterIbanManually": "Enter IBAN manually",
+    "selectFromAccounts": "Select from accounts",
+    "clearAccount": "Clear selected account",
+    "apply": "Apply to account balance",
+    "settleHint": "The settled amount will be added to or subtracted from the selected account.",
+    "transactionHint": "Adds or subtracts the net transaction amount from this manual account.",
+    "selectAccount": "Select an account",
+    "selectAccountAboveHint": "Select a manual account above to update its balance.",
+    "selectAccountError": "Select a manual account to update",
+    "noManualAccounts": "There are no manually entered accounts to apply this change to. Create one to enable this option.",
+    "noManualAccountsForEntity": "The selected entity has no manually entered accounts. Create one in Banking to enable this option.",
+    "syncedAccountHint": "Synced accounts update their balance automatically when fetched. Select a manual account to adjust its balance.",
+    "customIbanHint": "This IBAN does not match any manual account of the selected entity.",
+    "syncedBadge": "Synced",
+    "manualBadge": "Manual",
+    "previewLabel": "New balance"
   }
 }

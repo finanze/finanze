@@ -8,7 +8,13 @@ from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
-from domain.global_position import ProductType
+from domain.global_position import (
+    Account,
+    Accounts,
+    AccountType,
+    GlobalPosition,
+    ProductType,
+)
 from domain.labeling import LabelingTrigger
 from domain.transactions import (
     AccountTx,
@@ -970,4 +976,128 @@ class TestAddManualTransactionBatch:
         assert response.status_code == 404
         body = await response.get_json()
         assert body["code"] == "ENTITY_NOT_FOUND"
+        transaction_port.save.assert_not_awaited()
+
+
+class TestAddManualTransactionBalanceUpdate:
+    @staticmethod
+    def _manual_account(total=Dezimal("1000"), currency="EUR"):
+        return Account(
+            id=uuid.uuid4(),
+            total=total,
+            currency=currency,
+            type=AccountType.CHECKING,
+            name="Manual Checking",
+            iban="ES0000000000000000001234",
+            source=DataSource.MANUAL,
+        )
+
+    @pytest.mark.asyncio
+    async def test_inflow_updates_manual_account_balance(
+        self,
+        client,
+        entity_port,
+        transaction_port,
+        position_port,
+        virtual_import_registry,
+    ):
+        entity = _make_entity()
+        account = self._manual_account(total=Dezimal("1000"))
+        position = GlobalPosition(
+            id=uuid.uuid4(),
+            entity=entity,
+            products={ProductType.ACCOUNT: Accounts(entries=[account])},
+        )
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        position_port.get_last_grouped_by_entity = AsyncMock(
+            return_value={entity: position}
+        )
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = _account_tx_payload(
+            type="INFLOW",
+            amount="250.00",
+            fees="2.50",
+            balance_account_id=str(account.id),
+        )
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 204
+        assert account.total == Dezimal("1247.50")
+        transaction_port.save.assert_awaited_once()
+        position_port.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fee_subtracts_amount_once(
+        self,
+        client,
+        entity_port,
+        transaction_port,
+        position_port,
+        virtual_import_registry,
+    ):
+        entity = _make_entity()
+        account = self._manual_account(total=Dezimal("1000"))
+        position = GlobalPosition(
+            id=uuid.uuid4(),
+            entity=entity,
+            products={ProductType.ACCOUNT: Accounts(entries=[account])},
+        )
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        position_port.get_last_grouped_by_entity = AsyncMock(
+            return_value={entity: position}
+        )
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = _account_tx_payload(
+            type="FEE",
+            amount="15.00",
+            fees="15.00",
+            balance_account_id=str(account.id),
+        )
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 204
+        assert account.total == Dezimal("985.00")
+        transaction_port.save.assert_awaited_once()
+        position_port.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unknown_account_returns_404_and_saves_nothing(
+        self, client, entity_port, transaction_port, position_port
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+
+        payload = _account_tx_payload(
+            type="OUTFLOW",
+            amount="50.00",
+            balance_account_id=str(uuid.uuid4()),
+        )
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 404
+        body = await response.get_json()
+        assert body["code"] == "NOT_FOUND"
+        transaction_port.save.assert_not_awaited()
+        position_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_non_account_tx_with_balance_account_returns_400(
+        self, client, entity_port, transaction_port, position_port
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+
+        payload = _stock_tx_payload(balance_account_id=str(uuid.uuid4()))
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+        transaction_port.save.assert_not_awaited()
+        position_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_invalid_balance_account_uuid_returns_400(
+        self, client, transaction_port
+    ):
+        payload = _account_tx_payload(type="INFLOW", balance_account_id="not-a-uuid")
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 400
         transaction_port.save.assert_not_awaited()

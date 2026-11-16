@@ -3355,10 +3355,6 @@
     "markCompleted": "Als abgeschlossen markieren",
     "markCompletedTitle": "{type} abschließen",
     "markCompletedConfirm": "Diese {type} als abgeschlossen markieren? Sie wird dann nicht mehr in deinen ausstehenden Summen berücksichtigt.",
-    "applyToAccountBalance": "Auf Kontostand anwenden",
-    "applyToAccountBalanceHint": "Der abgerechnete Betrag wird dem ausgewählten Konto gutgeschrieben oder davon abgezogen.",
-    "selectAccount": "Konto auswählen",
-    "noManualAccounts": "Es gibt keine manuell erfassten Konten, auf die diese Änderung angewendet werden kann. Erstelle eines, um diese Option zu aktivieren.",
     "markActive": "Reaktivieren",
     "statusFilter": "Status",
     "filters": "Filter",
@@ -4489,5 +4485,25 @@
     "resetConfirmMessage": "Möchtest du wirklich alle erweiterten Einstellungen auf ihre Standardwerte zurücksetzen?",
     "resetConfirmWarning": "Die App wird nach dem Zurücksetzen neu gestartet.",
     "availableAfterLoading": "Nach dem Laden verfügbar"
+  },
+  "manualAccountBalance": {
+    "accountLabel": "Konto",
+    "optionalAccountPlaceholder": "Konto auswählen (optional)",
+    "enterIbanManually": "IBAN manuell eingeben",
+    "selectFromAccounts": "Aus Konten auswählen",
+    "clearAccount": "Ausgewähltes Konto entfernen",
+    "apply": "Auf Kontostand anwenden",
+    "settleHint": "Der abgerechnete Betrag wird dem ausgewählten Konto gutgeschrieben oder davon abgezogen.",
+    "transactionHint": "Rechnet den Nettobetrag der Transaktion diesem manuellen Konto zu oder zieht ihn ab.",
+    "selectAccount": "Konto auswählen",
+    "selectAccountAboveHint": "Wähle oben ein manuelles Konto aus, um dessen Kontostand zu aktualisieren.",
+    "selectAccountError": "Wähle ein zu aktualisierendes manuelles Konto aus",
+    "noManualAccounts": "Es gibt keine manuell erfassten Konten, auf die diese Änderung angewendet werden kann. Erstelle eines, um diese Option zu aktivieren.",
+    "noManualAccountsForEntity": "Die ausgewählte Entität hat keine manuell erfassten Konten. Erstelle eines unter Banking, um diese Option zu aktivieren.",
+    "syncedAccountHint": "Synchronisierte Konten aktualisieren ihren Kontostand beim Abruf automatisch. Wähle ein manuelles Konto aus, um dessen Kontostand anzupassen.",
+    "customIbanHint": "Diese IBAN stimmt mit keinem manuellen Konto der ausgewählten Entität überein.",
+    "syncedBadge": "Synchronisiert",
+    "manualBadge": "Manuell",
+    "previewLabel": "Neuer Kontostand"
   }
 }

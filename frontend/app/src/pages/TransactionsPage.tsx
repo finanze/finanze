@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
+import { useFinancialData } from "@/context/FinancialDataContext"
 import {
   getTransactions,
   createManualTransaction,
@@ -263,6 +264,7 @@ export default function TransactionsPage() {
     exchangeRates,
     updateEntityVirtualFeatures,
   } = useAppContext()
+  const { refreshData } = useFinancialData()
   const location = useLocation()
   const navigateRouter = useNavigate()
   const returnTo = readReturnTo(location.state)
@@ -845,10 +847,20 @@ export default function TransactionsPage() {
         const payloads = Array.isArray(result.payload)
           ? result.payload
           : [result.payload]
+        const hasBalanceUpdate = payloads.some(
+          item =>
+            "balance_account_id" in item && Boolean(item.balance_account_id),
+        )
         const entityIds = [...new Set(payloads.map(item => item.entity_id))]
         entityIds.forEach(entityId =>
-          updateEntityVirtualFeatures(entityId, ["TRANSACTIONS"]),
+          updateEntityVirtualFeatures(
+            entityId,
+            hasBalanceUpdate ? ["TRANSACTIONS", "POSITION"] : ["TRANSACTIONS"],
+          ),
         )
+        if (hasBalanceUpdate) {
+          void refreshData()
+        }
       }
 
       setIsDialogOpen(false)
