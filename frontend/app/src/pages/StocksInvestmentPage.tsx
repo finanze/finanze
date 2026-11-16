@@ -17,7 +17,11 @@ import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
-import { formatCurrency, formatGainLoss } from "@/lib/formatters"
+import {
+  formatCurrency,
+  formatGainLoss,
+  lowercaseLabel,
+} from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getStockAndFundPositions,
@@ -662,7 +666,7 @@ function StocksViewContent({
     selectedEntities.length > 0
       ? t.investments.noPositionsFound.replace(
           "{type}",
-          t.common.stocksEtfs.toLowerCase(),
+          lowercaseLabel(t.common.stocksEtfs, locale),
         )
       : t.investments.noInvestmentsRegistered
 
@@ -1289,7 +1293,7 @@ function StocksViewContent({
                                   <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                     {t.investments.ofInvestmentType.replace(
                                       "{type}",
-                                      t.common.stocks.toLowerCase(),
+                                      lowercaseLabel(t.common.stocks, locale),
                                     )}
                                   </div>
                                   <div className="font-medium text-blue-600 dark:text-blue-400">
