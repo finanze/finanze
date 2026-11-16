@@ -50,6 +50,11 @@ export const formatPercentage = (value: number, locale: string): string => {
   }).format(value / 100)
 }
 
+// Lowercases a label so it can be used mid-sentence. German capitalizes nouns,
+// so labels keep their casing there.
+export const lowercaseLabel = (label: string, locale?: string): string =>
+  locale?.startsWith("de") ? label : label.toLowerCase()
+
 export const formatNumber = (value: number, locale: string): string => {
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: 0,

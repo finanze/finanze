@@ -47,7 +47,7 @@ import {
   X,
 } from "lucide-react"
 import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency, formatDate, lowercaseLabel } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
@@ -1125,8 +1125,8 @@ export default function PendingMoneyPage() {
             <div className="text-xs text-gray-500">
               {earningsCount}{" "}
               {earningsCount === 1
-                ? t.management.flowType.EARNING.toLowerCase()
-                : t.management.earnings.toLowerCase()}
+                ? lowercaseLabel(t.management.flowType.EARNING, locale)
+                : lowercaseLabel(t.management.earnings, locale)}
             </div>
             {renderDistribution(
               flowDistribution.earnings,
@@ -1157,8 +1157,8 @@ export default function PendingMoneyPage() {
             <div className="text-xs text-gray-500">
               {expensesCount}{" "}
               {expensesCount === 1
-                ? t.management.flowType.EXPENSE.toLowerCase()
-                : t.management.expenses.toLowerCase()}
+                ? lowercaseLabel(t.management.flowType.EXPENSE, locale)
+                : lowercaseLabel(t.management.expenses, locale)}
             </div>
             {renderDistribution(
               flowDistribution.expenses,
@@ -1537,14 +1537,14 @@ export default function PendingMoneyPage() {
         title={t.management.deleteConfirmTitle.replace(
           "{type}",
           deletingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         message={t.management.deleteConfirm.replace(
           "{type}",
           deletingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         confirmText={t.common.delete}
         cancelText={t.common.cancel}
@@ -1557,8 +1557,8 @@ export default function PendingMoneyPage() {
         title={t.management.markCompletedTitle.replace(
           "{type}",
           completingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         message={
           <>
@@ -1566,8 +1566,8 @@ export default function PendingMoneyPage() {
               {t.management.markCompletedConfirm.replace(
                 "{type}",
                 completingFlow?.flow_type === FlowType.EARNING
-                  ? t.management.flowType.EARNING.toLowerCase()
-                  : t.management.flowType.EXPENSE.toLowerCase(),
+                  ? lowercaseLabel(t.management.flowType.EARNING, locale)
+                  : lowercaseLabel(t.management.flowType.EXPENSE, locale),
               )}
             </span>
             <span className="mt-4 flex items-center justify-between gap-3">

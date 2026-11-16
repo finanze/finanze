@@ -55,6 +55,7 @@ export function LoginQuickSettings({
     { code: "en-US", label: "EN" },
     { code: "es-ES", label: "ES" },
     { code: "it-IT", label: "IT" },
+    { code: "de-DE", label: "DE" },
   ]
 
   return (

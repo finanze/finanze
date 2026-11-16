@@ -48,7 +48,7 @@ import { convertWeight, convertCurrency } from "@/utils/financialDataUtils"
 import { CommodityIcon } from "@/utils/commodityIcons"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { cn, getCurrencySymbol } from "@/lib/utils"
-import { formatCurrency } from "@/lib/formatters"
+import { formatCurrency, lowercaseLabel } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
@@ -1241,7 +1241,10 @@ export default function CommoditiesInvestmentPage() {
                                   </span>{" "}
                                   {t.investments.ofInvestmentType.replace(
                                     "{type}",
-                                    t.common.commodities.toLowerCase(),
+                                    lowercaseLabel(
+                                      t.common.commodities,
+                                      locale,
+                                    ),
                                   )}
                                 </div>
                                 <div

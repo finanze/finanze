@@ -10,12 +10,13 @@ import { RelabelDialog } from "@/components/labels/RelabelDialog"
 import en from "@/i18n/locales/en.json"
 import es from "@/i18n/locales/es.json"
 import itTranslations from "@/i18n/locales/it.json"
+import de from "@/i18n/locales/de.json"
 import type { LabelingResult, ExternalLabelingSettings } from "@/types/labeling"
 
 const { state, relabelTransactions } = vi.hoisted(() => ({
   state: {
     app: {} as Record<string, unknown>,
-    locale: "en-US" as "en-US" | "es-ES" | "it-IT",
+    locale: "en-US" as "en-US" | "es-ES" | "it-IT" | "de-DE",
   },
   relabelTransactions: vi.fn(),
 }))
@@ -27,7 +28,9 @@ vi.mock("@/i18n", () => ({
         ? es
         : state.locale === "it-IT"
           ? itTranslations
-          : en,
+          : state.locale === "de-DE"
+            ? de
+            : en,
     locale: state.locale,
   }),
 }))
@@ -89,6 +92,7 @@ describe("RelabelDialog external failures", () => {
   it.each([
     ["es-ES", es],
     ["it-IT", itTranslations],
+    ["de-DE", de],
   ] as const)(
     "localizes the actual fallback provider in %s without altering provenance",
     async (locale, translations) => {

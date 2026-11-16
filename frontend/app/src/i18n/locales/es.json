@@ -748,7 +748,8 @@
     "applicationLanguageOptions": {
       "en-US": "Inglés",
       "es-ES": "Español",
-      "it-IT": "Italiano"
+      "it-IT": "Italiano",
+      "de-DE": "Alemán"
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
