@@ -12,6 +12,8 @@ services:
     # environment:
       # USERNAME: myusername                          # Optional, provided via API when logging in, or use .env, this will automatically log in
       # PASSWORD: myVerySecretPasswordToEncryptDB     # Optional, provided via API when logging in, or use .env, this will automatically log in
+      # FINANZE_API_SESSION: "false"                 # Not recommended, disables per-client API sessions, any client reaching the server can use the API once unlocked
+      # FINANZE_API_SESSION_REMEMBER_DAYS: "30"      # Optional, days until "Remember me" sessions expire, they never expire by default
       # Selenium related envs, only if you want to use Selenium with finanze/finanze:latest-selenium
       # WEBDRIVER_ADDRESS: http://selenium:4444
       # Local AI models, only if you enable the finanze-llama service below

@@ -29,6 +29,7 @@
 		C1D2E3F4A5B60718293A4BD0 /* DeviceCountryPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B60718293A4BD1 /* DeviceCountryPlugin.swift */; };
 		D1E2F3A4B5C60718293A4BE0 /* LightHapticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4BE1 /* LightHapticsPlugin.swift */; };
 		E1F2A3B4C5D60718293A4BF0 /* LoopbackCallbackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2A3B4C5D60718293A4BF1 /* LoopbackCallbackPlugin.swift */; };
+		F1A2B3C4D5E60718293A4C00 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E60718293A4C01 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -70,6 +71,7 @@
 		C1D2E3F4A5B60718293A4BD1 /* DeviceCountryPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCountryPlugin.swift; sourceTree = "<group>"; };
 		D1E2F3A4B5C60718293A4BE1 /* LightHapticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightHapticsPlugin.swift; sourceTree = "<group>"; };
 		E1F2A3B4C5D60718293A4BF1 /* LoopbackCallbackPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackCallbackPlugin.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E60718293A4C01 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +120,7 @@
 				8D13728C2F730D800082ECAA /* LoginWebViewPlugin.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				F1A2B3C4D5E60718293A4C01 /* SceneDelegate.swift */,
 				9A1B2C3D4E5F60718293A4B5 /* BackupProcessorPlugin.swift */,
 				9A1B2C3D4E5F60718293A4B8 /* FileTransferPlugin.swift */,
 				A1B2C3D4E5F60718293A4BC1 /* ImageProcessorPlugin.swift */,
@@ -248,6 +251,7 @@
 			files = (
 				8DAD94E12F73F2A600FCE17F /* TlsHttpPlugin.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				F1A2B3C4D5E60718293A4C00 /* SceneDelegate.swift in Sources */,
 				9A1B2C3D4E5F60718293A4B6 /* BackupProcessorPlugin.swift in Sources */,
 				A1B2C3D4E5F60718293A4BC0 /* ImageProcessorPlugin.swift in Sources */,
 				A1B2C3D4E5F60718293A4BC2 /* PdfRendererPlugin.swift in Sources */,

@@ -96,3 +96,22 @@ class TestUserLogoutExecute:
         await use_case.execute()
 
         assert calls == ["release", "lock"]
+
+    @pytest.mark.asyncio
+    async def test_execute_revokes_api_sessions_before_locking(self):
+        calls = []
+        api_session_port = MagicMock()
+        api_session_port.revoke_all.side_effect = lambda: calls.append("revoke")
+        source_initiator = AsyncMock()
+        source_initiator.lock.side_effect = lambda: calls.append("lock")
+        use_case = UserLogoutImpl(
+            source_initiator=source_initiator,
+            config_port=AsyncMock(),
+            sheets_initiator=MagicMock(),
+            cloud_register=AsyncMock(),
+            api_session_port=api_session_port,
+        )
+
+        await use_case.execute()
+
+        assert calls == ["revoke", "lock"]

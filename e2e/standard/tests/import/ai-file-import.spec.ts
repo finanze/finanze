@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { BACKEND_URL } from '../../helpers/constants'
+import { sessionHeaders } from '../../helpers/session'
 import {
     chatCompletion,
     startAIMockServer,
@@ -27,29 +28,37 @@ function today() {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-async function backend(path: string, method: string, body?: unknown) {
+async function backend(
+    page: Page,
+    path: string,
+    method: string,
+    body?: unknown,
+) {
     const response = await fetch(`${BACKEND_URL}${path}`, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            ...(await sessionHeaders(page)),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
     })
     expect(response.ok).toBeTruthy()
 }
 
-async function useMockModel(server: AIMockServer, model: string) {
-    await backend(`/api/v1/integrations/${INTEGRATION}`, 'POST', {
+async function useMockModel(page: Page, server: AIMockServer, model: string) {
+    await backend(page, `/api/v1/integrations/${INTEGRATION}`, 'POST', {
         payload: { base_url: server.url },
     })
-    await backend('/api/v1/settings', 'POST', {
+    await backend(page, '/api/v1/settings', 'POST', {
         ai: { providers: [{ provider: INTEGRATION, model }] },
     })
 }
 
-async function useLocalModel(server: AIMockServer, model: string) {
-    await backend(`/api/v1/integrations/${LOCAL_INTEGRATION}`, 'POST', {
+async function useLocalModel(page: Page, server: AIMockServer, model: string) {
+    await backend(page, `/api/v1/integrations/${LOCAL_INTEGRATION}`, 'POST', {
         payload: { server_url: server.url },
     })
-    await backend('/api/v1/settings', 'POST', {
+    await backend(page, '/api/v1/settings', 'POST', {
         ai: { providers: [{ provider: LOCAL_INTEGRATION, model }] },
     })
 }
@@ -89,9 +98,11 @@ test.describe('AI file import', () => {
         server = await startAIMockServer([])
     })
 
-    test.afterEach(async () => {
-        await backend('/api/v1/settings', 'POST', { ai: { providers: [] } })
-        await backend(`/api/v1/integrations/${INTEGRATION}`, 'DELETE')
+    test.afterEach(async ({ page }) => {
+        await backend(page, '/api/v1/settings', 'POST', {
+            ai: { providers: [] },
+        })
+        await backend(page, `/api/v1/integrations/${INTEGRATION}`, 'DELETE')
         await server.close()
     })
 
@@ -100,7 +111,7 @@ test.describe('AI file import', () => {
     }) => {
         const id = uid()
         const name = `E2E AI Coffee ${id}`
-        await useMockModel(server, `vision-${id}`)
+        await useMockModel(page, server, `vision-${id}`)
         let release: () => void = () => {}
         const pending = new Promise<void>((resolve) => {
             release = resolve
@@ -156,7 +167,7 @@ test.describe('AI file import', () => {
         authenticatedPage: page,
     }) => {
         const id = uid()
-        await useMockModel(server, `broken-${id}`)
+        await useMockModel(page, server, `broken-${id}`)
         server.setReply(() => ({ status: 500, body: { error: 'no images' } }))
 
         const dialog = await openReceiptImport(page, `E2E AI Bank ${id}`)
@@ -185,9 +196,15 @@ test.describe('AI file import with local models', () => {
         )
     })
 
-    test.afterEach(async () => {
-        await backend('/api/v1/settings', 'POST', { ai: { providers: [] } })
-        await backend(`/api/v1/integrations/${LOCAL_INTEGRATION}`, 'DELETE')
+    test.afterEach(async ({ page }) => {
+        await backend(page, '/api/v1/settings', 'POST', {
+            ai: { providers: [] },
+        })
+        await backend(
+            page,
+            `/api/v1/integrations/${LOCAL_INTEGRATION}`,
+            'DELETE',
+        )
         await server.close()
     })
 
@@ -196,7 +213,7 @@ test.describe('AI file import with local models', () => {
     }) => {
         const id = uid()
         const name = `E2E Local AI Coffee ${id}`
-        await useLocalModel(server, LOCAL_VISION_MODEL)
+        await useLocalModel(page, server, LOCAL_VISION_MODEL)
         server.setReply(() =>
             chatCompletion({
                 rows: [
@@ -237,7 +254,7 @@ test.describe('AI file import with local models', () => {
         authenticatedPage: page,
     }) => {
         const id = uid()
-        await useLocalModel(server, LOCAL_TEXT_MODEL)
+        await useLocalModel(page, server, LOCAL_TEXT_MODEL)
 
         const dialog = await openReceiptImport(page, `E2E Local AI Bank ${id}`)
         await dialog

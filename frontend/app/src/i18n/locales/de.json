@@ -476,6 +476,7 @@
     "errorDetailsTitle": "Technische Details",
     "syncPasswordHint": "Verwende auf allen Geräten denselben Verschlüsselungsschlüssel, wenn die Synchronisierung aktiviert ist",
     "enableBiometric": "{type} aktivieren",
+    "rememberSession": "Angemeldet bleiben",
     "biometricFaceId": "Face ID",
     "biometricFingerprint": "Fingerabdruck",
     "biometricAuth": "Biometrie",

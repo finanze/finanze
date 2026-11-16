@@ -33,12 +33,18 @@ interface AuthContextType {
   isChangingPassword: boolean
   lastLoggedUser: string | null
   pendingRegister: boolean
+  apiSessionEnabled: boolean
   pendingPasswordChangeUser: string | null
   login: (
     username: string,
     password: string,
+    remember?: boolean,
   ) => Promise<{ code: AuthResultCode; message?: string }>
-  signup: (username: string, password: string) => Promise<boolean>
+  signup: (
+    username: string,
+    password: string,
+    remember?: boolean,
+  ) => Promise<boolean>
   guestSignup: (username: string) => Promise<boolean>
   logout: () => Promise<void>
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>
@@ -60,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     string | null
   >(null)
   const [pendingRegister, setPendingRegister] = useState(false)
+  const [apiSessionEnabled, setApiSessionEnabled] = useState(false)
   const deferredFlagsRef = useRef<Promise<void> | null>(null)
 
   // Mobile core /status is served before feature flags are fetched (deferred init).
@@ -89,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       features,
       user: statusUser,
       pendingRegister: pending,
+      apiSession,
     } = await checkStatus()
 
     setFeatureFlags(features)
@@ -97,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(isUnlocked ? (statusUser ?? null) : null)
     setLastLoggedUser(last_logged || null)
     setPendingRegister(pending ?? false)
+    setApiSessionEnabled(apiSession ?? false)
   }
 
   useEffect(() => {
@@ -122,13 +131,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (
     username: string,
     password: string,
+    remember = false,
   ): Promise<{ code: AuthResultCode; message?: string }> => {
     setIsLoading(true)
     try {
       if (await isRegionBlocked()) {
         return { code: AuthResultCode.REGION_RESTRICTED }
       }
-      const result = await apiLogin({ username, password })
+      const result = await apiLogin({ username, password, remember })
       const isSuccess = result.code === AuthResultCode.SUCCESS
       setIsAuthenticated(isSuccess)
       if (isSuccess) {
@@ -157,11 +167,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (
     username: string,
     password: string,
+    remember = false,
   ): Promise<boolean> => {
     setIsLoading(true)
     try {
       if (await isRegionBlocked()) return false
-      const { success } = await apiSignup({ username, password })
+      const { success } = await apiSignup({ username, password, remember })
       if (success) {
         // Signup automatically logs the user in, so set auth state
         connectBackgroundWorker(username)
@@ -282,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isChangingPassword,
         lastLoggedUser,
         pendingRegister,
+        apiSessionEnabled,
         pendingPasswordChangeUser,
         login,
         signup,

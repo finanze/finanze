@@ -1,15 +1,14 @@
 import { expect } from '@playwright/test'
 import { test as backendTest } from './backend'
 import { TEST_USER, TEST_PASSWORD } from '../helpers/constants'
+import { lockBackend } from '../helpers/session'
 
 export const test = backendTest.extend<{
     authenticatedPage: import('@playwright/test').Page
 }>({
     authenticatedPage: async ({ page, backend }, use) => {
         // Ensure backend is locked before starting
-        await fetch(`${backend.backendUrl}/api/v1/logout`, {
-            method: 'POST',
-        }).catch(() => {})
+        await lockBackend(backend.backendUrl)
 
         // Check if a user already exists
         const statusRes = await fetch(`${backend.backendUrl}/api/v1/status`)

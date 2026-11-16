@@ -1,10 +1,12 @@
-from quart import jsonify
+from quart import jsonify, request
 
 from domain.use_cases.get_status import GetStatus
 
 
 async def status(get_status_uc: GetStatus):
-    result = await get_status_uc.execute()
+    scheme, _, token = (request.headers.get("Authorization") or "").partition(" ")
+    session_token = token.strip() if scheme.lower() == "bearer" else None
+    result = await get_status_uc.execute(session_token or None)
 
     user = None
     if result.user:
@@ -39,6 +41,7 @@ async def status(get_status_uc: GetStatus):
         "user": user,
         "lastLogged": result.last_logged,
         "pendingRegister": result.pending_register,
+        "apiSession": result.api_session,
     }
 
     return jsonify(response), 200

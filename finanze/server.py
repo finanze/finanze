@@ -84,6 +84,7 @@ from application.use_cases.get_mcp_config import GetMcpConfigImpl
 from application.use_cases.update_mcp_config import UpdateMcpConfigImpl
 from application.use_cases.regenerate_mcp_token import RegenerateMcpTokenImpl
 from application.use_cases.authorize_mcp_access import AuthorizeMcpAccessImpl
+from application.use_cases.authorize_api_access import AuthorizeApiAccessImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_market_forecast_closed_positions import (
@@ -307,8 +308,12 @@ from infrastructure.config.server_details_adapter import (
     detect_os_version,
     resolve_version,
 )
+from infrastructure.controller.api_session_guard import register_api_session_guard
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
+from infrastructure.api_session.in_memory_api_session_store import (
+    InMemoryApiSessionStore,
+)
 from infrastructure.crypto.public_key_derivation_adapter import (
     PublicKeyDerivationAdapter,
 )
@@ -510,6 +515,11 @@ class FinanzeServer:
         db_client = self._db_client
         db_manager = DBManager(db_client)
         data_manager = UserDataManager(args.data_dir)
+        api_session_port = (
+            InMemoryApiSessionStore(remember_ttl=args.api_session_remember_ttl)
+            if args.api_session
+            else None
+        )
 
         telemetry_consent_port = FileTelemetryConsent(args.data_dir)
         await self._setup_error_reporting(telemetry_consent_port)
@@ -749,6 +759,7 @@ class FinanzeServer:
             sheets_initiator,
             cloud_register,
             self._error_reporter,
+            api_session_port=api_session_port,
         )
         register_user = RegisterUserImpl(
             db_manager,
@@ -757,6 +768,7 @@ class FinanzeServer:
             sheets_initiator,
             cloud_register,
             self._error_reporter,
+            api_session_port=api_session_port,
         )
         change_user_password = ChangeUserPasswordImpl(
             db_manager, data_manager, settings_repository
@@ -776,6 +788,7 @@ class FinanzeServer:
             data_manager,
             server_options_port,
             feature_flag_port,
+            api_session_port=api_session_port,
         )
         user_logout = UserLogoutImpl(
             db_manager,
@@ -785,6 +798,7 @@ class FinanzeServer:
             self._error_reporter,
             agent_runtime_port=agent_runtime_pool,
             import_preview_store=import_preview_store,
+            api_session_port=api_session_port,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -1387,6 +1401,15 @@ class FinanzeServer:
         self._log.info("Setting up REST API...")
 
         self._quart_app = quart(static_upload_dir, self._error_reporter)
+        if api_session_port is not None:
+            register_api_session_guard(
+                self._quart_app,
+                AuthorizeApiAccessImpl(api_session_port, db_manager),
+            )
+        else:
+            self._log.warning(
+                "API session protection disabled (FINANZE_API_SESSION=false): any client reaching the server can use the API while unlocked"
+            )
         mcp_tool_catalog = McpToolCatalog()
         await register_routes(
             self._quart_app,
@@ -1636,7 +1659,7 @@ class FinanzeServer:
 
         config = uvicorn.Config(
             self._asgi_app,
-            host="0.0.0.0",
+            host=self._args.host,
             port=self._args.port,
             log_config=None,
             log_level=None,

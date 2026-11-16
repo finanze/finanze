@@ -8,6 +8,12 @@ class LoginRequest:
     username: str
     password: Optional[str] = None
     guest: bool = False
+    remember: bool = False
+
+
+@dataclass
+class LoginResult:
+    session_token: Optional[str] = None
 
 
 @dataclass

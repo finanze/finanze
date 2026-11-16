@@ -180,6 +180,7 @@ export interface AuthRequest {
   username: string
   password?: string
   guest?: boolean
+  remember?: boolean
 }
 
 export enum AuthResultCode {
@@ -301,6 +302,7 @@ export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
   lastLogged?: string | null
   pendingRegister?: boolean
+  apiSession?: boolean
   user?: User | null
   server: {
     version: string

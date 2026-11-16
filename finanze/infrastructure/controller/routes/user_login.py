@@ -19,10 +19,16 @@ async def user_login(user_login_uc: UserLogin):
     if not password:
         return jsonify({"message": "Password not provided"}), 400
 
-    login_request = LoginRequest(username=username, password=password)
+    login_request = LoginRequest(
+        username=username,
+        password=password,
+        remember=bool(body.get("remember", False)),
+    )
 
     try:
-        await user_login_uc.execute(login_request)
+        result = await user_login_uc.execute(login_request)
+        if result and result.session_token:
+            return jsonify({"token": result.session_token}), 200
         return "", 204
 
     except DecryptionError as e:
