@@ -51,6 +51,7 @@ function spawnCloudBackend(
       cwd: PROJECT_ROOT,
       env: {
         ...process.env,
+        PYTHONUNBUFFERED: "1",
         E2E_TEST_MODE: "1",
         ENV_FF: "1",
         FF_CLOUD: "ON",

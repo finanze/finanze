@@ -89,6 +89,7 @@ export const test = base.extend<
           cwd: PROJECT_ROOT,
           env: {
             ...process.env,
+            PYTHONUNBUFFERED: "1",
             E2E_TEST_MODE: "1",
             ENV_FF: "1",
             POSITION_UPDATE_COOLDOWN_SECONDS: "0",

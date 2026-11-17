@@ -7,6 +7,7 @@ const FRESH_BACKEND_PORT = 7693;
 const FRESH_FRONTEND_PORT = 5274;
 const CLOUD_BACKEND_PORT = Number(process.env.E2E_CLOUD_BACKEND_PORT || 7694);
 const CLOUD_FRONTEND_PORT = Number(process.env.E2E_CLOUD_FRONTEND_PORT || 5275);
+const CLOUD_ONLY = process.env.E2E_CLOUD_ONLY === "1";
 const FRONTEND_APP_DIR = join(
   import.meta.dirname,
   "..",
@@ -24,7 +25,7 @@ export default defineConfig<{}, { backendPort: number }>({
 
   use: {
     baseURL: `http://localhost:${FRONTEND_PORT}`,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
 
@@ -62,19 +63,23 @@ export default defineConfig<{}, { backendPort: number }>({
   ],
 
   webServer: [
-    {
-      command: `pnpm dev --port ${FRONTEND_PORT}`,
-      cwd: FRONTEND_APP_DIR,
-      env: {
-        ...process.env,
-        VITE_BASE_URL: `http://localhost:${BACKEND_PORT}`,
-        MOBILE_DEV: "1",
-        VITE_E2E_MOCK_LOGIN: "1",
-      },
-      port: FRONTEND_PORT,
-      reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
-    },
+    ...(CLOUD_ONLY
+      ? []
+      : [
+          {
+            command: `pnpm dev --port ${FRONTEND_PORT}`,
+            cwd: FRONTEND_APP_DIR,
+            env: {
+              ...process.env,
+              VITE_BASE_URL: `http://localhost:${BACKEND_PORT}`,
+              MOBILE_DEV: "1",
+              VITE_E2E_MOCK_LOGIN: "1",
+            },
+            port: FRONTEND_PORT,
+            reuseExistingServer: !process.env.CI,
+            timeout: 60_000,
+          },
+        ]),
     {
       command: `pnpm dev --port ${FRESH_FRONTEND_PORT}`,
       cwd: FRONTEND_APP_DIR,

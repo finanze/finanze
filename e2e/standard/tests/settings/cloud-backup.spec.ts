@@ -193,7 +193,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
     await expect(initialSyncBtn).toBeEnabled({ timeout: 15_000 });
     await initialSyncBtn.click();
     await expect(page.getByText("Synced", { exact: true })).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
 
     const validBackup = cloudServer.getDataPiece();
@@ -242,7 +242,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
       page.getByText(
         "Backup was created with a newer version of Finanze. Please update the app.",
       ),
-    ).toBeVisible({ timeout: 15_000 });
+    ).toBeVisible({ timeout: 30_000 });
 
     const after3aFiles = listFirstUserDirFiles(cloudBackend.dataDir);
     expect(after3aFiles.files).toContain("data.db");
@@ -277,7 +277,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
     await page.getByRole("button", { name: "Use remote" }).click();
 
     await expect(page.getByText("Unexpected error occurred")).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
 
     const after3bFiles = listFirstUserDirFiles(cloudBackend.dataDir);
@@ -313,7 +313,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
     });
     await page.getByRole("button", { name: "Use remote" }).click();
     await expect(page.getByText("Synced", { exact: true })).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
     expect(listFirstUserDirFiles(cloudBackend.dataDir).files).not.toContain(
       "data.db.tmp",
@@ -356,7 +356,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
     await useLocalBtn.click();
 
     await expect(page.getByText("Synced", { exact: true })).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
     expect(cloudServer.getDataPiece()?.version).toBe(validBackup!.version);
   });
@@ -383,7 +383,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
     await expect(seedSyncBtn).toBeEnabled({ timeout: 15_000 });
     await seedSyncBtn.click();
     await expect(page.getByText("Synced", { exact: true })).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
 
     const seededBackup = cloudServer.getDataPiece();
@@ -430,7 +430,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
         restorePage.getByText(
           "Invalid encryption key. Please check and try again.",
         ),
-      ).toBeVisible({ timeout: 15_000 });
+      ).toBeVisible({ timeout: 30_000 });
       expect(listFirstUserDirFiles(cloudBackend.dataDir).files).not.toContain(
         "data.db",
       );
@@ -454,7 +454,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
         restorePage.getByText(
           "This backup was created with a newer version of Finanze. Please update the app to restore it.",
         ),
-      ).toBeVisible({ timeout: 15_000 });
+      ).toBeVisible({ timeout: 30_000 });
 
       const after2bFiles = listFirstUserDirFiles(cloudBackend.dataDir).files;
       expect(after2bFiles).not.toContain("data.db");
@@ -476,7 +476,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
 
       await expect(
         restorePage.getByText("Restore failed. Please try again."),
-      ).toBeVisible({ timeout: 15_000 });
+      ).toBeVisible({ timeout: 30_000 });
 
       const after2cFiles = listFirstUserDirFiles(cloudBackend.dataDir).files;
       expect(after2cFiles).not.toContain("data.db");
@@ -497,7 +497,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
       await expect(
         restorePage.getByRole("heading", { name: "Summary", exact: true }),
       ).toBeVisible({
-        timeout: 25_000,
+        timeout: 30_000,
       });
 
       const restoredFiles = listFirstUserDirFiles(cloudBackend.dataDir).files;

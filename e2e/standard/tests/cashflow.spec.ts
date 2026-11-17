@@ -3,6 +3,7 @@ import { test } from '../fixtures/auth'
 import { ensureEditMode } from '../helpers/edit-mode'
 import { selectEntity } from '../helpers/entity-selector'
 import { navigateToMyMoneyPage } from '../helpers/my-money'
+import { sessionHeaders } from '../helpers/session'
 
 const createdConnections = new WeakSet<Page>()
 
@@ -364,27 +365,60 @@ async function expectActionInTitleRow(page: Page, name: string) {
 }
 
 test.describe('Cashflow', () => {
-    test.afterEach(async ({ authenticatedPage: page }) => {
+    test.afterEach(async ({ authenticatedPage: page, backend }) => {
         if (!createdConnections.delete(page)) return
 
-        await page.setViewportSize({ width: 1440, height: 1000 })
-        await page
-            .getByRole('navigation')
-            .getByRole('button', { name: 'Integrations', exact: true })
-            .click()
-        const entityCard = page
-            .locator('h3', { hasText: 'Urbanitae' })
-            .first()
-            .locator('../..')
-        await entityCard
-            .locator('button.text-red-600, button.text-red-500')
-            .click()
-        await page
-            .getByRole('button', { name: 'Disconnect', exact: true })
-            .click()
-        await expect(
-            entityCard.getByRole('button', { name: 'Fetch' }),
-        ).toHaveCount(0)
+        try {
+            const dialogs = page.locator('[role="dialog"], [role="alertdialog"]')
+            for (let i = 0; i < 3 && (await dialogs.count()) > 0; i++) {
+                await page.keyboard.press('Escape')
+                await dialogs
+                    .first()
+                    .waitFor({ state: 'hidden', timeout: 2_000 })
+                    .catch(() => {})
+            }
+
+            await page.setViewportSize({ width: 1440, height: 1000 })
+            await page
+                .getByRole('navigation')
+                .getByRole('button', { name: 'Integrations', exact: true })
+                .click({ timeout: 5_000 })
+            const entityCard = page
+                .locator('h3', { hasText: 'Urbanitae' })
+                .first()
+                .locator('../..')
+            await entityCard
+                .locator('button.text-red-600, button.text-red-500')
+                .click({ timeout: 5_000 })
+            await page
+                .getByRole('button', { name: 'Disconnect', exact: true })
+                .click({ timeout: 5_000 })
+            await expect(
+                entityCard.getByRole('button', { name: 'Fetch' }),
+            ).toHaveCount(0, { timeout: 10_000 })
+        } catch {
+            const headers = await sessionHeaders(page).catch(() => ({}))
+            const res = await fetch(`${backend.backendUrl}/api/v1/entities`, {
+                headers,
+            }).catch(() => null)
+            if (!res?.ok) return
+            const data = (await res.json()) as {
+                entities?: { name?: string; accounts?: { id: string }[] }[]
+            }
+            const urbanitae = data.entities?.find(
+                (entity) => entity.name === 'Urbanitae',
+            )
+            for (const account of urbanitae?.accounts ?? []) {
+                await fetch(`${backend.backendUrl}/api/v1/entities/login`, {
+                    method: 'DELETE',
+                    headers: {
+                        ...headers,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ entityAccountId: account.id }),
+                }).catch(() => {})
+            }
+        }
     })
 
     test('toggles My Money without desktop navigation and keeps the mobile landing page', async ({
@@ -410,6 +444,9 @@ test.describe('Cashflow', () => {
         await expect(page).toHaveURL(initialUrl)
         await recurring.click()
         await expect(page).toHaveURL(/\/management\/recurring$/)
+        await expect(
+            page.getByRole('heading', { name: 'Budget', exact: true }),
+        ).toBeVisible()
         await expect(myMoney).toHaveAttribute('aria-expanded', 'true')
 
         const recurringUrl = page.url()
