@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import { formatCurrency } from "@/lib/formatters"
+import { formatCurrency, formatDate } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { DataDisplayMode, FlowType } from "@/types"
 import type { BudgetSummary } from "@/types/cashflow"
@@ -63,9 +63,10 @@ export function BudgetPerformance({
       maximumFractionDigits: 1,
     }).format(ratio)
   const month = (value: string) =>
-    new Intl.DateTimeFormat(locale, { month: "short", year: "numeric" }).format(
-      new Date(`${value}T00:00:00`),
-    )
+    formatDate(new Date(`${value}T00:00:00`), locale, {
+      month: "short",
+      year: "numeric",
+    })
   const months =
     budget.from_month === budget.to_month
       ? month(budget.from_month)

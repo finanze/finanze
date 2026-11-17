@@ -54,7 +54,14 @@ import { cn } from "@/lib/utils"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { DataDisplayMode } from "@/types"
 
-const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT", "de-DE"]
+const APPLICATION_LOCALES: Locale[] = [
+  "en-US",
+  "es-ES",
+  "it-IT",
+  "de-DE",
+  "pt-PT",
+  "fr-FR",
+]
 const LEGACY_MCP_TAB = "mcp"
 const GENERAL_TAB_SETTINGS: SettingsKey[] = ["general", "data", "assets"]
 const TAB_GRID_COLS: Record<number, string> = {

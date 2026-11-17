@@ -620,11 +620,11 @@ export default function NetWorthTimelineCard({
       const date = new Date(value)
       if (Number.isNaN(date.getTime())) return value
       const sameYear = date.getFullYear() === new Date().getFullYear()
-      return new Intl.DateTimeFormat(locale, {
+      return formatDate(date, locale, {
         month: "short",
         day: "numeric",
         ...(sameYear ? {} : { year: "2-digit" }),
-      }).format(date)
+      })
     },
     [locale],
   )

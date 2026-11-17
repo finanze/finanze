@@ -97,7 +97,11 @@ import {
   ignoreRecurringMovement,
   restoreRecurringMovement,
 } from "@/services/api"
-import { formatCompactCurrency, formatCurrency } from "@/lib/formatters"
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatDate,
+} from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import {
   getMonthlyFlowTotals,
@@ -261,7 +265,7 @@ const formatRecurringDate = (dateInput: string, locale: string) => {
     options.year = "2-digit"
   }
 
-  return new Intl.DateTimeFormat(locale, options).format(date)
+  return formatDate(date, locale, options)
 }
 
 const daysBetween = (from: string, to: string) =>
@@ -636,14 +640,14 @@ function CashflowAnalysis() {
           period: point.period,
           label:
             summaryGranularity === CashflowGranularity.DAY
-              ? new Intl.DateTimeFormat(locale, {
+              ? formatDate(date, locale, {
                   day: "numeric",
                   month: "short",
-                }).format(date)
-              : new Intl.DateTimeFormat(locale, {
+                })
+              : formatDate(date, locale, {
                   month: "short",
                   year: "2-digit",
-                }).format(date),
+                }),
           income: point.income,
           expenses: point.expenses,
           expenseLimit:

@@ -754,7 +754,9 @@
       "en-US": "Englisch",
       "es-ES": "Spanisch",
       "it-IT": "Italienisch",
-      "de-DE": "Deutsch"
+      "de-DE": "Deutsch",
+      "pt-PT": "Portugiesisch",
+      "fr-FR": "Französisch"
     },
     "defaultCurrency": "Hauptwährung",
     "defaultCommodityWeightUnit": "Standard-Gewichtseinheit für Rohstoffe",

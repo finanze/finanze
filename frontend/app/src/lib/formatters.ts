@@ -73,23 +73,42 @@ export const formatIban = (iban?: string | null, reveal?: boolean) => {
 export const shortIban = (iban: string) => `•• ${iban.slice(-4)}`
 
 export const formatDate = (
-  dateInput: string | null | undefined,
+  dateInput: string | Date | null | undefined,
   locale: string,
+  options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  },
 ): string => {
   if (!dateInput) {
     return "—"
   }
 
-  const date = new Date(dateInput)
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
   if (Number.isNaN(date.getTime())) {
     return "—"
   }
 
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date)
+  if (locale === "pt-PT" && options.month === "short") {
+    // Portuguese short-date patterns use numeric months, even with month: "short".
+    const month = new Intl.DateTimeFormat(locale, {
+      month: "short",
+      timeZone: options.timeZone,
+    }).format(date)
+    return new Intl.DateTimeFormat(locale, { ...options, month: "long" })
+      .formatToParts(date)
+      .map(part =>
+        part.type === "month"
+          ? month
+          : part.type === "literal"
+            ? part.value.replaceAll(" de ", " ")
+            : part.value,
+      )
+      .join("")
+  }
+
+  return new Intl.DateTimeFormat(locale, options).format(date)
 }
 
 export const formatGainLoss = (

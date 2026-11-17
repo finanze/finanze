@@ -754,7 +754,9 @@
       "en-US": "English",
       "es-ES": "Spanish",
       "it-IT": "Italian",
-      "de-DE": "German"
+      "de-DE": "German",
+      "pt-PT": "Portuguese",
+      "fr-FR": "French"
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
