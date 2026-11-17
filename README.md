@@ -1,3 +1,9 @@
+<div align="center">
+
+**English** · [Deutsch](readme/README.de.md) · [Português](readme/README.pt.md) · [Español](readme/README.es.md) · [Italiano](readme/README.it.md) · [Français](readme/README.fr.md)
+
+</div>
+
 <p align="center">
   <a href="https://github.com/finanze/finanze/releases/latest"><img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest release of Finanze"></a>
 </p>
@@ -224,6 +230,7 @@ Manual commodity input is feature that allows to track market value for them. Cu
 - **Platinum**
 - **Palladium**
 
+<a id="export-import"></a>
 ### Export and Importing
 
 Positions and transactions can be imported and exported in several ways:
@@ -242,7 +249,7 @@ Positions and transactions can be imported and exported in several ways:
 Exporting and importing is highly customizable using templates, which allows to define the structure of the tables,
 data formatting, filters and other features. Templates are optional for file imports and define Google Sheets imports.
 
-Check [Export & Import Configuration](#export--import-configuration) for more technical info.
+Check [Export and Importing](#export-import) for more technical info.
 
 ## Usage
 
@@ -429,7 +436,7 @@ If you are interested in using Finanze in a proprietary environment or need a co
 - Selenium reCAPTCHA resolution is based
   on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
   project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
-  for it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
+  for it [here](finanze/infrastructure/client/entity/financial/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
   with headless mode.
 
 ---
