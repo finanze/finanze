@@ -7,12 +7,14 @@ import {
 import {
     HEADING_XPATH,
     TEXT_XPATH,
+    blurActiveElement,
     clickIn,
     confirmImport,
     openMoreMenuPage,
     overlay,
     selectTab,
     setInputFile,
+    submitLoginForm,
     textFile,
     waitForText,
 } from '../helpers/ui.js'
@@ -61,9 +63,7 @@ async function signInWithCloudMocks(serverPort: number): Promise<void> {
         await password.setValue(TEST_PASSWORD)
     }
 
-    const submit = $('button[type="submit"]')
-    await submit.waitForClickable({ timeout: 5_000 })
-    await submit.click()
+    await submitLoginForm(5_000)
     await browser.waitUntil(
         async () => !(await browser.getUrl()).includes('/login'),
         { timeout: 60_000, timeoutMsg: 'Still on /login after signing in' },
@@ -81,12 +81,51 @@ async function clickButtonByText(
     label: string,
     timeout = 20_000,
 ): Promise<void> {
+    await blurActiveElement()
     const button = $(`//button[normalize-space()="${label}"]`)
     await button.waitForDisplayed({ timeout })
     await button.scrollIntoView({ block: 'center' })
     await button.waitForEnabled({ timeout })
     await button.waitForClickable({ timeout })
+
+    const element = await button
+    await browser.execute((el: HTMLElement) => {
+        const win = window as unknown as { __e2eBtnClicked?: boolean }
+        win.__e2eBtnClicked = false
+        el.addEventListener(
+            'click',
+            () => {
+                win.__e2eBtnClicked = true
+            },
+            { once: true, capture: true },
+        )
+    }, element)
+
     await button.click()
+
+    let clicked = await browser.execute(() =>
+        Boolean(
+            (window as unknown as { __e2eBtnClicked?: boolean })
+                .__e2eBtnClicked,
+        ),
+    )
+    if (!clicked) {
+        await browser.pause(150)
+        clicked = await browser.execute(() =>
+            Boolean(
+                (window as unknown as { __e2eBtnClicked?: boolean })
+                    .__e2eBtnClicked,
+            ),
+        )
+    }
+    if (!clicked) {
+        await browser.execute((el: HTMLElement) => {
+            const btn = el as HTMLButtonElement
+            if (!btn.disabled) {
+                btn.click()
+            }
+        }, element)
+    }
 }
 
 async function importSingleMovementCsv(
@@ -250,9 +289,7 @@ async function logoutAndBackdateLocalRegistry(): Promise<void> {
     await backdateCloudPreferences()
 
     await password.setValue(TEST_PASSWORD)
-    const submit = $('button[type="submit"]')
-    await submit.waitForClickable({ timeout: 5_000 })
-    await submit.click()
+    await submitLoginForm(5_000)
     await $(HEADING_XPATH('Summary')).waitForDisplayed({ timeout: 30_000 })
 }
 

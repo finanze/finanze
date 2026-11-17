@@ -740,18 +740,22 @@ async function executeTransaction(
 
 async function closeDatabase(): Promise<void> {
   readyDbName = null
+  const db = currentDb
   const name = currentDbName
-  if (currentDb) {
-    await persistWebStoreIfNeeded("closeDatabase")
-    await currentDb.close()
+  try {
+    if (db) {
+      await persistWebStoreIfNeeded("closeDatabase").catch(() => undefined)
+      await db.close().catch(() => undefined)
+    }
+  } finally {
     currentDb = null
-  }
-  currentDbName = null
+    currentDbName = null
 
-  // Ensure the native plugin forgets the connection too, otherwise subsequent
-  // openDatabase() calls may reuse a closed connection.
-  if (sqliteConnection && name) {
-    await sqliteConnection.closeConnection(name, false).catch(() => undefined)
+    // Ensure the native plugin forgets the connection too, otherwise subsequent
+    // openDatabase() calls may reuse a closed connection.
+    if (sqliteConnection && name) {
+      await sqliteConnection.closeConnection(name, false).catch(() => undefined)
+    }
   }
 }
 

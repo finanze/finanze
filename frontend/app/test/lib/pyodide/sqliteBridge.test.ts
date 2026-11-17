@@ -26,6 +26,7 @@ const sqliteMocks = vi.hoisted(() => ({
   setEncryptionSecret: vi.fn(),
   createConnection: vi.fn(),
   retrieveConnection: vi.fn(),
+  closeConnection: vi.fn(),
 }))
 
 vi.mock("@/lib/capacitor/plugins", () => ({
@@ -63,7 +64,7 @@ vi.mock("@capacitor-community/sqlite", () => {
     retrieveConnection = sqliteMocks.retrieveConnection.mockImplementation(
       async () => makeFakeDb(),
     )
-    closeConnection = vi.fn().mockResolvedValue(undefined)
+    closeConnection = sqliteMocks.closeConnection
     saveToStore = vi.fn().mockResolvedValue(undefined)
     initWebStore = vi.fn().mockResolvedValue(undefined)
   }
@@ -83,6 +84,7 @@ beforeEach(async () => {
   sqliteMocks.checkEncryptionSecret.mockResolvedValue({ result: false })
   sqliteMocks.clearEncryptionSecret.mockResolvedValue(undefined)
   sqliteMocks.setEncryptionSecret.mockResolvedValue(undefined)
+  sqliteMocks.closeConnection.mockResolvedValue(undefined)
   backupProcessorMocks.deleteFile.mockReset()
   backupProcessorMocks.deleteFile.mockResolvedValue({ success: true })
   backupProcessorMocks.getFilePath.mockReset()
@@ -432,6 +434,86 @@ describe("sqliteBridge staging import migration check", () => {
     expect(targetDb.delete).toHaveBeenCalledOnce()
     expect(targetDb.close).toHaveBeenCalledOnce()
     expect(sqliteMocks.clearEncryptionSecret).toHaveBeenCalled()
+  })
+
+  it("preserves primary error and cleans up connection when Android db.close throws after db.delete in importDatabaseFromStaging", async () => {
+    const { main } = await openShared()
+    let deleted = false
+    const importDb = makeImportDb(async (sql: string) => {
+      if (sql.includes("plaintext.sqlite_master")) {
+        return { values: [{ name: "migrations" }] }
+      }
+      if (sql.includes("SELECT name FROM plaintext.migrations")) {
+        return { values: [{ name: "v99.0.0:0_future" }] }
+      }
+      return { values: [] }
+    })
+    importDb.delete.mockImplementation(async () => {
+      deleted = true
+    })
+    importDb.close.mockImplementation(async () => {
+      if (deleted) {
+        throw new Error("Close: database testdb not opened")
+      }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => importDb)
+    sqliteMocks.closeConnection.mockClear()
+    sqliteMocks.clearEncryptionSecret.mockClear()
+
+    await expect(
+      main.importDatabaseFromStaging(
+        "testdb.db",
+        "secret",
+        "DECOMPILED_DATA",
+        ["v0 Genesis"],
+        true,
+      ),
+    ).rejects.toThrow("MIGRATION_AHEAD_OF_TIME:v99.0.0:0_future")
+
+    expect(importDb.delete).toHaveBeenCalledOnce()
+    expect(importDb.close).toHaveBeenCalledOnce()
+    expect(sqliteMocks.closeConnection).toHaveBeenLastCalledWith(
+      "testdb",
+      false,
+    )
+    expect(
+      sqliteMocks.clearEncryptionSecret.mock.invocationCallOrder.at(-1),
+    ).toBeGreaterThan(
+      sqliteMocks.closeConnection.mock.invocationCallOrder.at(-1)!,
+    )
+  })
+
+  it("completes cleanup when Android db.close throws after db.delete in deleteDatabase", async () => {
+    const { main } = await openShared()
+    let deleted = false
+    const targetDb = makeImportDb(async () => ({ values: [] }))
+    targetDb.delete.mockImplementation(async () => {
+      deleted = true
+    })
+    targetDb.close.mockImplementation(async () => {
+      if (deleted) {
+        throw new Error("Close: database testdb not opened")
+      }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => targetDb)
+    sqliteMocks.closeConnection.mockClear()
+    sqliteMocks.clearEncryptionSecret.mockClear()
+
+    await expect(
+      main.deleteDatabase("testdb.db", "secret", true),
+    ).resolves.toBeUndefined()
+
+    expect(targetDb.delete).toHaveBeenCalledOnce()
+    expect(targetDb.close).toHaveBeenCalledOnce()
+    expect(sqliteMocks.closeConnection).toHaveBeenLastCalledWith(
+      "testdb",
+      false,
+    )
+    expect(
+      sqliteMocks.clearEncryptionSecret.mock.invocationCallOrder.at(-1),
+    ).toBeGreaterThan(
+      sqliteMocks.closeConnection.mock.invocationCallOrder.at(-1)!,
+    )
   })
 })
 

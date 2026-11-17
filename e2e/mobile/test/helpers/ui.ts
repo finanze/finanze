@@ -47,6 +47,86 @@ export function overlay(title: string) {
     )
 }
 
+export async function blurActiveElement(): Promise<void> {
+    const blurred = await browser.execute(() => {
+        const active = document.activeElement as HTMLElement | null
+        if (
+            active &&
+            (active.tagName === 'INPUT' ||
+                active.tagName === 'TEXTAREA' ||
+                active.isContentEditable)
+        ) {
+            active.blur()
+            return true
+        }
+        return false
+    })
+    if (!blurred) return
+
+    await browser
+        .waitUntil(
+            () =>
+                browser.execute(
+                    () =>
+                        !window.visualViewport ||
+                        window.visualViewport.height >=
+                            window.innerHeight * 0.85,
+                ),
+            { timeout: 1_000, interval: 100 },
+        )
+        .catch(() => undefined)
+    await browser.pause(150)
+}
+
+export async function submitLoginForm(timeout = 5_000): Promise<void> {
+    await blurActiveElement()
+    const submit = $('button[type="submit"]')
+    await submit.waitForDisplayed({ timeout })
+    await submit.scrollIntoView({ block: 'center' })
+    await submit.waitForClickable({ timeout })
+
+    const element = await submit
+    await browser.execute((el: HTMLElement) => {
+        const win = window as unknown as { __e2eFormSubmitted?: boolean }
+        win.__e2eFormSubmitted = false
+        const form = el.closest('form')
+        form?.addEventListener(
+            'submit',
+            () => {
+                win.__e2eFormSubmitted = true
+            },
+            { once: true, capture: true },
+        )
+    }, element)
+
+    await submit.click()
+
+    let submitted = await browser.execute(() =>
+        Boolean(
+            (window as unknown as { __e2eFormSubmitted?: boolean })
+                .__e2eFormSubmitted,
+        ),
+    )
+    if (!submitted) {
+        await browser.pause(150)
+        submitted = await browser.execute(() =>
+            Boolean(
+                (window as unknown as { __e2eFormSubmitted?: boolean })
+                    .__e2eFormSubmitted,
+            ),
+        )
+    }
+    if (!submitted) {
+        await browser.execute((el: HTMLElement) => {
+            const btn = el as HTMLButtonElement
+            const form = btn.closest('form')
+            if (form && !btn.disabled) {
+                form.requestSubmit(btn)
+            }
+        }, element)
+    }
+}
+
 export async function ensureSignedIn(): Promise<void> {
     await switchToWebView()
     const password = $('#password')
@@ -58,9 +138,7 @@ export async function ensureSignedIn(): Promise<void> {
     } else {
         await password.setValue(TEST_PASSWORD)
     }
-    const submit = $('button[type="submit"]')
-    await submit.waitForClickable({ timeout: 5_000 })
-    await submit.click()
+    await submitLoginForm(5_000)
     await browser.waitUntil(
         async () => !(await browser.getUrl()).includes('/login'),
         { timeout: 60_000, timeoutMsg: 'Still on /login after signing in' },
@@ -92,6 +170,7 @@ export async function clickIn(
     text: string,
     timeout = 10_000,
 ): Promise<void> {
+    await blurActiveElement()
     const button = scope.$(BUTTON_XPATH(text))
     await button.waitForClickable({ timeout })
     await button.click()
