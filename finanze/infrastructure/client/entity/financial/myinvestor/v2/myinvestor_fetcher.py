@@ -1242,18 +1242,26 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return current_interest_rate
 
     async def fetch_cards(self, accounts: list[tuple]) -> list[Card]:
-        cards = []
+        valid_accounts = [
+            (raw_account["accountId"], account)
+            for raw_account, account, _ in accounts
+            if raw_account.get("accountId") and raw_account.get("accountId") != "null"
+        ]
+        if not valid_accounts:
+            return []
 
-        for raw_account, account, _ in accounts:
-            account_id = raw_account.get("accountId")
-            if not account_id or account_id == "null":
-                continue
-            raw_cards = await self._client.get_cards(account_id=account_id)
+        cards = []
+        raw_cards = await self._client.get_cards()
+
+        for account_id, account in valid_accounts:
+            account_cards = [
+                card for card in raw_cards if card.get("accountId") == account_id
+            ]
             credit_card = next(
-                (card for card in raw_cards if card["cardType"] == "CREDIT"), None
+                (card for card in account_cards if card["cardType"] == "CREDIT"), None
             )
             debit_card = next(
-                (card for card in raw_cards if card["cardType"] == "DEBIT"), None
+                (card for card in account_cards if card["cardType"] == "DEBIT"), None
             )
 
             if credit_card:

@@ -9,6 +9,7 @@ from domain.dezimal import Dezimal
 from domain.entity_login import LoginConfirmationType, LoginResultCode, TwoFactor
 from domain.fetch_pointer import FetchPointer, FetchPointerContext
 from domain.fetch_result import FetchOptions, FetchStage
+from domain.global_position import Account, AccountType, CardType
 from domain.transactions import TxType
 from infrastructure.client.entity.financial.myinvestor.v2 import (
     myinvestor_fetcher as myinvestor_module,
@@ -1157,3 +1158,84 @@ async def test_old_txs_signature_cancel_stops_waiting(monkeypatch):
 
     assert result.code == LoginResultCode.UNEXPECTED_ERROR
     assert result.message == "Approval cancelled by user."
+
+
+@pytest.mark.asyncio
+async def test_fetch_cards_fetches_once_and_matches_by_account_id():
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    fetcher._client.get_cards = AsyncMock(
+        return_value=[
+            {
+                "cardId": "36948",
+                "accountId": "326832",
+                "pan": "**** 5009",
+                "status": "ACTIVATE",
+                "cardType": "CREDIT",
+            },
+            {
+                "cardId": "26567",
+                "accountId": "326832",
+                "pan": "**** 2008",
+                "status": "ACTIVATE",
+                "cardType": "DEBIT",
+            },
+        ]
+    )
+    fetcher._client.get_card_totals = AsyncMock(
+        side_effect=[
+            {"disposable": 6000.0, "limit": 6000.0, "consumedMonth": 12.5},
+            {"disposable": 417.15, "limit": 0, "consumedMonth": 0.0},
+        ]
+    )
+
+    acc1 = Account(
+        id=uuid4(),
+        total=Dezimal("417.15"),
+        currency="EUR",
+        name="Main",
+        iban=None,
+        type=AccountType.CHECKING,
+    )
+    acc2 = Account(
+        id=uuid4(),
+        total=Dezimal("0"),
+        currency="EUR",
+        name="Secondary",
+        iban=None,
+        type=AccountType.CHECKING,
+    )
+    acc3 = Account(
+        id=uuid4(),
+        total=Dezimal("0"),
+        currency="EUR",
+        name="V3 Only",
+        iban=None,
+        type=AccountType.CHECKING,
+    )
+
+    cards = await fetcher.fetch_cards(
+        [
+            ({"accountId": "326832"}, acc1, None),
+            ({"accountId": "999999"}, acc2, None),
+            ({"accountId": "null"}, acc3, None),
+        ]
+    )
+
+    fetcher._client.get_cards.assert_awaited_once_with()
+    assert len(cards) == 2
+
+    credit, debit = cards
+    assert credit.type == CardType.CREDIT
+    assert credit.ending == "5009"
+    assert credit.limit == Dezimal("6000.0")
+    assert credit.used == Dezimal("12.5")
+    assert credit.active is True
+    assert credit.related_account == acc1.id
+
+    assert debit.type == CardType.DEBIT
+    assert debit.ending == "2008"
+    assert debit.limit == Dezimal("417.15")
+    assert debit.used == Dezimal(0)
+    assert debit.active is True
+    assert debit.related_account == acc1.id

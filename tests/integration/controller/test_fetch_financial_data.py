@@ -3,6 +3,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
@@ -40,6 +41,7 @@ from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_fetcher imp
     DIVIDENDS_POINTER,
     MyInvestorFetcherV2,
 )
+from infrastructure.client.http.http_session import HttpSession
 from infrastructure.labeling.transaction_labeler_adapter import (
     TransactionLabelerAdapter,
 )
@@ -921,6 +923,125 @@ class TestINGAccountTransactions:
         else:
             transaction_port.delete_by_entity_account_id.assert_not_awaited()
             fetch_pointers_port.delete_by_entity_account_id.assert_not_awaited()
+
+
+class TestMyInvestorStockTransactions:
+    @pytest.mark.asyncio
+    async def test_fetch_stock_orders_via_broker_routes_and_save_transactions(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        sessions_port,
+        last_fetches_port,
+        entity_account_port,
+        transaction_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        today = date.today()
+        timestamp = f"{today.isoformat()}T10:00:00Z"
+        responses = {
+            "/cperf-server/api/v2/cash-accounts/self": [
+                {
+                    "accountId": "cash-account",
+                    "accountType": "CASH_ACCOUNT",
+                    "status": "ACTIVE",
+                    "holders": [{"me": True}],
+                    "creationDate": today.isoformat(),
+                }
+            ],
+            "/cperf-server/api/v2/securities-accounts/self-basic": [
+                {"accountId": "securities-account", "cashAccountId": "cash-account"}
+            ],
+            "/cperf-server/api/v2/securities-accounts/securities-account/orders": [],
+            "/broker/v2/stock-orders": [
+                {
+                    "id": "stock-order",
+                    "status": "COMPLETE",
+                    "orderDate": timestamp,
+                    "operation": "PURCHASE_VARIABLE_INCOME_CASH",
+                    "toolName": "Test stock",
+                    "ticker": "TEST",
+                    "currency": "EUR",
+                    "marketId": "XETR",
+                }
+            ],
+            "/broker/v2/stock-orders/stock-order": {
+                "orderDate": timestamp,
+                "executionDate": timestamp,
+                "executedShares": "2",
+                "grossAmountOperationCurrency": "100",
+                "netAmountCurrency": "101",
+                "priceCurrency": "50",
+                "instrumentIsin": "DE0007164600",
+            },
+            "/cperf-server/api/v2/cash-accounts/cash-account/flows": {"flowList": []},
+            "/cperf-server/api/v2/pension-accounts/self": [],
+        }
+        requests: list[httpx.Request] = []
+
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            if request.url.path not in responses:
+                return httpx.Response(404, text="Unknown route")
+            return httpx.Response(
+                200, json={"payload": {"data": responses[request.url.path]}}
+            )
+
+        fetcher = MyInvestorFetcherV2()
+        fetcher.login = AsyncMock(
+            return_value=EntityLoginResult(code=LoginResultCode.RESUMED)
+        )
+        entity_fetchers[MY_INVESTOR] = fetcher
+        credentials_port.get.return_value = {
+            "user": "test-user",
+            "password": "test-password",
+        }
+        sessions_port.get.return_value = None
+        last_fetches_port.get_by_entity_account_id.return_value = []
+        transaction_port.get_refs_by_entity_account.return_value = set()
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handle_request)
+        ) as upstream:
+            fetcher._client._session = HttpSession(upstream)
+            response = await client.post(
+                FETCH_URL,
+                json={
+                    "entityAccountId": ENTITY_ACCOUNT_ID,
+                    "features": ["TRANSACTIONS"],
+                },
+            )
+
+        assert response.status_code == 200
+        assert (await response.get_json())["code"] == "COMPLETED"
+        transaction_port.save.assert_awaited_once()
+        saved = transaction_port.save.await_args.args[0]
+        [stock] = saved.investment
+        assert stock.ref == "stock-order"
+        assert stock.type == TxType.BUY
+        assert stock.shares == Dezimal("2")
+        assert stock.amount == Dezimal("100")
+        assert stock.net_amount == Dezimal("101")
+        assert stock.fees == Dezimal("1")
+        [orders_request] = [
+            request
+            for request in requests
+            if request.url.path == "/broker/v2/stock-orders"
+        ]
+        assert dict(orders_request.url.params) == {
+            "stockAccountId": "securities-account",
+            "dateFrom": today.isoformat(),
+            "dateTo": today.isoformat(),
+            "type": "ALL",
+        }
+        transaction_port.get_by_filters.return_value = [stock]
+        read_response = await client.get(GET_TRANSACTIONS_URL)
+        assert read_response.status_code == 200
+        [row] = (await read_response.get_json())["transactions"]
+        assert row["name"] == "Test stock"
+        assert row["type"] == "BUY"
+        assert row["amount"] == 100
 
 
 class TestMyInvestorDividends:

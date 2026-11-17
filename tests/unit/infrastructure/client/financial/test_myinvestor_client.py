@@ -406,6 +406,43 @@ async def test_inapp_signature_endpoints_unwrap_payload():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "filters,expected_query",
+    [
+        ({"status": None}, "&type=ALL"),
+        (
+            {"status": "COMPLETE", "tx_type": "ON_DEMAND", "isin": "US0378331005"},
+            "&type=ON_DEMAND&status=COMPLETE&isin=US0378331005",
+        ),
+    ],
+)
+async def test_stock_orders_use_broker_route(filters, expected_query):
+    client = MyInvestorAPIV2Client()
+    data = [{"id": "stock-order"}]
+    client._get_request = AsyncMock(return_value={"payload": {"data": data}})
+
+    result = await client.get_stock_orders(
+        "securities-account", date(2026, 11, 8), date(2026, 11, 17), **filters
+    )
+
+    assert result == data
+    client._get_request.assert_awaited_once_with(
+        "/broker/v2/stock-orders?stockAccountId=securities-account"
+        f"&dateFrom=2026-11-08&dateTo=2026-11-17{expected_query}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_stock_order_details_use_broker_route():
+    client = MyInvestorAPIV2Client()
+    data = {"instrumentIsin": "US0378331005", "executedShares": "2"}
+    client._get_request = AsyncMock(return_value={"payload": {"data": data}})
+
+    assert await client.get_stock_order_details("stock-order") == data
+    client._get_request.assert_awaited_once_with("/broker/v2/stock-orders/stock-order")
+
+
+@pytest.mark.asyncio
 async def test_financial_events_unwrap_payload():
     client = MyInvestorAPIV2Client()
     data = [{"eventId": "paid-event", "eventType": "DE"}]
@@ -430,3 +467,27 @@ async def test_financial_event_details_unwrap_payload():
     client._get_request.assert_awaited_once_with(
         "/broker/v2/financial-events/paid-event?accountId=securities-account"
     )
+
+
+@pytest.mark.asyncio
+async def test_cards_endpoints_use_cards_prefix():
+    client = MyInvestorAPIV2Client()
+    cards_data = [{"cardId": "36948", "accountId": "326832"}]
+    totals_data = {"disposable": 6000.0, "limit": 6000.0, "consumedMonth": 0.0}
+    client._get_request = AsyncMock(
+        side_effect=[
+            {"payload": {"data": cards_data}},
+            {"payload": {"data": cards_data}},
+            {"payload": {"data": totals_data}},
+        ]
+    )
+
+    assert await client.get_cards() == cards_data
+    assert await client.get_cards(account_id="326832") == cards_data
+    assert await client.get_card_totals("36948") == totals_data
+
+    assert [call.args[0] for call in client._get_request.await_args_list] == [
+        "/cards/api/v1/cards",
+        "/cards/api/v1/cards?accountId=326832",
+        "/cards/api/v1/cards/36948/totals",
+    ]
