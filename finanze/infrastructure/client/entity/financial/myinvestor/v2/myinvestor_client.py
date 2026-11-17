@@ -131,7 +131,7 @@ class MyInvestorAPIV2Client:
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
-        self._headers["x-myinvestor-app"] = "version=3.125.0,platform=web"
+        self._headers["x-myinvestor-app"] = "version=3.135.1,platform=web"
 
         device_id = self._resolve_device_id(session, process_id, code, captcha_token)
         self._headers["x-device-id"] = device_id
@@ -543,12 +543,12 @@ class MyInvestorAPIV2Client:
 
     async def get_cards(self, account_id=None):
         params = f"?accountId={account_id}" if account_id else ""
-        return (await self._get_request(f"/ms-cards/api/v1/cards{params}"))["payload"][
+        return (await self._get_request(f"/cards/api/v1/cards{params}"))["payload"][
             "data"
         ]
 
     async def get_card_totals(self, card_id):
-        return (await self._get_request(f"/ms-cards/api/v1/cards/{card_id}/totals"))[
+        return (await self._get_request(f"/cards/api/v1/cards/{card_id}/totals"))[
             "payload"
         ]["data"]
 
@@ -574,7 +574,7 @@ class MyInvestorAPIV2Client:
             from_date or (date.today().replace(month=1, day=1)), DATE_FORMAT
         )
 
-        path = f"/ms-broker/v2/stock-orders?stockAccountId={securities_account_id}&dateFrom={from_date}&dateTo={to_date}"
+        path = f"/broker/v2/stock-orders?stockAccountId={securities_account_id}&dateFrom={from_date}&dateTo={to_date}"
 
         if tx_type:
             path += f"&type={tx_type}"  # RECURRENT ON_DEMAND ALL
@@ -588,7 +588,7 @@ class MyInvestorAPIV2Client:
         return (await self._get_request(path))["payload"]["data"]
 
     async def get_stock_order_details(self, order_id: str):
-        return (await self._get_request(f"/ms-broker/v2/stock-orders/{order_id}"))[
+        return (await self._get_request(f"/broker/v2/stock-orders/{order_id}"))[
             "payload"
         ]["data"]
 
