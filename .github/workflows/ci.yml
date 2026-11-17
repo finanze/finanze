@@ -158,6 +158,21 @@ jobs:
           path: e2e/standard/test-results/
           retention-days: 7
 
+  e2e-gate:
+    name: E2E Tests
+    needs: [e2e]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check E2E matrix result
+        run: |
+          if [ "${{ needs.e2e.result }}" != "success" ]; then
+            echo "E2E matrix failed or was cancelled (result: ${{ needs.e2e.result }})"
+            exit 1
+          fi
+          echo "All E2E matrix jobs succeeded"
+
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest

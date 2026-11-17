@@ -78,6 +78,96 @@ export async function blurActiveElement(): Promise<void> {
     await browser.pause(150)
 }
 
+export async function setInputValue(
+    selector: string,
+    value: string,
+    timeout = 10_000,
+): Promise<void> {
+    const field = $(selector)
+    await field.waitForDisplayed({ timeout })
+
+    await browser.execute((sel: string) => {
+        const candidates = Array.from(
+            document.querySelectorAll<HTMLInputElement>(sel),
+        )
+        const input = (candidates.find(
+            el => el.offsetParent !== null || el.getClientRects().length > 0,
+        ) ?? candidates[0]) as
+            | (HTMLInputElement & {
+                  _valueTracker?: { setValue: (v: string) => void }
+              })
+            | undefined
+        if (!input || input.value === '') return
+        const prev = input.value
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            'value',
+        )?.set
+        if (nativeSetter) {
+            nativeSetter.call(input, '')
+        } else {
+            input.value = ''
+        }
+        input._valueTracker?.setValue(prev)
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+    }, selector)
+
+    await $(selector).setValue(value)
+
+    await browser.waitUntil(
+        async () =>
+            browser.execute(
+                (sel: string, expected: string) => {
+                    const candidates = Array.from(
+                        document.querySelectorAll<HTMLInputElement>(sel),
+                    )
+                    const input = (candidates.find(
+                        el =>
+                            el.offsetParent !== null ||
+                            el.getClientRects().length > 0,
+                    ) ?? candidates[0]) as
+                        | (HTMLInputElement & {
+                              _valueTracker?: {
+                                  getValue?: () => string
+                                  setValue: (v: string) => void
+                              }
+                          })
+                        | undefined
+                    if (!input) return false
+                    if (
+                        input.value === expected &&
+                        (!input._valueTracker?.getValue ||
+                            input._valueTracker.getValue() === expected)
+                    ) {
+                        return true
+                    }
+                    const prev =
+                        input.value === expected ? '' : input.value
+                    const nativeSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        'value',
+                    )?.set
+                    if (nativeSetter) {
+                        nativeSetter.call(input, expected)
+                    } else {
+                        input.value = expected
+                    }
+                    input._valueTracker?.setValue(prev)
+                    input.dispatchEvent(new Event('input', { bubbles: true }))
+                    input.dispatchEvent(new Event('change', { bubbles: true }))
+                    return input.value === expected
+                },
+                selector,
+                value,
+            ),
+        {
+            timeout: 5_000,
+            interval: 150,
+            timeoutMsg: `Failed to set expected value on ${selector}`,
+        },
+    )
+}
+
 export async function submitLoginForm(timeout = 5_000): Promise<void> {
     await blurActiveElement()
     const submit = $('button[type="submit"]')
@@ -85,11 +175,13 @@ export async function submitLoginForm(timeout = 5_000): Promise<void> {
     await submit.scrollIntoView({ block: 'center' })
     await submit.waitForClickable({ timeout })
 
-    const element = await submit
-    await browser.execute((el: HTMLElement) => {
+    await browser.execute(() => {
         const win = window as unknown as { __e2eFormSubmitted?: boolean }
         win.__e2eFormSubmitted = false
-        const form = el.closest('form')
+        const btn = document.querySelector(
+            'button[type="submit"]',
+        ) as HTMLButtonElement | null
+        const form = btn?.closest('form')
         form?.addEventListener(
             'submit',
             () => {
@@ -97,7 +189,7 @@ export async function submitLoginForm(timeout = 5_000): Promise<void> {
             },
             { once: true, capture: true },
         )
-    }, element)
+    })
 
     await submit.click()
 
@@ -117,13 +209,26 @@ export async function submitLoginForm(timeout = 5_000): Promise<void> {
         )
     }
     if (!submitted) {
-        await browser.execute((el: HTMLElement) => {
-            const btn = el as HTMLButtonElement
-            const form = btn.closest('form')
-            if (form && !btn.disabled) {
-                form.requestSubmit(btn)
+        await browser.execute(() => {
+            const win = window as unknown as { __e2eFormSubmitted?: boolean }
+            const btn = document.querySelector(
+                'button[type="submit"]',
+            ) as HTMLButtonElement | null
+            const form = btn?.closest('form')
+            if (!form || !btn || btn.disabled) return
+            if (typeof form.requestSubmit === 'function') {
+                try {
+                    form.requestSubmit(btn)
+                } catch {
+                    // Fall through to synthetic submit event
+                }
             }
-        }, element)
+            if (!win.__e2eFormSubmitted) {
+                form.dispatchEvent(
+                    new Event('submit', { bubbles: true, cancelable: true }),
+                )
+            }
+        })
     }
 }
 
@@ -132,11 +237,11 @@ export async function ensureSignedIn(): Promise<void> {
     const password = $('#password')
     await password.waitForDisplayed({ timeout: 90_000 })
     if (await $('#username').isDisplayed()) {
-        await $('#username').setValue(TEST_USER)
-        await password.setValue(TEST_PASSWORD)
-        await $('#repeatPassword').setValue(TEST_PASSWORD)
+        await setInputValue('#username', TEST_USER)
+        await setInputValue('#password', TEST_PASSWORD)
+        await setInputValue('#repeatPassword', TEST_PASSWORD)
     } else {
-        await password.setValue(TEST_PASSWORD)
+        await setInputValue('#password', TEST_PASSWORD)
     }
     await submitLoginForm(5_000)
     await browser.waitUntil(

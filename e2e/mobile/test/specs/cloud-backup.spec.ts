@@ -14,6 +14,7 @@ import {
     overlay,
     selectTab,
     setInputFile,
+    setInputValue,
     submitLoginForm,
     textFile,
     waitForText,
@@ -56,11 +57,11 @@ async function signInWithCloudMocks(serverPort: number): Promise<void> {
     await installMobileCloudMocks(serverPort, CLOUD_EMAIL)
 
     if (await $('#username').isDisplayed()) {
-        await $('#username').setValue(TEST_USER)
-        await password.setValue(TEST_PASSWORD)
-        await $('#repeatPassword').setValue(TEST_PASSWORD)
+        await setInputValue('#username', TEST_USER)
+        await setInputValue('#password', TEST_PASSWORD)
+        await setInputValue('#repeatPassword', TEST_PASSWORD)
     } else {
-        await password.setValue(TEST_PASSWORD)
+        await setInputValue('#password', TEST_PASSWORD)
     }
 
     await submitLoginForm(5_000)
@@ -284,11 +285,10 @@ async function logoutAndBackdateLocalRegistry(): Promise<void> {
     await openSettingsTab('General')
     await clickButtonByText('Logout', 15_000)
 
-    const password = $('#password')
-    await password.waitForDisplayed({ timeout: 30_000 })
+    await $('#password').waitForDisplayed({ timeout: 30_000 })
     await backdateCloudPreferences()
 
-    await password.setValue(TEST_PASSWORD)
+    await setInputValue('#password', TEST_PASSWORD)
     await submitLoginForm(5_000)
     await $(HEADING_XPATH('Summary')).waitForDisplayed({ timeout: 30_000 })
 }
@@ -308,9 +308,7 @@ async function submitRestoreAndWaitDownload(
     mockServer: MobileCloudBackupMockServer,
     password: string,
 ): Promise<void> {
-    const keyInput = $('#encryptionKey')
-    await keyInput.waitForDisplayed({ timeout: 30_000 })
-    await keyInput.setValue(password)
+    await setInputValue('#encryptionKey', password, 30_000)
     const prevDownloads = mockServer.getDownloadCount()
     await clickButtonByText('Restore', 15_000)
     await browser.waitUntil(
@@ -338,10 +336,8 @@ describe('Cloud backup and Point 3 DB protection', () => {
         await importSingleMovementCsv(baselineMovement, baselineEntity)
 
         await openSettingsTab('Cloud')
-        const emailInput = $('input[type="email"]')
-        await emailInput.waitForDisplayed({ timeout: 20_000 })
-        await emailInput.setValue(CLOUD_EMAIL)
-        await $('input[type="password"]').setValue(CLOUD_PASS)
+        await setInputValue('input[type="email"]', CLOUD_EMAIL, 20_000)
+        await setInputValue('input[type="password"]', CLOUD_PASS, 10_000)
         await clickButtonByText('Sign in with Email', 15_000)
         await waitForText(CLOUD_EMAIL, 20_000)
 
@@ -449,10 +445,8 @@ describe('Cloud backup and Point 3 DB protection', () => {
             'Have a Cloud account? Restore your data',
             15_000,
         )
-        const emailInput = $('input[type="email"]')
-        await emailInput.waitForDisplayed({ timeout: 15_000 })
-        await emailInput.setValue(CLOUD_EMAIL)
-        await $('input[type="password"]').setValue(CLOUD_PASS)
+        await setInputValue('input[type="email"]', CLOUD_EMAIL, 15_000)
+        await setInputValue('input[type="password"]', CLOUD_PASS, 10_000)
         await clickButtonByText('Sign in with Email', 15_000)
         await waitForText(
             'This backup was created with Finanze v0.13.0. Please update the app to restore it.',
@@ -463,9 +457,11 @@ describe('Cloud backup and Point 3 DB protection', () => {
         await clickButtonByText('Sign in with Email', 15_000)
         await waitForText('Backup found!', 20_000)
 
-        const usernameInput = $('#restoreUsername')
-        await usernameInput.waitForDisplayed({ timeout: 15_000 })
-        await usernameInput.setValue('restored_mobile_user')
+        await setInputValue(
+            '#restoreUsername',
+            'restored_mobile_user',
+            15_000,
+        )
 
         await submitRestoreAndWaitDownload(mockServer, 'WrongKey999!')
         await $('#encryptionKey').waitForDisplayed({ timeout: 60_000 })

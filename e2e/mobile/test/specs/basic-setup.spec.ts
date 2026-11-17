@@ -1,5 +1,5 @@
 import { switchToWebView } from '../helpers/webview.js'
-import { submitLoginForm } from '../helpers/ui.js'
+import { setInputValue, submitLoginForm } from '../helpers/ui.js'
 import {
     TEST_USER,
     TEST_PASSWORD,
@@ -32,17 +32,12 @@ describe('Basic Setup', () => {
 
         // Cold Pyodide boot is slower on CI than locally; allow headroom but
         // not so much that a genuinely stuck boot wastes minutes per retry.
-        const username = await $('#username')
-        await username.waitForDisplayed({ timeout: 60_000 })
+        await $('#username').waitForDisplayed({ timeout: 60_000 })
         log('#username visible', t0)
 
-        await $('#username').setValue(TEST_USER)
-        const password = await $('#password')
-        await password.waitForDisplayed({ timeout: 5_000 })
-        await password.setValue(TEST_PASSWORD)
-        const repeatPassword = await $('#repeatPassword')
-        await repeatPassword.waitForDisplayed({ timeout: 5_000 })
-        await repeatPassword.setValue(TEST_PASSWORD)
+        await setInputValue('#username', TEST_USER)
+        await setInputValue('#password', TEST_PASSWORD, 5_000)
+        await setInputValue('#repeatPassword', TEST_PASSWORD, 5_000)
         await submitLoginForm(5_000)
         log('signup submitted', t0)
 
@@ -83,16 +78,14 @@ describe('Basic Setup', () => {
     })
 
     it('wrong password shows invalid credentials', async () => {
-        const password = await $('#password')
-        await password.waitForDisplayed({ timeout: 5_000 })
-        await password.setValue(TEST_WRONG_PASSWORD)
+        await setInputValue('#password', TEST_WRONG_PASSWORD, 5_000)
         await submitLoginForm(5_000)
 
         await $(TEXT_XPATH('Invalid credentials')).waitForDisplayed({
             timeout: 45_000,
         })
         expect(await browser.getUrl()).toContain('/login')
-        await expect(password).toBeDisplayed()
+        await expect($('#password')).toBeDisplayed()
         await expect(
             $(
                 TEXT_XPATH(
@@ -105,9 +98,7 @@ describe('Basic Setup', () => {
     it('login after logout shows dashboard', async () => {
         await expect($('#username')).not.toBeDisplayed()
 
-        const password = await $('#password')
-        await password.waitForDisplayed({ timeout: 5_000 })
-        await password.setValue(TEST_PASSWORD)
+        await setInputValue('#password', TEST_PASSWORD, 5_000)
         await submitLoginForm(5_000)
 
         await browser.waitUntil(
@@ -138,23 +129,19 @@ describe('Basic Setup', () => {
         await changePasswordBtn.waitForDisplayed({ timeout: 10_000 })
         await changePasswordBtn.click()
 
-        const oldPasswordField = await $('#oldPassword')
-        await oldPasswordField.waitForDisplayed({ timeout: 10_000 })
-        await oldPasswordField.setValue(TEST_WRONG_PASSWORD)
-        const newPasswordField = await $('#password')
-        await newPasswordField.setValue(TEST_NEW_PASSWORD)
-        const repeatField = await $('#repeatPassword')
-        await repeatField.setValue(TEST_NEW_PASSWORD)
+        await setInputValue('#oldPassword', TEST_WRONG_PASSWORD, 10_000)
+        await setInputValue('#password', TEST_NEW_PASSWORD, 5_000)
+        await setInputValue('#repeatPassword', TEST_NEW_PASSWORD, 5_000)
         await submitLoginForm(5_000)
 
         await $(TEXT_XPATH('Invalid credentials')).waitForDisplayed({
             timeout: 45_000,
         })
-        await expect(oldPasswordField).toBeDisplayed()
+        await expect($('#oldPassword')).toBeDisplayed()
 
-        await oldPasswordField.setValue(TEST_PASSWORD)
-        await newPasswordField.setValue(TEST_NEW_PASSWORD)
-        await repeatField.setValue(TEST_NEW_PASSWORD)
+        await setInputValue('#oldPassword', TEST_PASSWORD, 10_000)
+        await setInputValue('#password', TEST_NEW_PASSWORD, 5_000)
+        await setInputValue('#repeatPassword', TEST_NEW_PASSWORD, 5_000)
         await submitLoginForm(5_000)
 
         await browser.waitUntil(
@@ -168,9 +155,7 @@ describe('Basic Setup', () => {
             },
         )
 
-        const loginPassword = await $('#password')
-        await loginPassword.waitForDisplayed({ timeout: 10_000 })
-        await loginPassword.setValue(TEST_NEW_PASSWORD)
+        await setInputValue('#password', TEST_NEW_PASSWORD, 10_000)
         await submitLoginForm(5_000)
 
         await browser.waitUntil(
@@ -200,13 +185,9 @@ describe('Basic Setup', () => {
         await changePasswordBtnRestore.waitForDisplayed({ timeout: 10_000 })
         await changePasswordBtnRestore.click()
 
-        const oldPasswordRestore = await $('#oldPassword')
-        await oldPasswordRestore.waitForDisplayed({ timeout: 10_000 })
-        await oldPasswordRestore.setValue(TEST_NEW_PASSWORD)
-        const newPasswordRestore = await $('#password')
-        await newPasswordRestore.setValue(TEST_PASSWORD)
-        const repeatRestore = await $('#repeatPassword')
-        await repeatRestore.setValue(TEST_PASSWORD)
+        await setInputValue('#oldPassword', TEST_NEW_PASSWORD, 10_000)
+        await setInputValue('#password', TEST_PASSWORD, 5_000)
+        await setInputValue('#repeatPassword', TEST_PASSWORD, 5_000)
         await submitLoginForm(5_000)
 
         await browser.waitUntil(
@@ -220,9 +201,7 @@ describe('Basic Setup', () => {
             },
         )
 
-        const restorePassword = await $('#password')
-        await restorePassword.waitForDisplayed({ timeout: 10_000 })
-        await restorePassword.setValue(TEST_PASSWORD)
+        await setInputValue('#password', TEST_PASSWORD, 10_000)
         await submitLoginForm(5_000)
 
         await browser.waitUntil(
