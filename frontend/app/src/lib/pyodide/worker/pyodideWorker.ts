@@ -513,6 +513,8 @@ function registerWorkerBridge(): void {
       requestMain("jsBridge.sqlite.exportDatabaseToStaging", args),
     importDatabaseFromStaging: (...args: any[]) =>
       requestMain("jsBridge.sqlite.importDatabaseFromStaging", args),
+    deleteDatabase: (...args: any[]) =>
+      requestMain("jsBridge.sqlite.deleteDatabase", args),
   }
 
   const preferences = {

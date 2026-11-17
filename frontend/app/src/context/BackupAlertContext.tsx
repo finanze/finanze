@@ -31,7 +31,10 @@ function computeAlertColor(
     return "dark-red"
   }
 
-  if (overallStatus === SyncStatus.CONFLICT) {
+  if (
+    overallStatus === SyncStatus.CONFLICT ||
+    overallStatus === SyncStatus.OUTDATED_APP
+  ) {
     return "red"
   }
 

@@ -77,6 +77,8 @@ jobs:
         working-directory: frontend/app
         env:
           BETTER_STACK_API_TOKEN: ""
+          VITE_SUPABASE_URL: "https://e2e-mock.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-mock-key"
         run: pnpm build:mobile
 
       - name: Sync Capacitor to iOS
@@ -174,6 +176,8 @@ jobs:
         working-directory: frontend/app
         env:
           BETTER_STACK_API_TOKEN: ""
+          VITE_SUPABASE_URL: "https://e2e-mock.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-mock-key"
         run: pnpm build:mobile
 
       - name: Sync Capacitor to Android
@@ -257,22 +261,46 @@ jobs:
           echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
           echo "IOS_PLATFORM_VERSION=$DEVICE_VERSION" >> $GITHUB_ENV
 
-      - name: Pre-build WebDriverAgent
-        env:
-          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+      - name: Resolve WebDriverAgent cache metadata
+        id: wda-meta
         run: |
           WDA_PROJECT=$(find e2e/mobile/node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit)
           WDA_DERIVED=$(cd "$(dirname "$(dirname "$WDA_PROJECT")")" && pwd)
-          echo "Building WDA from: $WDA_PROJECT"
-          echo "Derived data path: $WDA_DERIVED"
-          xcodebuild build-for-testing \
-            -project "$WDA_PROJECT" \
-            -scheme WebDriverAgentRunner \
-            -destination "id=$IOS_DEVICE_UDID" \
-            -derivedDataPath "$WDA_DERIVED" \
-            GCC_TREAT_WARNINGS_AS_ERRORS=0 \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            | tail -30
+          XCODE_VER=$(xcodebuild -version | tr '\n' '-' | sed 's/[^a-zA-Z0-9._-]/-/g; s/-*$//')
+          echo "wda_project=$WDA_PROJECT" >> "$GITHUB_OUTPUT"
+          echo "wda_derived=$WDA_DERIVED" >> "$GITHUB_OUTPUT"
+          echo "xcode_version=$XCODE_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Cache WebDriverAgent build
+        id: wda-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.wda-meta.outputs.wda_derived }}/Build
+            ${{ steps.wda-meta.outputs.wda_derived }}/info.plist
+          key: wda-${{ runner.os }}-${{ runner.arch }}-${{ steps.wda-meta.outputs.xcode_version }}-ios-${{ env.IOS_PLATFORM_VERSION }}-${{ hashFiles('e2e/mobile/pnpm-lock.yaml') }}
+
+      - name: Pre-build WebDriverAgent
+        env:
+          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+          WDA_PROJECT: ${{ steps.wda-meta.outputs.wda_project }}
+          WDA_DERIVED: ${{ steps.wda-meta.outputs.wda_derived }}
+          CACHE_HIT: ${{ steps.wda-cache.outputs.cache-hit }}
+        run: |
+          if [ "$CACHE_HIT" = "true" ] && [ -d "$WDA_DERIVED/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" ]; then
+            echo "Using cached WebDriverAgent build from: $WDA_DERIVED"
+          else
+            echo "Building WDA from: $WDA_PROJECT"
+            echo "Derived data path: $WDA_DERIVED"
+            xcodebuild build-for-testing \
+              -project "$WDA_PROJECT" \
+              -scheme WebDriverAgentRunner \
+              -destination "id=$IOS_DEVICE_UDID" \
+              -derivedDataPath "$WDA_DERIVED" \
+              GCC_TREAT_WARNINGS_AS_ERRORS=0 \
+              COMPILER_INDEX_STORE_ENABLE=NO \
+              | tail -30
+          fi
           echo "--- Build products ---"
           find "$WDA_DERIVED/Build/Products" -name "*.app" -o -name "*.xctestrun" | head -10
 
@@ -392,7 +420,8 @@ jobs:
           cat e2e/mobile/wdio-logs/wdio-appium.log 2>/dev/null | tail -300 || true
           echo ''
           echo '=== WDIO Worker Logs ==='
-          for f in e2e/mobile/wdio-logs/wdio-0-0-*; do
+          for f in e2e/mobile/wdio-logs/wdio-*; do
+            [ "$f" = "e2e/mobile/wdio-logs/wdio-appium.log" ] && continue
             echo "--- $f ---"
             cat "$f" 2>/dev/null | tail -100 || true
           done

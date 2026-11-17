@@ -552,6 +552,8 @@ async function importDatabaseFromStaging(
   dbName: string,
   password: string,
   stagingFileName: string,
+  knownMigrations?: string[],
+  deleteOnError: boolean = false,
 ): Promise<{ ok: true }> {
   assertNotWeb(
     Capacitor.getPlatform(),
@@ -567,9 +569,58 @@ async function importDatabaseFromStaging(
   if (!stagingPath) throw new Error("Failed to get staging file path")
 
   const db = await openDatabase(dbName, true, "secret", 1, false, password)
-  await setEncryptionKey(password)
+  let attached = false
+  let importSucceeded = false
+  try {
+    await setEncryptionKey(password)
 
-  {
+    const attachSql = `ATTACH DATABASE '${stagingPath.replace(/'/g, "''")}' AS plaintext KEY '';`
+    await db.execute(attachSql, false)
+    attached = true
+
+    const integrityRes = await db.query("PRAGMA plaintext.integrity_check;", [])
+    const integrityValues = integrityRes?.values ?? []
+    if (integrityValues.length > 0) {
+      const firstRow = integrityValues[0] as Record<string, unknown> | undefined
+      const firstValue = firstRow ? Object.values(firstRow)[0] : undefined
+      if (
+        integrityValues.length > 1 ||
+        typeof firstValue !== "string" ||
+        firstValue.toLowerCase() !== "ok"
+      ) {
+        throw new Error("CORRUPT_STAGING_DATABASE")
+      }
+    }
+
+    if (Array.isArray(knownMigrations)) {
+      const hasMigrationsTable = await db.query(
+        "SELECT name FROM plaintext.sqlite_master WHERE type = 'table' AND name = 'migrations'",
+        [],
+      )
+      if ((hasMigrationsTable?.values?.length ?? 0) > 0) {
+        const appliedRes = await db.query(
+          "SELECT name FROM plaintext.migrations",
+          [],
+        )
+        const knownSet = new Set(knownMigrations)
+        const unknown = Array.from(
+          new Set(
+            (appliedRes?.values ?? [])
+              .map((r: any) => r?.name)
+              .filter(
+                (n: unknown): n is string =>
+                  typeof n === "string" && !knownSet.has(n),
+              ),
+          ),
+        )
+        if (unknown.length > 0) {
+          throw new Error(
+            `MIGRATION_AHEAD_OF_TIME:${unknown.sort().join(", ")}`,
+          )
+        }
+      }
+    }
+
     await db.execute("PRAGMA foreign_keys = OFF;", false)
 
     const viewsRes = await db.query(
@@ -615,20 +666,53 @@ async function importDatabaseFromStaging(
         .execute(`DROP TABLE IF EXISTS ${escaped};`, false)
         .catch(() => undefined)
     }
-  }
 
-  const attachSql = `ATTACH DATABASE '${stagingPath.replace(/'/g, "''")}' AS plaintext KEY '';`
-  await db.execute(attachSql, false)
-  // CapacitorSQLite on Android requires SELECT statements to go through query().
-  await db.query("SELECT sqlcipher_export('main', 'plaintext');", [])
-  await db.execute("DETACH DATABASE plaintext;", false)
+    // CapacitorSQLite on Android requires SELECT statements to go through query().
+    await db.query("SELECT sqlcipher_export('main', 'plaintext');", [])
+    importSucceeded = true
+  } finally {
+    if (attached) {
+      await db
+        .execute("DETACH DATABASE plaintext;", false)
+        .catch(() => undefined)
+    }
+    if (!importSucceeded && deleteOnError) {
+      await (db as { delete?: () => Promise<void> })
+        .delete?.()
+        .catch(() => undefined)
+    }
+    await closeDatabase()
+    if (!importSucceeded && deleteOnError) {
+      await sqliteConnection?.clearEncryptionSecret().catch(() => undefined)
+    }
+  }
 
   appConsole.debug("[Bridge][sqlite] Imported database from staging", {
     stagingFileName,
   })
 
-  await closeDatabase()
   return { ok: true }
+}
+
+async function deleteDatabase(
+  dbName: string,
+  password: string,
+  clearSecret: boolean = false,
+): Promise<void> {
+  assertNotWeb(
+    Capacitor.getPlatform(),
+    "deleteDatabase is not supported on web. Use mobile.",
+  )
+  await closeDatabase()
+  try {
+    const db = await openDatabase(dbName, true, "secret", 1, false, password)
+    await (db as { delete?: () => Promise<void> }).delete?.()
+  } finally {
+    await closeDatabase()
+    if (clearSecret) {
+      await sqliteConnection?.clearEncryptionSecret().catch(() => undefined)
+    }
+  }
 }
 
 async function executeTransaction(
@@ -656,18 +740,22 @@ async function executeTransaction(
 
 async function closeDatabase(): Promise<void> {
   readyDbName = null
+  const db = currentDb
   const name = currentDbName
-  if (currentDb) {
-    await persistWebStoreIfNeeded("closeDatabase")
-    await currentDb.close()
+  try {
+    if (db) {
+      await persistWebStoreIfNeeded("closeDatabase").catch(() => undefined)
+      await db.close().catch(() => undefined)
+    }
+  } finally {
     currentDb = null
-  }
-  currentDbName = null
+    currentDbName = null
 
-  // Ensure the native plugin forgets the connection too, otherwise subsequent
-  // openDatabase() calls may reuse a closed connection.
-  if (sqliteConnection && name) {
-    await sqliteConnection.closeConnection(name, false).catch(() => undefined)
+    // Ensure the native plugin forgets the connection too, otherwise subsequent
+    // openDatabase() calls may reuse a closed connection.
+    if (sqliteConnection && name) {
+      await sqliteConnection.closeConnection(name, false).catch(() => undefined)
+    }
   }
 }
 
@@ -797,9 +885,27 @@ function createGatedFacade(workerId: WorkerId) {
       dbName: string,
       password: string,
       stagingFileName: string,
+      knownMigrations?: string[],
+      deleteOnError: boolean = false,
     ): Promise<{ ok: true }> {
       return withGate(workerId, () =>
-        importDatabaseFromStaging(dbName, password, stagingFileName),
+        importDatabaseFromStaging(
+          dbName,
+          password,
+          stagingFileName,
+          knownMigrations,
+          deleteOnError,
+        ),
+      )
+    },
+
+    deleteDatabase(
+      dbName: string,
+      password: string,
+      clearSecret: boolean = false,
+    ): Promise<void> {
+      return withGate(workerId, () =>
+        deleteDatabase(dbName, password, clearSecret),
       )
     },
   }

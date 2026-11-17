@@ -89,16 +89,24 @@ class GetBackupsImpl(GetBackups):
             if backupable is None:
                 continue
 
+            local_version = backupable.get_version()
+
             if cloud_token:
                 remote_backup = remote_bkg_info.pieces.get(backup_type)
                 if remote_backup is None:
                     continue
+                status = (
+                    SyncStatus.OUTDATED_APP
+                    if remote_backup.version is not None
+                    and remote_backup.version > local_version
+                    else None
+                )
                 full_backup_pieces[backup_type] = FullBackupInfo(
                     local=None,
                     remote=remote_backup,
                     last_update=remote_backup.date,
                     has_local_changes=False,
-                    status=None,
+                    status=status,
                 )
                 continue
 
@@ -108,7 +116,7 @@ class GetBackupsImpl(GetBackups):
             remote_backup = remote_bkg_info.pieces.get(backup_type)
 
             status, has_local_changes = self._calculate_sync_status(
-                local_backup, remote_backup, last_update
+                local_backup, remote_backup, last_update, local_version
             )
 
             full_backup_pieces[backup_type] = FullBackupInfo(
@@ -161,7 +169,10 @@ class GetBackupsImpl(GetBackups):
 
     @staticmethod
     def _calculate_sync_status(
-        local: BackupInfo | None, remote: BackupInfo | None, last_update: datetime
+        local: BackupInfo | None,
+        remote: BackupInfo | None,
+        last_update: datetime,
+        local_version: Optional[int] = None,
     ) -> tuple[SyncStatus, bool]:
         # Sync Status Decision Table:
         # +---------------+---------------+------------------+----------+-------------------------------------------------------------+
@@ -183,6 +194,14 @@ class GetBackupsImpl(GetBackups):
         # +---------------+---------------+------------------+----------+-------------------------------------------------------------+
 
         has_local_changes = local is None or last_update > local.date
+
+        if (
+            remote is not None
+            and remote.version is not None
+            and local_version is not None
+            and remote.version > local_version
+        ):
+            return SyncStatus.OUTDATED_APP, has_local_changes
 
         # No backups exist at all
         if local is None and remote is None:

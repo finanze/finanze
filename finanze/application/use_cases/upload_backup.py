@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 from uuid import uuid4
 
 from dateutil.tz import tzlocal
@@ -98,6 +99,7 @@ class UploadBackupImpl(UploadBackup):
                 date=piece.date,
                 type=piece.type,
                 size=piece.size,
+                version=piece.version,
             )
             backup_infos.append(backup_info)
 
@@ -126,9 +128,20 @@ class UploadBackupImpl(UploadBackup):
         if backupable is None:
             return None
 
+        local_version = backupable.get_version()
         local_last_update = await backupable.get_last_updated()
         local_backup = local_backup_registry.get(bkg_type)
         remote_backup = remote_backup_info.get(bkg_type)
+
+        if (
+            remote_backup is not None
+            and not force
+            and remote_backup.version is not None
+            and remote_backup.version > local_version
+        ):
+            await self._check_remote_conflict(
+                bkg_type, local_backup, remote_backup, force, local_version
+            )
 
         # Check if we have any changes to upload
         has_local_changes = (
@@ -142,11 +155,15 @@ class UploadBackupImpl(UploadBackup):
             return None
 
         # CONFLICT: Remote backup changed since our last sync (someone else uploaded)
-        await self._check_remote_conflict(bkg_type, local_backup, remote_backup, force)
+        await self._check_remote_conflict(
+            bkg_type, local_backup, remote_backup, force, local_version
+        )
 
         data = await backupable.export()
         local_last_update = await backupable.get_last_updated()
-        piece = await self._handle_bkg(hashed_pass, data, local_last_update, bkg_type)
+        piece = await self._handle_bkg(
+            hashed_pass, data, local_last_update, bkg_type, local_version
+        )
         if remote_backup:
             local_size = piece.size
             remote_size = remote_backup.size
@@ -172,9 +189,25 @@ class UploadBackupImpl(UploadBackup):
         local_backup: BackupInfo | None,
         remote_backup: BackupInfo | None,
         force: bool,
+        local_version: Optional[int] = None,
     ):
         if remote_backup is None or force:
             return
+
+        if (
+            remote_backup.version is not None
+            and local_version is not None
+            and remote_backup.version > local_version
+        ):
+            self._log.warning(
+                "Conflict detected for %s: remote backup version %s is newer than local version %s",
+                bkg_type,
+                remote_backup.version,
+                local_version,
+            )
+            raise BackupConflict(
+                f"Conflict detected for {bkg_type.value}: remote backup was created with a newer app version. Use force upload to overwrite."
+            )
 
         # Check if remote backup is different from what we last synced
         if local_backup is None or remote_backup.id != local_backup.id:
@@ -197,8 +230,8 @@ class UploadBackupImpl(UploadBackup):
         cooldown_minutes = self.BACKUP_OPERATION_COOLDOWN_MINUTES.get(
             role, self.BACKUP_OPERATION_COOLDOWN_MINUTES[CloudUserRole.BASIC]
         )
-        now = datetime.now(tzlocal())
         cooldown_delta = timedelta(minutes=cooldown_minutes)
+        now = datetime.now(tzlocal())
 
         for bkg_type, backup_info in local_backup_registry.items():
             if bkg_type not in types:
@@ -209,9 +242,9 @@ class UploadBackupImpl(UploadBackup):
                     (cooldown_delta - time_since_last_operation).total_seconds()
                 )
                 self._log.warning(
-                    "Upload operation blocked: last backup was %s seconds ago, cooldown is %s minutes",
+                    "Upload operation blocked: last backup was %s seconds ago, cooldown is %s seconds",
                     int(time_since_last_operation.total_seconds()),
-                    cooldown_minutes,
+                    int(cooldown_delta.total_seconds()),
                 )
                 raise TooManyRequests(
                     f"Please wait {remaining_seconds} seconds before performing another backup operation"
@@ -223,6 +256,7 @@ class UploadBackupImpl(UploadBackup):
         data: bytes,
         local_last_update: datetime,
         bkg_type: BackupFileType,
+        local_version: Optional[int] = None,
     ) -> BackupTransferPiece:
         data_backup_request = BackupProcessRequest(
             protocol=CURRENT_PROTOCOL_VERSION,
@@ -238,4 +272,5 @@ class UploadBackupImpl(UploadBackup):
             type=bkg_type,
             payload=compiled.payload,
             size=compiled.size,
+            version=local_version,
         )

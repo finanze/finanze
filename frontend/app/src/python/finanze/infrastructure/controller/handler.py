@@ -31,6 +31,8 @@ from domain.exception.exceptions import (
     ExecutionConflict,
     BackupConflict,
     BackupTransferFailed,
+    UnsupportedBackupProtocol,
+    UnsupportedBackupVersion,
     ExternalIntegrationRequired,
     ExternalProviderAppNotLinked,
     IntegrationNotFound,
@@ -40,7 +42,7 @@ from domain.exception.exceptions import (
     TooManyRequests,
     AddressNotFound,
 )
-from domain.data_init import DataEncryptedError
+from domain.data_init import DataEncryptedError, MigrationAheadOfTime
 from domain.dezimal import Dezimal
 
 
@@ -252,6 +254,22 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, BackupTransferFailed):
             status = 502
             data = {"code": "BACKUP_TRANSFER_FAILED", "message": str(e)}
+        elif isinstance(e, UnsupportedBackupVersion):
+            status = 409
+            details = {}
+            if e.remote_version is not None:
+                details["remote_version"] = e.remote_version
+            if e.min_app_version is not None:
+                details["min_app_version"] = e.min_app_version
+            data = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
+            if details:
+                data["details"] = details
+        elif isinstance(e, UnsupportedBackupProtocol):
+            status = 409
+            data = {"code": "UNSUPPORTED_BACKUP_PROTOCOL", "message": str(e)}
+        elif isinstance(e, MigrationAheadOfTime):
+            status = 503
+            data = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
         elif isinstance(e, PermissionDenied):
             status = 403
             data = {"code": "PERMISSION_DENIED", "message": str(e)}

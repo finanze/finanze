@@ -48,18 +48,20 @@ class BackupClient(BackupRepository):
 
         try:
             # Step 1: Request upload URLs from the API
-            upload_request_body = {
-                "pieces": [
-                    {
-                        "id": str(piece.id),
-                        "type": piece.type.value,
-                        "size": piece.size,
-                        "date": piece.date.isoformat(),
-                        "protocol": piece.protocol,
-                    }
-                    for piece in request.pieces.pieces
-                ]
-            }
+            piece_payloads = []
+            for piece in request.pieces.pieces:
+                piece_payload = {
+                    "id": str(piece.id),
+                    "type": piece.type.value,
+                    "size": piece.size,
+                    "date": piece.date.isoformat(),
+                    "protocol": piece.protocol,
+                }
+                if piece.version is not None:
+                    piece_payload["version"] = piece.version
+                piece_payloads.append(piece_payload)
+
+            upload_request_body = {"pieces": piece_payloads}
 
             headers = self._get_auth_headers(request.auth)
             response = await self._session.post(
@@ -159,6 +161,9 @@ class BackupClient(BackupRepository):
                         BackupFileType(piece_info["type"]),
                     )
 
+                    raw_version = piece_info.get("version")
+                    version = int(raw_version) if raw_version is not None else None
+
                     piece = BackupTransferPiece(
                         id=UUID(piece_info["id"]),
                         protocol=piece_info["protocol"],
@@ -166,6 +171,7 @@ class BackupClient(BackupRepository):
                         type=BackupFileType(piece_info["type"]),
                         payload=payload,
                         size=len(payload),
+                        version=version,
                     )
                     pieces.append(piece)
                     self._log.info(
@@ -208,12 +214,15 @@ class BackupClient(BackupRepository):
             for backup_type_str, piece_info in info_response.get("pieces", {}).items():
                 try:
                     backup_type = BackupFileType(backup_type_str)
+                    raw_version = piece_info.get("version")
+                    version = int(raw_version) if raw_version is not None else None
                     backup_info = BackupInfo(
                         id=UUID(piece_info["id"]),
                         protocol=piece_info["protocol"],
                         date=datetime.fromisoformat(piece_info["date"]),
                         type=backup_type,
                         size=piece_info["size"],
+                        version=version,
                     )
                     backup_infos[backup_type] = backup_info
                 except (KeyError, ValueError) as e:

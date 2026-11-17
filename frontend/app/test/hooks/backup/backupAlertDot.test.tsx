@@ -182,6 +182,18 @@ describe("alert color from backup status", () => {
       expected: "red",
     },
     {
+      name: "OUTDATED_APP (AUTO) → red",
+      data: SyncStatus.OUTDATED_APP,
+      mode: BackupMode.AUTO,
+      expected: "red",
+    },
+    {
+      name: "OUTDATED_APP (MANUAL) → red",
+      data: SyncStatus.OUTDATED_APP,
+      mode: BackupMode.MANUAL,
+      expected: "red",
+    },
+    {
       name: "MANUAL + OUTDATED → orange",
       data: SyncStatus.OUTDATED,
       mode: BackupMode.MANUAL,
@@ -258,6 +270,20 @@ describe("FloatingBottomNav alert dot", () => {
     })
   })
 
+  it("shows red dot on More button when OUTDATED_APP", async () => {
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP),
+    )
+
+    render(<FloatingNavWithSync />, { wrapper: Wrapper })
+
+    await waitFor(() => {
+      const moreButton = screen.getByLabelText("More")
+      const dot = moreButton.querySelector(".rounded-full.bg-red-500")
+      expect(dot).toBeInTheDocument()
+    })
+  })
+
   it("shows amber dot on More button when MANUAL + OUTDATED", async () => {
     currentBackupMode = BackupMode.MANUAL
     mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.OUTDATED))
@@ -319,6 +345,20 @@ describe("FloatingBottomNav alert dot", () => {
 describe("BackupStatusPopover trigger dot", () => {
   it("shows red dot when CONFLICT", async () => {
     mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
+
+    render(<PopoverWithSync />, { wrapper: Wrapper })
+
+    await waitFor(() => {
+      const trigger = screen.getByLabelText("Backup")
+      const dot = trigger.querySelector(".rounded-full.bg-red-500")
+      expect(dot).toBeInTheDocument()
+    })
+  })
+
+  it("shows red dot when OUTDATED_APP", async () => {
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP),
+    )
 
     render(<PopoverWithSync />, { wrapper: Wrapper })
 

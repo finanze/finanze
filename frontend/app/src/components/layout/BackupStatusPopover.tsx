@@ -52,6 +52,9 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
     isConflict,
     conflictImportTypes,
     conflictUploadTypes,
+    isOutdatedApp,
+    outdatedAppUploadTypes,
+    requiredBackupVersion,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,
@@ -76,6 +79,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
       case SyncStatus.PENDING:
         return "bg-foreground"
       case SyncStatus.CONFLICT:
+      case SyncStatus.OUTDATED_APP:
         return "bg-red-500"
       case SyncStatus.OUTDATED:
         return "bg-amber-500"
@@ -120,6 +124,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
       case SyncStatus.PENDING:
         return <CloudUpload size={18} strokeWidth={2.5} />
       case SyncStatus.CONFLICT:
+      case SyncStatus.OUTDATED_APP:
         return <CloudAlert size={18} strokeWidth={2.5} />
       case SyncStatus.OUTDATED:
         return <CloudDownload size={18} strokeWidth={2.5} />
@@ -268,6 +273,49 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                   <p className="text-xs text-muted-foreground">
                     {t.settings.backup.credentialsMismatchDescription}
                   </p>
+                </div>
+              ) : isOutdatedApp ? (
+                <div className="relative space-y-2 pt-1">
+                  <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2">
+                    <p className="text-xs text-muted-foreground">
+                      {requiredBackupVersion
+                        ? t.settings.backup.outdatedAppDescription.replace(
+                            "{version}",
+                            requiredBackupVersion,
+                          )
+                        : t.settings.backup.outdatedAppDescriptionGeneric}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 gap-1.5"
+                      disabled={true}
+                    >
+                      <Download size={14} />
+                      {t.settings.backup.useRemote}
+                    </Button>
+                    {canCreateBackup ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 gap-1.5"
+                        onClick={() => handleUpload(outdatedAppUploadTypes)}
+                        disabled={baseActionsDisabled}
+                      >
+                        <Upload size={14} />
+                        {t.settings.backup.useLocal}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {feedbackMessage ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-md">
+                      <p className="text-xs text-muted-foreground px-2 text-center">
+                        {feedbackMessage}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : isConflict ? (
                 <div className="relative pt-1">

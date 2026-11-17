@@ -23,3 +23,7 @@ class Backupable(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def get_last_updated(self) -> datetime:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_version(self) -> int:
+        raise NotImplementedError

@@ -255,6 +255,7 @@ export enum SyncStatus {
   PENDING = "PENDING",
   CONFLICT = "CONFLICT",
   OUTDATED = "OUTDATED",
+  OUTDATED_APP = "OUTDATED_APP",
   MISSING = "MISSING",
 }
 
@@ -264,6 +265,18 @@ export interface BackupInfo {
   date: string
   type: BackupFileType
   size: number
+  version?: number | null
+}
+
+export function formatBackupAppVersion(version?: number | null): string | null {
+  if (typeof version !== "number" || !Number.isFinite(version) || version < 0) {
+    return null
+  }
+  const appCode = Math.floor(version / 100)
+  const major = Math.floor(appCode / 10000)
+  const minor = Math.floor((appCode % 10000) / 100)
+  const patch = appCode % 100
+  return `${major}.${minor}.${patch}`
 }
 
 export interface FullBackupInfo {
