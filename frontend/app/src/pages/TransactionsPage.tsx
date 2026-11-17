@@ -1045,7 +1045,7 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                <Sensitive>{stockTx.shares.toLocaleString()}</Sensitive>
+                <Sensitive>{stockTx.shares.toLocaleString(locale)}</Sensitive>
               </div>
             )}
             {Number(stockTx.price || 0) !== 0 && (
@@ -1123,7 +1123,7 @@ export default function TransactionsPage() {
                   {t.transactions.currencyAmount}:
                 </span>{" "}
                 <Sensitive>
-                  {cryptoTx.currency_amount.toLocaleString()}
+                  {cryptoTx.currency_amount.toLocaleString(locale)}
                 </Sensitive>
               </div>
             )}
@@ -1191,7 +1191,9 @@ export default function TransactionsPage() {
             {marketForecastTx.size !== undefined && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.size}:</span>{" "}
-                <Sensitive>{marketForecastTx.size.toLocaleString()}</Sensitive>
+                <Sensitive>
+                  {marketForecastTx.size.toLocaleString(locale)}
+                </Sensitive>
               </div>
             )}
             {Number(marketForecastTx.price || 0) !== 0 && (
@@ -1256,7 +1258,7 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                <Sensitive>{fundTx.shares.toLocaleString()}</Sensitive>
+                <Sensitive>{fundTx.shares.toLocaleString(locale)}</Sensitive>
               </div>
             )}
             {Number(fundTx.price || 0) !== 0 && (

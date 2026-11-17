@@ -5,6 +5,8 @@ import { TEST_PASSWORD } from '../../helpers/constants'
 import en from '../../../../frontend/app/src/i18n/locales/en.json' with { type: 'json' }
 import es from '../../../../frontend/app/src/i18n/locales/es.json' with { type: 'json' }
 import itTranslations from '../../../../frontend/app/src/i18n/locales/it.json' with { type: 'json' }
+import pt from '../../../../frontend/app/src/i18n/locales/pt.json' with { type: 'json' }
+import fr from '../../../../frontend/app/src/i18n/locales/fr.json' with { type: 'json' }
 
 test.describe('External labeling providers', () => {
     test('labeling follows the default AI models configured in settings', async ({
@@ -165,10 +167,17 @@ test.describe('External labeling providers', () => {
             { provider: 'OPENAI_COMPATIBLE', model: 'locale-model' },
         ])
 
-        let current: typeof en | typeof es | typeof itTranslations = en
+        let current:
+            | typeof en
+            | typeof es
+            | typeof itTranslations
+            | typeof pt
+            | typeof fr = en
         for (const [locale, translations] of [
             ['es-ES', es],
             ['it-IT', itTranslations],
+            ['pt-PT', pt],
+            ['fr-FR', fr],
         ] as const) {
             await page
                 .getByRole('button', {

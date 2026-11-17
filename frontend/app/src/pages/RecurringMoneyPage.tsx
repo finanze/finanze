@@ -1248,10 +1248,10 @@ export default function RecurringMoneyPage() {
                   ? (() => {
                       const d = new Date(flow.next_date)
                       if (Number.isNaN(d.getTime())) return null
-                      return new Intl.DateTimeFormat(locale, {
+                      return formatDate(d, locale, {
                         month: "short",
                         day: "numeric",
-                      }).format(d)
+                      })
                     })()
                   : null
 

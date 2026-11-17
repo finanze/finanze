@@ -753,7 +753,9 @@
       "en-US": "Inglese",
       "es-ES": "Spagnolo",
       "it-IT": "Italiano",
-      "de-DE": "Tedesco"
+      "de-DE": "Tedesco",
+      "pt-PT": "Portoghese",
+      "fr-FR": "Francese"
     },
     "defaultCurrency": "Valuta Principale",
     "defaultCommodityWeightUnit": "Unità di peso predefinita per le materie prime",

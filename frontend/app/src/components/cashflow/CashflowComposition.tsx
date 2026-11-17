@@ -13,7 +13,11 @@ import { useI18n } from "@/i18n"
 import { useLabels } from "@/context/LabelsContext"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { Sensitive } from "@/components/ui/Sensitive"
-import { formatCompactCurrency, formatCurrency } from "@/lib/formatters"
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatDate,
+} from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { DataDisplayMode } from "@/types"
 import {
@@ -109,12 +113,13 @@ export function CashflowComposition({
   }
 
   const formatPeriod = (period: string) =>
-    new Intl.DateTimeFormat(
+    formatDate(
+      new Date(`${period}T00:00:00`),
       locale,
       granularity === CashflowGranularity.DAY
         ? { day: "numeric", month: "short" }
         : { month: "short", year: "2-digit" },
-    ).format(new Date(`${period}T00:00:00`))
+    )
 
   const money = (value: number) =>
     formatCurrency(value, locale, currency, currency)

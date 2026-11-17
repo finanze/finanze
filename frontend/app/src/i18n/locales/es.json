@@ -752,7 +752,9 @@
       "en-US": "Inglés",
       "es-ES": "Español",
       "it-IT": "Italiano",
-      "de-DE": "Alemán"
+      "de-DE": "Alemán",
+      "pt-PT": "Portugués",
+      "fr-FR": "Francés"
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",

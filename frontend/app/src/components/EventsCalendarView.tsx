@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useI18n, type Translations } from "@/i18n"
 import { MoneyEvent, MoneyEventType } from "@/types"
 import { getMoneyEvents } from "@/services/api"
-import { formatCurrency } from "@/lib/formatters"
+import { formatCurrency, formatDate } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
@@ -366,7 +366,7 @@ export function EventsCalendarView({
   const formatAgendaDay = (key: string) => {
     if (key === tomorrowKey) return t.management.tomorrow
     const [y, m, d] = key.split("-").map(Number)
-    return new Date(y, m - 1, d).toLocaleDateString(locale, {
+    return formatDate(new Date(y, m - 1, d), locale, {
       weekday: "short",
       day: "numeric",
       month: "short",
@@ -599,7 +599,7 @@ function EventDayDetailModal({
     day: "numeric",
   })
 
-  const shortFormattedDate = day.date.toLocaleDateString(locale, {
+  const shortFormattedDate = formatDate(day.date, locale, {
     weekday: "short",
     month: "short",
     day: "numeric",
