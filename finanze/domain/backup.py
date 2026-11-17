@@ -28,6 +28,7 @@ class BackupInfo:
     date: datetime
     type: BackupFileType
     size: int
+    version: Optional[int] = None
 
 
 @dataclass
@@ -44,6 +45,7 @@ class SyncStatus(str, Enum):
     SYNC = "SYNC"
     PENDING = "PENDING"
     OUTDATED = "OUTDATED"
+    OUTDATED_APP = "OUTDATED_APP"
     MISSING = "MISSING"
     CONFLICT = "CONFLICT"
 
@@ -84,6 +86,7 @@ class BackupTransferPiece:
     type: BackupFileType
     payload: bytes
     size: int
+    version: Optional[int] = None
 
 
 @dataclass
@@ -130,3 +133,13 @@ class BackupSyncResult:
 @dataclass
 class BackupSettings:
     mode: BackupMode
+
+
+def format_backup_app_version(version: Optional[int]) -> Optional[str]:
+    if version is None or version < 0:
+        return None
+    app_code = version // 100
+    major = app_code // 10_000
+    minor = (app_code % 10_000) // 100
+    patch = app_code % 100
+    return f"{major}.{minor}.{patch}"

@@ -3,7 +3,7 @@ from typing import Optional
 from quart import jsonify, request
 
 from application.ports.error_reporter_port import ErrorReporterPort
-from domain.data_init import DataEncryptedError
+from domain.data_init import DataEncryptedError, MigrationAheadOfTime
 from domain.exception.exceptions import (
     INTEGRATION_SETUP_BAD_REQUEST_CODES,
     INTEGRATION_SETUP_UNAUTHORIZED_CODES,
@@ -32,6 +32,8 @@ from domain.exception.exceptions import (
     TooManyRequests,
     TransactionNotFound,
     UnauthorizedToken,
+    UnsupportedBackupProtocol,
+    UnsupportedBackupVersion,
     NoUserLogged,
     PermissionDenied,
     ProtectedLabel,
@@ -192,6 +194,26 @@ def handle_backup_transfer_failed(e):
     return jsonify({"code": "BACKUP_TRANSFER_FAILED", "message": str(e)}), 502
 
 
+def handle_unsupported_backup_version(e: UnsupportedBackupVersion):
+    details = {}
+    if e.remote_version is not None:
+        details["remote_version"] = e.remote_version
+    if e.min_app_version is not None:
+        details["min_app_version"] = e.min_app_version
+    payload = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
+    if details:
+        payload["details"] = details
+    return jsonify(payload), 409
+
+
+def handle_unsupported_backup_protocol(e: UnsupportedBackupProtocol):
+    return jsonify({"code": "UNSUPPORTED_BACKUP_PROTOCOL", "message": str(e)}), 409
+
+
+def handle_migration_ahead_of_time(e: MigrationAheadOfTime):
+    return jsonify({"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}), 503
+
+
 def handle_permission_denied(e):
     return jsonify({"code": "PERMISSION_DENIED", "message": str(e)}), 403
 
@@ -238,6 +260,13 @@ def register_exception_handlers(
     app.register_error_handler(InvalidToken, handle_invalid_token)
     app.register_error_handler(BackupConflict, handle_backup_conflict)
     app.register_error_handler(BackupTransferFailed, handle_backup_transfer_failed)
+    app.register_error_handler(
+        UnsupportedBackupVersion, handle_unsupported_backup_version
+    )
+    app.register_error_handler(
+        UnsupportedBackupProtocol, handle_unsupported_backup_protocol
+    )
+    app.register_error_handler(MigrationAheadOfTime, handle_migration_ahead_of_time)
     app.register_error_handler(PermissionDenied, handle_permission_denied)
     app.register_error_handler(LocalModelError, handle_local_model_error)
     app.register_error_handler(

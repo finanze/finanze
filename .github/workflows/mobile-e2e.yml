@@ -77,6 +77,8 @@ jobs:
         working-directory: frontend/app
         env:
           BETTER_STACK_API_TOKEN: ""
+          VITE_SUPABASE_URL: "https://e2e-mock.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-mock-key"
         run: pnpm build:mobile
 
       - name: Sync Capacitor to iOS
@@ -174,6 +176,8 @@ jobs:
         working-directory: frontend/app
         env:
           BETTER_STACK_API_TOKEN: ""
+          VITE_SUPABASE_URL: "https://e2e-mock.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-mock-key"
         run: pnpm build:mobile
 
       - name: Sync Capacitor to Android

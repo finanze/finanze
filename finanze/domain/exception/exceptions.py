@@ -358,6 +358,20 @@ class UnsupportedBackupProtocol(Exception):
         super().__init__(f"Unsupported backup protocol version: {protocol_version}")
 
 
+class UnsupportedBackupVersion(Exception):
+    def __init__(
+        self,
+        remote_version: Optional[int] = None,
+        min_app_version: Optional[str] = None,
+    ):
+        self.remote_version = remote_version
+        self.min_app_version = min_app_version
+        detail = f" (requires v{min_app_version})" if min_app_version else ""
+        super().__init__(
+            f"Remote backup version is newer than supported by this app{detail}"
+        )
+
+
 class UnauthorizedToken(Exception):
     """Raised when a token is invalid or expired"""
 

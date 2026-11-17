@@ -78,8 +78,12 @@ jobs:
         run: pnpm exec prettier --check .
 
   e2e:
-    name: E2E Tests
-    runs-on: ubuntu-latest
+    name: E2E Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout Code
@@ -117,7 +121,10 @@ jobs:
         id: playwright-cache
         uses: actions/cache@v6
         with:
-          path: ~/.cache/ms-playwright
+          path: |
+            ~/.cache/ms-playwright
+            ~/Library/Caches/ms-playwright
+            ~/AppData/Local/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('e2e/standard/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
@@ -129,18 +136,25 @@ jobs:
         run: pnpm exec playwright install chromium
 
       - name: Install Playwright system dependencies
+        if: runner.os == 'Linux'
         working-directory: e2e/standard
         run: pnpm exec playwright install-deps chromium
 
-      - name: Run E2E tests
+      - name: Run full E2E suite (Linux)
+        if: runner.os == 'Linux'
         working-directory: e2e/standard
         run: pnpm test
+
+      - name: Run multiplatform E2E tests (macOS & Windows)
+        if: runner.os != 'Linux'
+        working-directory: e2e/standard
+        run: pnpm exec playwright test --project=cloud-backup --project=cloud-restore
 
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.os }}
           path: e2e/standard/test-results/
           retention-days: 7
 

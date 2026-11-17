@@ -24,12 +24,14 @@ from domain.backup import (
     FullBackupInfo,
     SyncStatus,
     BackupInfoParams,
+    format_backup_app_version,
 )
 from domain.cloud_auth import CloudPermission, CloudUserRole
 from domain.exception.exceptions import (
     InvalidBackupCredentials,
     TooManyRequests,
     BackupConflict,
+    UnsupportedBackupVersion,
 )
 from domain.use_cases.import_backup import ImportBackup
 
@@ -76,6 +78,20 @@ class ImportBackupImpl(ImportBackup):
             await self._backup_repository.get_info(BackupInfoParams(auth=user_auth))
         ).pieces
         self._log.debug("Found %d backup pieces", len(remote_backup_pieces))
+
+        for piece in remote_backup_pieces.values():
+            if piece.type not in request.types:
+                continue
+            backupable = self._backupable_ports.get(piece.type)
+            if (
+                backupable is not None
+                and piece.version is not None
+                and piece.version > backupable.get_version()
+            ):
+                raise UnsupportedBackupVersion(
+                    remote_version=piece.version,
+                    min_app_version=format_backup_app_version(piece.version),
+                )
 
         if request.initialize:
             piece_types_to_import = {
@@ -170,55 +186,73 @@ class ImportBackupImpl(ImportBackup):
         imported_backup_infos = []
         affected_pieces = {}
         legacy_config_piece = None
-        for piece in pieces.pieces:
-            if piece.type not in piece_types_to_import:
-                if import_legacy_config and piece.type == BackupFileType.CONFIG:
-                    legacy_config_piece = piece
-                continue
+        initial_user = self._data_initiator.get_user() if request.initialize else None
+        try:
+            for piece in pieces.pieces:
+                if piece.type not in piece_types_to_import:
+                    if import_legacy_config and piece.type == BackupFileType.CONFIG:
+                        legacy_config_piece = piece
+                    continue
 
-            backupable = self._backupable_ports.get(piece.type)
+                backupable = self._backupable_ports.get(piece.type)
+                if (
+                    piece.version is not None
+                    and piece.version > backupable.get_version()
+                ):
+                    raise UnsupportedBackupVersion(
+                        remote_version=piece.version,
+                        min_app_version=format_backup_app_version(piece.version),
+                    )
 
-            process_request = BackupProcessRequest(
-                protocol=piece.protocol,
-                password=bkg_pass,
-                type=piece.type,
-                payload=piece.payload,
-            )
-            downloaded_data = await self._backup_processor.decompile(process_request)
-            user = self._data_initiator.get_user()
-            await backupable.import_data(
-                downloaded_data.payload,
-                initialize=request.initialize,
-                user=user,
-                password=request.password,
-            )
+                process_request = BackupProcessRequest(
+                    protocol=piece.protocol,
+                    password=bkg_pass,
+                    type=piece.type,
+                    payload=piece.payload,
+                )
+                downloaded_data = await self._backup_processor.decompile(
+                    process_request
+                )
+                user = self._data_initiator.get_user()
+                await backupable.import_data(
+                    downloaded_data.payload,
+                    initialize=request.initialize,
+                    user=user,
+                    password=request.password,
+                )
 
-            # Register the imported backup locally so we know we're in sync
-            backup_info = BackupInfo(
-                id=piece.id,
-                protocol=piece.protocol,
-                date=piece.date,
-                type=piece.type,
-                size=piece.size,
-            )
-            imported_backup_infos.append(backup_info)
+                # Register the imported backup locally so we know we're in sync
+                backup_info = BackupInfo(
+                    id=piece.id,
+                    protocol=piece.protocol,
+                    date=piece.date,
+                    type=piece.type,
+                    size=piece.size,
+                    version=piece.version,
+                )
+                imported_backup_infos.append(backup_info)
 
-            # Get updated state after import
-            affected_pieces[piece.type] = FullBackupInfo(
-                local=backup_info,
-                remote=backup_info,
-                last_update=piece.date,
-                has_local_changes=False,
-                status=SyncStatus.SYNC,
-            )
+                # Get updated state after import
+                affected_pieces[piece.type] = FullBackupInfo(
+                    local=backup_info,
+                    remote=backup_info,
+                    last_update=piece.date,
+                    has_local_changes=False,
+                    status=SyncStatus.SYNC,
+                )
 
-        if imported_backup_infos:
-            await self._backup_local_registry.insert(imported_backup_infos)
+            if imported_backup_infos:
+                await self._backup_local_registry.insert(imported_backup_infos)
 
-        if legacy_config_piece is not None:
-            await self._import_legacy_config(legacy_config_piece, bkg_pass)
+            if legacy_config_piece is not None:
+                await self._import_legacy_config(legacy_config_piece, bkg_pass)
 
-        return BackupSyncResult(pieces=affected_pieces)
+            return BackupSyncResult(pieces=affected_pieces)
+        finally:
+            if request.initialize and self._data_initiator.unlocked:
+                await self._data_initiator.lock()
+                if initial_user is not None:
+                    self._data_initiator.set_user(initial_user)
 
     async def _import_legacy_config(self, piece: BackupTransferPiece, password: str):
         try:
@@ -246,8 +280,8 @@ class ImportBackupImpl(ImportBackup):
         cooldown_minutes = self.BACKUP_OPERATION_COOLDOWN_MINUTES.get(
             role, self.BACKUP_OPERATION_COOLDOWN_MINUTES[CloudUserRole.BASIC]
         )
-        now = datetime.now(tzlocal())
         cooldown_delta = timedelta(minutes=cooldown_minutes)
+        now = datetime.now(tzlocal())
 
         for bkg_type, backup_info in local_backup_registry.items():
             if bkg_type not in types:
@@ -258,9 +292,9 @@ class ImportBackupImpl(ImportBackup):
                     (cooldown_delta - time_since_last_operation).total_seconds()
                 )
                 self._log.warning(
-                    "Import operation blocked: last backup was %s seconds ago, cooldown is %s minutes",
+                    "Import operation blocked: last backup was %s seconds ago, cooldown is %s seconds",
                     int(time_since_last_operation.total_seconds()),
-                    cooldown_minutes,
+                    int(cooldown_delta.total_seconds()),
                 )
                 raise TooManyRequests(
                     f"Please wait {remaining_seconds} seconds before performing another backup operation"

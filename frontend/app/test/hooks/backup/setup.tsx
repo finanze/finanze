@@ -1,6 +1,6 @@
 import { type ReactNode } from "react"
 import { vi } from "vitest"
-import { render } from "@testing-library/react"
+import { render, renderHook } from "@testing-library/react"
 import { I18nProvider } from "@/i18n"
 import { BackupStatusContent } from "@/components/backup/BackupStatusContent"
 import { BackupStatusPopover } from "@/components/layout/BackupStatusPopover"
@@ -129,6 +129,12 @@ function PopoverUI() {
 function DualPopoverUI() {
   useBackupStatus({ isActive: true })
   return <BackupStatusPopover collapsed={false} />
+}
+
+export function renderBackupHook() {
+  return renderHook(() => useBackupStatus({ isActive: true }), {
+    wrapper: Wrapper,
+  })
 }
 
 export function renderBackupUI() {

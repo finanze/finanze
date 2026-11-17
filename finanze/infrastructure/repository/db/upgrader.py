@@ -77,6 +77,16 @@ class DatabaseUpgrader:
         except Exception as e:
             raise MigrationError(f"{description} failed: {e}") from e
 
+    @staticmethod
+    def validate_known_migrations(
+        applied_names: Set[str], versions: List[DBVersionMigration]
+    ) -> None:
+        unknown_applied = applied_names - {m.name for m in versions}
+        if unknown_applied:
+            raise MigrationAheadOfTime(
+                f"Database has migrations not present in this version: {', '.join(sorted(unknown_applied))}"
+            )
+
     async def upgrade(self):
         if not self._versions:
             return
@@ -87,12 +97,7 @@ class DatabaseUpgrader:
         async with self._phase("Reading applied migrations"):
             applied_names = await self._get_applied_migration_names()
 
-        known_names = {m.name for m in self._versions}
-        unknown_applied = applied_names - known_names
-        if unknown_applied:
-            raise MigrationAheadOfTime(
-                f"Database has migrations not present in this version: {', '.join(sorted(unknown_applied))}"
-            )
+        self.validate_known_migrations(applied_names, self._versions)
 
         pending = [m for m in self._versions if m.name not in applied_names]
 

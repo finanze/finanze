@@ -274,6 +274,7 @@ async def app(tmp_path):
     data_initiator.get_hashed_password = AsyncMock(return_value="hashed-password")
 
     backupable_data = AsyncMock(spec=Backupable)
+    backupable_data.get_version = MagicMock(return_value=120005)
     backupable_ports = {
         BackupFileType.DATA: backupable_data,
     }

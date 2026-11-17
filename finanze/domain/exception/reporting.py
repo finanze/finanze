@@ -1,6 +1,6 @@
 import asyncio
 
-from domain.data_init import DataEncryptedError
+from domain.data_init import DataEncryptedError, MigrationAheadOfTime
 from domain.exception.exceptions import (
     AddressNotFound,
     BackupConflict,
@@ -48,6 +48,7 @@ from domain.exception.exceptions import (
     TransactionNotFound,
     UnauthorizedToken,
     UnsupportedBackupProtocol,
+    UnsupportedBackupVersion,
     UnsupportedFileFormat,
     UserAlreadyExists,
     UserAlreadyLoggedIn,
@@ -87,6 +88,7 @@ EXPECTED_EXCEPTIONS: tuple[type[BaseException], ...] = (
     ManualHistoricEntryNotFound,
     ManualInvestmentNotFound,
     MarketValueValuationRequired,
+    MigrationAheadOfTime,
     MissingFieldsError,
     NoTableFound,
     NoUserLogged,
@@ -103,6 +105,7 @@ EXPECTED_EXCEPTIONS: tuple[type[BaseException], ...] = (
     TransactionNotFound,
     UnauthorizedToken,
     UnsupportedBackupProtocol,
+    UnsupportedBackupVersion,
     UnsupportedFileFormat,
     UserAlreadyExists,
     UserAlreadyLoggedIn,

@@ -13,6 +13,7 @@ def _serialize_backup_info(backup_info):
         "date": backup_info.date.isoformat(),
         "type": backup_info.type.value,
         "size": backup_info.size,
+        "version": backup_info.version,
     }
 
 

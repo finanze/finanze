@@ -1,3 +1,5 @@
+import re
+
 from infrastructure.repository.db.versions.v0.v00.v0_genesis import V0Genesis
 from infrastructure.repository.db.versions.v0.v01.v011_0 import V0110
 from infrastructure.repository.db.versions.v0.v02.v020_0_crypto import V0200Crypto
@@ -349,3 +351,24 @@ versions = [
     V01203LabelingRuleMultiConditions(),
     V01204AISettings(),
 ]
+
+_MIGRATION_VERSION_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+):(\d+)(?:_.*)?$")
+
+
+def parse_migration_version_code(name: str) -> int:
+    if name == "v0 Genesis":
+        return 0
+    match = _MIGRATION_VERSION_RE.fullmatch(name)
+    if not match:
+        raise ValueError(f"Invalid migration name format: {name}")
+    major, minor, patch, seq = (int(part) for part in match.groups())
+    if not (0 <= minor < 100 and 0 <= patch < 100 and 0 <= seq < 99):
+        raise ValueError(f"Migration version components out of bounds: {name}")
+    return major * 1_000_000 + minor * 10_000 + patch * 100 + (seq + 1)
+
+
+def get_schema_version(migration_list=None) -> int:
+    target = versions if migration_list is None else migration_list
+    if not target:
+        return 0
+    return parse_migration_version_code(target[-1].name)
