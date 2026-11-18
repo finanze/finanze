@@ -344,4 +344,7 @@ class DeferredComponents:
 
         await self.ex_storage.initialize()
         await self.crypto_info.initialize()
-        await self.get_ex_rates.execute(initial_load=True)
+        try:
+            await self.get_ex_rates.execute(initial_load=True)
+        except Exception:
+            core.log.exception("Failed initial exchange rates load")

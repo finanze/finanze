@@ -1,8 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const pyodideMocks = vi.hoisted(() => ({
+  initPyodide: vi.fn(),
+  loadAppModules: vi.fn(),
+  loadDeferredModules: vi.fn(),
+  loadLazyModules: vi.fn(),
+  callPythonFunction: vi.fn(),
+  registerBridgeWithPyodide: vi.fn(),
+  installDeferredRequirements: vi.fn(),
+  installLazyRequirements: vi.fn(),
   initBackgroundWorker: vi.fn(),
   callBackgroundPythonFunction: vi.fn(),
+}))
+
+const telemetryMocks = vi.hoisted(() => ({
+  reportError: vi.fn(),
 }))
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -17,18 +29,9 @@ const consoleMocks = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 
-vi.mock("@/lib/pyodide", () => ({
-  initPyodide: vi.fn(),
-  loadAppModules: vi.fn(),
-  loadDeferredModules: vi.fn(),
-  loadLazyModules: vi.fn(),
-  callPythonFunction: vi.fn(),
-  registerBridgeWithPyodide: vi.fn(),
-  installDeferredRequirements: vi.fn(),
-  installLazyRequirements: vi.fn(),
-  initBackgroundWorker: pyodideMocks.initBackgroundWorker,
-  callBackgroundPythonFunction: pyodideMocks.callBackgroundPythonFunction,
-}))
+vi.mock("@/lib/pyodide", () => pyodideMocks)
+
+vi.mock("@/lib/telemetry", () => telemetryMocks)
 
 vi.mock("@/lib/pyodide/bridges/sqliteBridge", () => bridgeMocks)
 
@@ -53,6 +56,13 @@ async function flush() {
 beforeEach(async () => {
   vi.clearAllMocks()
   rejectPendingConnect = null
+  pyodideMocks.initPyodide.mockResolvedValue(undefined)
+  pyodideMocks.loadAppModules.mockResolvedValue(undefined)
+  pyodideMocks.loadDeferredModules.mockResolvedValue(undefined)
+  pyodideMocks.loadLazyModules.mockResolvedValue(undefined)
+  pyodideMocks.callPythonFunction.mockResolvedValue(undefined)
+  pyodideMocks.installDeferredRequirements.mockResolvedValue(undefined)
+  pyodideMocks.installLazyRequirements.mockResolvedValue(undefined)
   pyodideMocks.initBackgroundWorker.mockResolvedValue(undefined)
   pyodideMocks.callBackgroundPythonFunction.mockImplementation(
     async (_module: string, fn: string) => {
@@ -126,5 +136,33 @@ describe("background worker connect/disconnect", () => {
 
     expect(bridgeMocks.blockSharedConnectionAttach).not.toHaveBeenCalled()
     expect(pythonCalls("disconnect")).toHaveLength(0)
+  })
+})
+
+describe("deferred init recovery", () => {
+  it("reports background deferred init failures without caching the rejected promise", async () => {
+    let failDeferred = true
+    pyodideMocks.callPythonFunction.mockImplementation(
+      async (_module: string, fn: string) => {
+        if (fn === "initialize_deferred" && failDeferred) {
+          throw new Error("PythonError: transient timeout")
+        }
+        return undefined
+      },
+    )
+
+    await init.ensureInitialized("GET", "/api/v1/status")
+    init.triggerDeferredInit()
+    await flush()
+
+    expect(telemetryMocks.reportError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "PythonError: transient timeout" }),
+      { phase: "deferred_init" },
+    )
+
+    failDeferred = false
+    await expect(
+      init.ensureInitialized("POST", "/api/v1/login"),
+    ).resolves.toBeUndefined()
   })
 })

@@ -258,13 +258,14 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         self._fiat_matrix = stored
         storage_update_date = await self._exchange_rates_storage.get_last_saved()
-        self._last_base_refresh_ts = int(storage_update_date.timestamp())
+        self._last_base_refresh_ts = (
+            int(storage_update_date.timestamp()) if storage_update_date else 0
+        )
+        self._sync_base_fiat_rates_to_crypto_provider()
 
         if (_now() - self._last_base_refresh_ts) >= self.CACHE_TTL_SECONDS:
-            base_rates = await self._exchange_rates_provider.get_matrix(timeout=2)
-            self._merge_matrix(self._normalize_matrix(base_rates))
+            await self._fetch_and_sync_base_matrix(timeout=2, initial_load=True)
 
-        self._sync_base_fiat_rates_to_crypto_provider()
         return self._fiat_matrix
 
     async def _get_exchange_rates(self, initial_load: bool) -> ExchangeRates:

@@ -111,6 +111,7 @@ async function ensureCoreInitialized() {
       `Core initialization complete in ${(performance.now() - t0).toFixed(0)}ms (/status ready)`,
     )
   })().catch(e => {
+    coreInitPromise = null
     appConsole.error("[PyodideInit] Core initialization failed:", e)
     throw e
   })
@@ -136,6 +137,7 @@ async function ensureDeferredInitialized() {
     isDeferredInitialized = true
     logInfo("Deferred initialization complete (all routes ready)")
   })().catch(e => {
+    deferredInitPromise = null
     appConsole.error("[PyodideInit] Deferred initialization failed:", e)
     throw e
   })
@@ -162,6 +164,7 @@ async function ensureLazyInitialized() {
     lazyReadyResolve?.()
     logInfo("Lazy initialization complete (all lazy routes ready)")
   })().catch(e => {
+    lazyInitPromise = null
     appConsole.error("[PyodideInit] Lazy initialization failed:", e)
     throw e
   })
@@ -181,12 +184,20 @@ async function ensureInitialized(method: string, path: string) {
 
 function triggerDeferredInit(): void {
   if (!isCoreInitialized || isDeferredInitialized || deferredInitPromise) return
-  ensureDeferredInitialized()
+  ensureDeferredInitialized().catch(e => {
+    import("@/lib/telemetry").then(({ reportError }) => {
+      reportError(e, { phase: "deferred_init" })
+    })
+  })
 }
 
 function triggerLazyInit(): void {
   if (!isDeferredInitialized || isLazyInitialized || lazyInitPromise) return
-  ensureLazyInitialized()
+  ensureLazyInitialized().catch(e => {
+    import("@/lib/telemetry").then(({ reportError }) => {
+      reportError(e, { phase: "lazy_init" })
+    })
+  })
 }
 
 function waitForLazyInit(): Promise<void> {
