@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from contextlib import asynccontextmanager
@@ -17,8 +18,9 @@ except Exception:  # pragma: no cover
     js = None
 
 try:
-    from pyodide.ffi import to_js  # type: ignore
+    from pyodide.ffi import JsProxy, to_js  # type: ignore
 except Exception:  # pragma: no cover
+    JsProxy = None
     to_js = None
 
 UnderlyingCursor = Any
@@ -115,17 +117,51 @@ class RowProxy:
         return list(self._keys)
 
 
-def _to_py(value: Any) -> Any:
-    if _is_js_nullish(value):
+_js_json_stringify: Any = None
+
+
+def _stringify_js_proxy(value: Any) -> Optional[str]:
+    global _js_json_stringify
+    if js is None:
+        return None
+    if _js_json_stringify is None:
+        if hasattr(js, "eval"):
+            try:
+                _js_json_stringify = js.eval(
+                    "(v) => JSON.stringify(v, (_k, x) => (x === undefined ? null : x))"
+                )
+            except Exception:
+                _js_json_stringify = False
+        else:
+            _js_json_stringify = False
+
+    if _js_json_stringify:
+        serialized = _js_json_stringify(value)
+    elif hasattr(js, "JSON"):
+        serialized = js.JSON.stringify(value)
+    else:
         return None
 
-    try:
-        to_py = getattr(value, "to_py", None)
-        if callable(to_py):
-            converted = to_py()
-            return _to_py(converted)
-    except Exception:
-        pass
+    if serialized is None or _is_js_nullish(serialized):
+        return None
+    return str(serialized)
+
+
+def _to_py(value: Any) -> Any:
+    if value is None or _is_js_nullish(value):
+        return None
+
+    if JsProxy is not None and isinstance(value, JsProxy):
+        if hasattr(value, "to_bytes"):
+            return value.to_bytes()
+        serialized = _stringify_js_proxy(value)
+        if serialized is not None:
+            return json.loads(serialized)
+        return _to_py(value.to_py())
+
+    to_py = getattr(value, "to_py", None)
+    if callable(to_py):
+        return _to_py(to_py())
 
     if isinstance(value, dict):
         return {k: _to_py(v) for k, v in value.items()}

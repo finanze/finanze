@@ -1,11 +1,17 @@
 import json
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import httpx
 import js
-from pyodide.ffi import to_js
+from pyodide.ffi import JsProxy, to_js
 
 from infrastructure.client.http.http_response import HttpResponse
+from infrastructure.client.http.httpx_patch import (
+    _extract_headers,
+    _is_js_nullish,
+    _parse_status_code,
+)
 
 
 class NoCookieTransport(httpx.AsyncHTTPTransport):
@@ -212,8 +218,6 @@ class ImpersonatedHttpSession:
 
         params = kwargs.pop("params", None)
         if params:
-            from urllib.parse import urlencode
-
             sep = "&" if "?" in url else "?"
             url = (
                 url
@@ -239,15 +243,28 @@ class ImpersonatedHttpSession:
             options["disableHttp3"] = True
 
         response_js = await js.TlsHttp.request(to_js(options, create_pyproxies=False))
-        response_py = response_js.to_py() if hasattr(response_js, "to_py") else {}
 
-        status = int(response_py.get("status", 0))
-        resp_headers = response_py.get("headers", {})
-        if not isinstance(resp_headers, dict):
-            resp_headers = {}
-        data_str = response_py.get("data", "")
-        if not isinstance(data_str, str):
-            data_str = str(data_str) if data_str is not None else ""
+        status = _parse_status_code(response_js)
+        raw_headers = _extract_headers(response_js)
+        resp_headers = {
+            str(k): str(v) for k, v in raw_headers.items() if not _is_js_nullish(v)
+        }
+        raw_data = (
+            response_js.get("data", "")
+            if isinstance(response_js, dict)
+            else getattr(response_js, "data", "")
+        )
+        if _is_js_nullish(raw_data):
+            data_str = ""
+        elif isinstance(raw_data, str):
+            data_str = raw_data
+        elif isinstance(raw_data, JsProxy):
+            serialized = js.JSON.stringify(raw_data)
+            data_str = "" if _is_js_nullish(serialized) else str(serialized)
+        elif isinstance(raw_data, (dict, list, tuple, int, float, bool)):
+            data_str = json.dumps(raw_data)
+        else:
+            data_str = str(raw_data)
 
         return _TlsHttpResponse(status, resp_headers, data_str)
 
