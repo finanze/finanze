@@ -15,6 +15,8 @@ import {
 const REDACTED = "[redacted]"
 const MAX_FRAMES = 30
 const MAX_CAUSES = 3
+const MAX_TEXT_LENGTH = 2000
+const TRUNCATE_HEAD_LENGTH = 600
 const DEDUPE_WINDOW_MS = 10_000
 
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/g
@@ -122,11 +124,20 @@ function isDuplicate(key: string): boolean {
 }
 
 function scrub(text: string): string {
-  return text
+  const scrubbed = text
     .replace(EMAIL_RE, REDACTED)
     .replace(IBAN_RE, REDACTED)
     .replace(LONG_HEX_RE, REDACTED)
-    .slice(0, 2000)
+
+  if (scrubbed.length <= MAX_TEXT_LENGTH) return scrubbed
+
+  const marker = "\n…\n"
+  const tailLength = MAX_TEXT_LENGTH - TRUNCATE_HEAD_LENGTH - marker.length
+  return (
+    scrubbed.slice(0, TRUNCATE_HEAD_LENGTH) +
+    marker +
+    scrubbed.slice(-tailLength)
+  )
 }
 
 function parseStack(stack: string | undefined): SentryStackFrame[] {

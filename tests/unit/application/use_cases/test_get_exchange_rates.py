@@ -107,6 +107,7 @@ def _build_use_case(
     metal_price_provider=None,
     exchange_rates_storage=None,
     position_port=None,
+    port_call_runner=None,
     job_scheduler=None,
 ):
     if exchange_rates_provider is None:
@@ -131,6 +132,7 @@ def _build_use_case(
         metal_price_provider=metal_price_provider,
         exchange_rates_storage=exchange_rates_storage,
         position_port=position_port,
+        port_call_runner=port_call_runner,
         job_scheduler=job_scheduler,
     )
 
@@ -788,3 +790,73 @@ class TestInitialLoadCryptoWarmup:
         assert crypto_provider.get_multiple_prices_by_symbol.await_count == len(
             GetExchangeRatesImpl.BASE_CRYPTO_SYMBOLS
         )
+
+    @pytest.mark.asyncio
+    async def test_failed_base_matrix_refresh_with_stale_stored_rates_keeps_stored_rates(
+        self,
+    ):
+        stored = {
+            "EUR": {"USD": Dezimal("1.1"), "BTC": Dezimal("0.00002")},
+            "USD": {"EUR": Dezimal("0.9")},
+        }
+        storage = AsyncMock()
+        storage.get = AsyncMock(return_value=stored)
+        storage.get_last_saved = AsyncMock(
+            return_value=datetime.now(tzlocal()) - timedelta(hours=1)
+        )
+
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(
+            side_effect=RuntimeError("network timeout")
+        )
+
+        runner_calls = 0
+
+        async def _runner(coro):
+            nonlocal runner_calls
+            runner_calls += 1
+            return await coro
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            crypto_asset_info_provider=crypto_provider,
+            exchange_rates_storage=storage,
+            port_call_runner=_runner,
+        )
+
+        matrix = await uc.execute(initial_load=True)
+
+        assert runner_calls == 1
+        assert matrix == stored
+        crypto_provider.set_base_fiat_rates.assert_called_once_with(stored)
+
+    @pytest.mark.asyncio
+    async def test_stored_rates_without_last_saved_date_refreshes_base_matrix(self):
+        stored = {
+            "EUR": {"USD": Dezimal("1.05"), "BTC": Dezimal("0.00002")},
+            "USD": {"EUR": Dezimal("0.95")},
+        }
+        storage = AsyncMock()
+        storage.get = AsyncMock(return_value=stored)
+        storage.get_last_saved = AsyncMock(return_value=None)
+
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(return_value=self._base_matrix())
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            crypto_asset_info_provider=crypto_provider,
+            exchange_rates_storage=storage,
+        )
+
+        matrix = await uc.execute(initial_load=True)
+
+        exchange_rates_provider.get_matrix.assert_awaited_once_with(timeout=2)
+        assert matrix["EUR"]["USD"] == Dezimal("1.1")
+        assert matrix["EUR"]["BTC"] == Dezimal("0.00002")

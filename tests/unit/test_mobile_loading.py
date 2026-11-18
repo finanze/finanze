@@ -189,3 +189,57 @@ def test_feature_routes_bind_lazy_services(
         bindings[("DELETE", "/api/v1/cashflow/recurring/ignored/<ignored_id>")]
         is lazy.restore_recurring_movement
     )
+
+
+@pytest.mark.asyncio
+async def test_deferred_initialize_tolerates_initial_exchange_rates_failure(components):
+    components.config.INCLUDE_CONNECTIONS = False
+    components.constructors["GetExchangeRatesImpl"].return_value.execute = AsyncMock(
+        side_effect=RuntimeError("offline")
+    )
+
+    deferred = components.deferred_module.DeferredComponents(components.core)
+    await deferred.initialize()
+
+    components.core.log.exception.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_core_initialize_deferred_allows_retry_after_failure(
+    components, monkeypatch
+):
+    components.config.INCLUDE_CONNECTIONS = True
+    for mod_name in (
+        "infrastructure.controller.router",
+        "infrastructure.repository.db.capacitor_client",
+        "infrastructure.repository.db.capacitor_db_manager",
+        "infrastructure.user_files.capacitor_data_manager",
+        "infrastructure.config.capacitor_server_details_adapter",
+        "infrastructure.client.features.feature_flag_client",
+        "infrastructure.telemetry.bridge_error_reporter",
+        "infrastructure.telemetry.capacitor_telemetry_consent",
+    ):
+        monkeypatch.setitem(sys.modules, mod_name, MagicMock())
+
+    app_core_module = _load_mobile_module("app_core")
+    monkeypatch.setitem(sys.modules, "finanze.app_deferred", components.deferred_module)
+    monkeypatch.setitem(sys.modules, "finanze.mobile_routes", components.routes_module)
+    monkeypatch.setattr(components.routes_module, "_setup_routes", MagicMock())
+
+    core = app_core_module.MobileAppCore()
+    core.ff_client = MagicMock(load=AsyncMock())
+
+    components.constructors[
+        "PreferenceExchangeRateStorage"
+    ].return_value.initialize = AsyncMock(
+        side_effect=[RuntimeError("prefs boom"), None]
+    )
+
+    with pytest.raises(RuntimeError, match="prefs boom"):
+        await core.initialize_deferred()
+
+    assert core.is_deferred_ready() is False
+
+    await core.initialize_deferred()
+
+    assert core.is_deferred_ready() is True
