@@ -1,8 +1,55 @@
 import json
+import math
+from typing import Any
 
 import httpx
 import js
-from pyodide.ffi import to_js
+from pyodide.ffi import JsProxy, to_js
+
+
+def _is_js_nullish(value: Any) -> bool:
+    return value is None or type(value).__name__ in ("JsNull", "JsUndefined")
+
+
+def _parse_status_code(response_js: Any) -> int:
+    raw = (
+        response_js.get("status", 0)
+        if isinstance(response_js, dict)
+        else getattr(response_js, "status", 0)
+    )
+    if _is_js_nullish(raw):
+        return 0
+    if isinstance(raw, bool):
+        return int(raw)
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw) if math.isfinite(raw) else 0
+    try:
+        parsed = float(str(raw))
+        return int(parsed) if math.isfinite(parsed) else 0
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def _extract_headers(response_js: Any) -> dict:
+    raw_headers = (
+        response_js.get("headers")
+        if isinstance(response_js, dict)
+        else getattr(response_js, "headers", None)
+    )
+    if _is_js_nullish(raw_headers):
+        return {}
+    if isinstance(raw_headers, dict):
+        return dict(raw_headers)
+    if hasattr(raw_headers, "to_py"):
+        try:
+            converted = raw_headers.to_py(depth=2)
+        except TypeError:
+            converted = raw_headers.to_py()
+        if isinstance(converted, dict):
+            return converted
+    return {}
 
 
 def _split_set_cookie_header(value: str) -> list[str]:
@@ -42,12 +89,12 @@ def _split_set_cookie_header(value: str) -> list[str]:
 def _to_httpx_headers(resp_headers: dict) -> list[tuple[str, str]]:
     items: list[tuple[str, str]] = []
     for k, v in (resp_headers or {}).items():
-        if v is None:
+        if _is_js_nullish(v):
             continue
         key = str(k)
         if isinstance(v, (list, tuple)):
             for one in v:
-                if one is not None:
+                if not _is_js_nullish(one):
                     items.append((key, str(one)))
             continue
         value = str(v)
@@ -71,21 +118,34 @@ async def _read_request_body(request: httpx.Request) -> bytes:
     return b""
 
 
-def _parse_response_data(response_js, response_py: dict) -> bytes:
-    raw = response_py.get("data") if isinstance(response_py, dict) else None
-    if raw is None:
-        raw = getattr(response_js, "data", None)
-    if hasattr(raw, "to_py"):
-        raw = raw.to_py()
-    if raw is None:
+def _parse_response_data(response_js: Any) -> bytes:
+    raw = (
+        response_js.get("data")
+        if isinstance(response_js, dict)
+        else getattr(response_js, "data", None)
+    )
+    if _is_js_nullish(raw):
         return b""
-    if isinstance(raw, (bytes, bytearray)):
+    if isinstance(raw, bytes):
+        return raw
+    if isinstance(raw, bytearray):
         return bytes(raw)
     if isinstance(raw, memoryview):
         return raw.tobytes()
     if isinstance(raw, str):
         return raw.encode("utf-8")
-    if isinstance(raw, (dict, list, int, float, bool)):
+    if isinstance(raw, JsProxy):
+        if hasattr(raw, "to_bytes"):
+            return raw.to_bytes()
+        serialized = js.JSON.stringify(raw)
+        if _is_js_nullish(serialized):
+            return b""
+        return str(serialized).encode("utf-8")
+    if hasattr(raw, "to_py"):
+        raw = raw.to_py()
+        if _is_js_nullish(raw):
+            return b""
+    if isinstance(raw, (dict, list, tuple, int, float, bool)):
         return json.dumps(raw).encode("utf-8")
     return str(raw).encode("utf-8")
 
@@ -129,26 +189,15 @@ async def _capacitor_handle_async_request(
     except Exception as e:
         raise httpx.NetworkError(f"CapacitorHttp error: {e}", request=request)
 
-    response_py = response_js.to_py() if hasattr(response_js, "to_py") else {}
-
-    status_code = int(
-        response_py.get("status", 0) or getattr(response_js, "status", 0) or 0
-    )
-
-    resp_headers = (
-        response_py.get("headers", {}) if isinstance(response_py, dict) else {}
-    )
-    if hasattr(resp_headers, "to_py"):
-        resp_headers = resp_headers.to_py()
-    if not isinstance(resp_headers, dict):
-        resp_headers = {}
+    status_code = _parse_status_code(response_js)
+    resp_headers = _extract_headers(response_js)
     resp_headers.pop("content-encoding", None)
     resp_headers.pop("Content-Encoding", None)
 
     return httpx.Response(
         status_code=status_code,
         headers=_to_httpx_headers(resp_headers),
-        content=_parse_response_data(response_js, response_py),
+        content=_parse_response_data(response_js),
         request=request,
     )
 

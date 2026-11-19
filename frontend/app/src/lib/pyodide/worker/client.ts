@@ -233,6 +233,27 @@ export class PyodideWorkerClient {
       return { ok: true }
     }
 
+    if (
+      methodPath === "Capacitor.Plugins.CapacitorHttp.request" &&
+      value &&
+      typeof value === "object" &&
+      "data" in value
+    ) {
+      const rawData = (value as { data?: unknown }).data
+      if (
+        rawData !== null &&
+        rawData !== undefined &&
+        typeof rawData !== "string" &&
+        !(rawData instanceof ArrayBuffer) &&
+        !ArrayBuffer.isView(rawData)
+      ) {
+        return {
+          ...(value as Record<string, unknown>),
+          data: JSON.stringify(rawData),
+        }
+      }
+    }
+
     return value
   }
 
