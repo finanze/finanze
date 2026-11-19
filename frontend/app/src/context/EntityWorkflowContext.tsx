@@ -327,6 +327,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const onEntityDisconnectedRef = useRef<(() => Promise<void>) | null>(null)
 
   const scrapeRef = useRef<typeof scrape>(null!)
+  const activeFetchKeysRef = useRef(new Set<string>())
 
   const resetState = useCallback((options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
@@ -866,34 +867,42 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      if (entity && !entityAccountId) {
+        const accountIds = getConnectedAccountIds(entity)
+        if (accountIds.length > 0) {
+          for (const [index, accountId] of accountIds.entries()) {
+            await scrapeRef.current(
+              entity,
+              features,
+              {
+                ...options,
+                silent: index < accountIds.length - 1 || silent,
+              },
+              accountId,
+              externalCredentials,
+            )
+            if (
+              pendingScrapeParamsRef.current.has(entity.id) ||
+              scrapeManualLogin.current.active
+            ) {
+              return
+            }
+          }
+          return
+        }
+      }
+
+      const connectedAccountId =
+        entityAccountId ??
+        entity?.accounts?.find(
+          account => account.status === EntityStatus.CONNECTED,
+        )?.id
+      const fetchKey = connectedAccountId ?? entity?.id
+      if (fetchKey && activeFetchKeysRef.current.has(fetchKey)) return
+      if (fetchKey) activeFetchKeysRef.current.add(fetchKey)
+
       try {
         setPinError(false)
-
-        if (entity && !entityAccountId) {
-          const accountIds = getConnectedAccountIds(entity)
-          if (accountIds.length > 0) {
-            for (const [index, accountId] of accountIds.entries()) {
-              await scrapeRef.current(
-                entity,
-                features,
-                {
-                  ...options,
-                  silent: index < accountIds.length - 1 || silent,
-                },
-                accountId,
-                externalCredentials,
-              )
-              if (
-                pendingScrapeParamsRef.current.has(entity.id) ||
-                scrapeManualLogin.current.active
-              ) {
-                return
-              }
-            }
-            return
-          }
-        }
-
         if (entity) {
           setFetchingEntityState(prev => ({
             ...prev,
@@ -935,11 +944,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             entity.type === EntityType.CRYPTO_EXCHANGE ||
             entity.type === EntityType.MARKET_FORECAST_PLATFORM
           ) {
-            const accountId =
-              entityAccountId ||
-              entity.accounts?.find(
-                account => account.status === EntityStatus.CONNECTED,
-              )?.id
             response = await fetchFinancialEntity({
               entity: entity.id,
               features: features,
@@ -950,7 +954,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               stage: options.stage,
               code: options.code,
               token: options.token,
-              entityAccountId: accountId,
+              entityAccountId: connectedAccountId,
               credentials: externalCredentials,
             })
           } else {
@@ -1588,6 +1592,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           resetState({ preserveSelectedFeatures: true })
         }
       } finally {
+        if (fetchKey) activeFetchKeysRef.current.delete(fetchKey)
         if (entity) {
           setFetchingEntityState(prev => ({
             ...prev,

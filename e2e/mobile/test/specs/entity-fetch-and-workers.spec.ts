@@ -11,7 +11,7 @@ import {
     MOCK_MYINVESTOR_USER,
     MOCK_STOCK_NAME,
     assertNoUnexpectedPyodideErrors,
-    drainPyodideWorkerErrors,
+    fetchUncachedNativeRates,
     installEntityAndRatesMocks,
     startEntityAndRatesMockServer,
     type EntityAndRatesMockServer,
@@ -89,6 +89,24 @@ async function openMyInvestorCard(): Promise<void> {
     await cardTitle.click()
 }
 
+async function disableAutoRefresh(): Promise<void> {
+    await expandBottomNav()
+    await openMoreMenuPage('Settings')
+    const section = $(TEXT_XPATH('Auto-refresh'))
+    await section.waitForDisplayed()
+    await section.scrollIntoView({ block: 'center' })
+    await section.click()
+
+    const toggle = $(
+        `${TEXT_XPATH('Enable auto-refresh')}/../..//*[@role="switch"]`,
+    )
+    await toggle.waitForDisplayed()
+    if ((await toggle.getAttribute('aria-checked')) === 'true') {
+        await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    }
+}
+
 async function triggerMyInvestorFetch(): Promise<void> {
     const fetchOnCard = $(
         `${MYINVESTOR_CARD_TITLE}/../..//button[normalize-space(.)="Fetch"]`,
@@ -102,15 +120,6 @@ async function triggerMyInvestorFetch(): Promise<void> {
     )
     await modalFetch.waitForClickable({ timeout: 15_000 })
     await modalFetch.click()
-}
-
-async function closeFeatureSelectorIfOpen(): Promise<void> {
-    const cancelBtn = $(
-        `${FEATURES_MODAL}//button[normalize-space(.)="Cancel"]`,
-    )
-    if (await cancelBtn.isDisplayed()) {
-        await cancelBtn.click()
-    }
 }
 
 async function waitForDisplayedText(
@@ -139,6 +148,7 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
     before(async () => {
         server = await startEntityAndRatesMockServer()
         await signInWithEntityMocks(server.port)
+        await disableAutoRefresh()
     })
 
     after(async () => {
@@ -158,26 +168,37 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
     })
 
     it('loads FX exchange-rate float matrices through CapacitorHttp without worker errors', async () => {
-        await browser.waitUntil(
-            () =>
-                [
-                    '/__mock/fx/currencies/eur.min.json',
-                    ...Object.keys(MOCK_METAL_PRICES).map(
-                        (symbol) => `/__mock/metals/price/${symbol}/EUR`,
-                    ),
-                ].every((path) =>
-                    server.requests.some(
-                        (req) =>
-                            req.path.split('?')[0] === path &&
-                            req.status === 200,
-                    ),
+        const from = server.requests.length
+        const expectedPaths = [
+            '/__mock/fx/currencies/eur.min.json',
+            '/__mock/fx/currencies/usd.min.json',
+            ...Object.keys(MOCK_METAL_PRICES).map(
+                (symbol) => `/__mock/metals/price/${symbol}/EUR`,
+            ),
+        ]
+        const rates = await fetchUncachedNativeRates().catch(async (error) => {
+            await assertNoUnexpectedPyodideErrors()
+            throw error
+        })
+        const requests = server.requests.slice(from)
+        const missingPaths = expectedPaths.filter(
+            (path) =>
+                !requests.some(
+                    (req) =>
+                        req.path.split('?')[0] === path && req.status === 200,
                 ),
-            {
-                timeout: 30_000,
-                timeoutMsg:
-                    'Expected EUR matrix and all four metal prices via CapacitorHttp',
-            },
         )
+        expect(missingPaths).toEqual([])
+        expect(rates).toEqual({
+            eurToUsd: '1.08',
+            usdToEur: '0.925926',
+            metals: Object.fromEntries(
+                Object.entries(MOCK_METAL_PRICES).map(([symbol, price]) => [
+                    symbol,
+                    String(price),
+                ]),
+            ),
+        })
         await assertNoUnexpectedPyodideErrors()
     })
 
@@ -196,7 +217,10 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
         await setInputValue('#password', 'WrongPassword999!')
         await clickButtonByText('Submit')
 
-        await waitForDisplayedText('Invalid credentials for MyInvestor', 25_000)
+        await waitForDisplayedText(
+            'Invalid credentials for MyInvestor',
+            25_000,
+        )
         await assertNoUnexpectedPyodideErrors()
 
         await setInputValue('#user', MOCK_MYINVESTOR_USER)
@@ -231,7 +255,10 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
             45_000,
         )
         refetchAllowedAt = Date.now() + FETCH_COOLDOWN_MS
-        await closeFeatureSelectorIfOpen()
+        await $(FEATURES_MODAL).waitForDisplayed({
+            reverse: true,
+            timeout: 30_000,
+        })
 
         await assertNoUnexpectedPyodideErrors()
 
@@ -262,7 +289,9 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
         await waitForDisplayedText(MOCK_CASH_INTEREST_CONCEPT)
 
         await clickBottomNav('My Money')
-        await $(HEADING_XPATH('My Money')).waitForDisplayed({ timeout: 15_000 })
+        await $(HEADING_XPATH('My Money')).waitForDisplayed({
+            timeout: 15_000,
+        })
         const budgetCard = $('//h3[normalize-space(.)="Budget"]')
         await budgetCard.waitForDisplayed({ timeout: 15_000 })
         await budgetCard.scrollIntoView({ block: 'center' })
@@ -300,16 +329,23 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
                 'Failed to fetch data from MyInvestor',
                 30_000,
             )
+            const cancel = $(
+                `${FEATURES_MODAL}//button[normalize-space(.)="Cancel"]`,
+            )
+            await cancel.waitForClickable({ timeout: 15_000 })
+            await cancel.click()
             expect(
                 server.requests.some(
                     (req) =>
                         req.target === 'myinvestor-api' && req.status === 503,
                 ),
             ).toBe(true)
+            await assertNoUnexpectedPyodideErrors([
+                /(?:^|\n)httpx\.HTTPStatusError: Server error '503 [^']+' for url 'https:\/\/api\.myinvestor\.es\/[^'\n]+'(?:\nFor more information check: [^\n]+)?\s*$/,
+                /myinvestor_client:\d+ \| Error Response Body:\{"status":\{(?=[^}\n]*"code":"UPSTREAM_UNAVAILABLE")(?=[^}\n]*"message":"Simulated upstream failure")[^}\n]+\}\}$/,
+            ])
         } finally {
             server.setFailEntityFetch(false)
-            await drainPyodideWorkerErrors()
-            await closeFeatureSelectorIfOpen()
         }
 
         await clickBottomNav('Transactions')

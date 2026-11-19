@@ -702,7 +702,9 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
         sendJson(404, { error: `Unhandled mock path: ${pathname}` })
     })
 
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+    )
     const port = (server.address() as AddressInfo).port
 
     return {
@@ -730,6 +732,7 @@ export async function installEntityAndRatesMocks(
             __e2eMockOrigin?: string
             __e2eEntityMocksInstalled?: boolean
             __e2ePyodideWorkerErrors?: string[]
+            __e2eMainWorker?: Worker
             Capacitor?: {
                 nativePromise?: (
                     pluginName: string,
@@ -746,7 +749,9 @@ export async function installEntityAndRatesMocks(
                 >
             }
             TlsHttp?: {
-                request?: (options: Record<string, unknown>) => Promise<unknown>
+                request?: (
+                    options: Record<string, unknown>,
+                ) => Promise<unknown>
             }
             jsBridge?: {
                 yahooFinance?: {
@@ -781,22 +786,59 @@ export async function installEntityAndRatesMocks(
         }
         win.__e2eEntityMocksInstalled = true
 
+        const postMessage = Worker.prototype.postMessage
+        Worker.prototype.postMessage = function (
+            this: Worker,
+            message: unknown,
+            options?: StructuredSerializeOptions | Transferable[],
+        ) {
+            const request = message as {
+                action?: string
+                payload?: { modulePath?: string; args?: unknown[] }
+            } | null
+            if (
+                request?.action === 'callPythonFunction' &&
+                request.payload?.modulePath === 'controller' &&
+                request.payload.args?.[1] === '/api/v1/entities'
+            ) {
+                win.__e2eMainWorker = this
+            }
+            if (Array.isArray(options)) {
+                return Reflect.apply(postMessage, this, [message, options])
+            }
+            return postMessage.call(this, message, options)
+        }
+
         const origDebug = console.debug.bind(console)
         const origError = console.error.bind(console)
+        let errorRecord: number | undefined
         const recordWorkerOutput = (prefix: unknown, body: unknown) => {
             const p = String(prefix ?? '')
             const text = String(body ?? '')
+            const errors = win.__e2ePyodideWorkerErrors!
             if (p.includes('[Pyodide worker stderr]') && text.trim()) {
-                win.__e2ePyodideWorkerErrors!.push(text)
+                errors.push(text)
                 return
             }
+            if (!p.includes('[Pyodide worker stdout]')) return
+
+            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \|/.test(text)) {
+                errorRecord = undefined
+                if (!text.includes('| ERROR |')) return
+            }
             if (
-                p.includes('[Pyodide worker stdout]') &&
-                /(\|\s*ERROR\s*\||Traceback \(most recent call last\)|cannot convert float NaN to integer)/.test(
+                errorRecord !== undefined &&
+                errors[errorRecord] !== undefined
+            ) {
+                errors[errorRecord] = `${errors[errorRecord]}\n${text}`.slice(
+                    -8192,
+                )
+            } else if (
+                /\|\s*ERROR\s*\||Traceback \(most recent call last\)|cannot convert float NaN to integer/.test(
                     text,
                 )
             ) {
-                win.__e2ePyodideWorkerErrors!.push(text)
+                errorRecord = errors.push(text) - 1
             }
         }
 
@@ -973,7 +1015,9 @@ export async function installEntityAndRatesMocks(
                     const iso = dt.toISOString().slice(0, 10)
                     points.push({
                         date: iso,
-                        price: Number((basePrice + (60 - d) * 0.25).toFixed(2)),
+                        price: Number(
+                            (basePrice + (60 - d) * 0.25).toFixed(2),
+                        ),
                     })
                 }
                 return JSON.stringify({
@@ -1007,7 +1051,9 @@ export async function installEntityAndRatesMocks(
                     query.includes('037833') ||
                     query.toUpperCase().includes('AAPL')
                 return JSON.stringify({
-                    name: isUsd ? 'Apple USD E2E' : 'Vanguard Global Stock E2E',
+                    name: isUsd
+                        ? 'Apple USD E2E'
+                        : 'Vanguard Global Stock E2E',
                     currency: isUsd ? 'USD' : 'EUR',
                     symbol: isUsd ? 'AAPL' : '0P00000RQC.F',
                     price: isUsd ? 216.0 : 120.5,
@@ -1016,9 +1062,80 @@ export async function installEntityAndRatesMocks(
             }
             win.jsBridge.yahooFinance.getHistory = async (query: string) =>
                 buildHistory(query)
-            win.jsBridge.yahooFinance.getSplits = async () => JSON.stringify([])
+            win.jsBridge.yahooFinance.getSplits = async () =>
+                JSON.stringify([])
         }
     }, mockOrigin)
+}
+
+export async function fetchUncachedNativeRates(): Promise<{
+    eurToUsd: string
+    usdToEur: string
+    metals: Record<string, string | null>
+}> {
+    const code = `
+import json
+from domain.commodity import COMMODITY_SYMBOLS
+from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
+from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
+
+async def _e2e_fetch_native_rates():
+    matrix = await ExchangeRateClient().get_matrix(cache_read=False, cache_write=False)
+    metal_client = MetalPriceClient()
+    metals = {}
+    for commodity, symbol in COMMODITY_SYMBOLS.items():
+        quote = await metal_client.get_price(commodity)
+        metals[symbol.upper()] = str(quote.price) if quote is not None else None
+    return json.dumps({
+        "eurToUsd": str(matrix["EUR"]["USD"]),
+        "usdToEur": str(matrix["USD"]["EUR"]),
+        "metals": metals,
+    })
+
+await _e2e_fetch_native_rates()
+`
+
+    // Exercise the real providers in the existing worker without depending on startup caches.
+    type Reply = { result: string } | { error: string }
+    await browser.setTimeout({ script: 30_000 })
+    const reply = await browser.executeAsync<Reply, [string]>((code, done) => {
+        const { __e2eMainWorker: worker } = window as Window & {
+            __e2eMainWorker?: Worker
+        }
+        if (!worker) {
+            done({ error: 'Main Pyodide worker was not observed' })
+            return
+        }
+
+        const id = -9201
+        const onMessage = ({ data }: MessageEvent) => {
+            if (data?.kind !== 'res' || data.id !== id) return
+            window.clearTimeout(timeout)
+            worker.removeEventListener('message', onMessage)
+            done(
+                data.ok && typeof data.result === 'string'
+                    ? { result: data.result }
+                    : {
+                          error:
+                              data.error?.message ??
+                              'Invalid rates worker response',
+                      },
+            )
+        }
+        const timeout = window.setTimeout(() => {
+            worker.removeEventListener('message', onMessage)
+            done({ error: 'Timed out calling the native rates providers' })
+        }, 25_000)
+        worker.addEventListener('message', onMessage)
+        worker.postMessage({
+            kind: 'req',
+            id,
+            action: 'runPythonAsync',
+            payload: { code },
+        })
+    }, code)
+    if ('error' in reply) throw new Error(reply.error)
+    return JSON.parse(reply.result)
 }
 
 export async function drainPyodideWorkerErrors(): Promise<string[]> {
