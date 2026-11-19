@@ -5,6 +5,7 @@ import {
     MOCK_CASH_INTEREST_CONCEPT,
     MOCK_CONTRIBUTION_ALIAS,
     MOCK_FUND_NAME,
+    MOCK_METAL_PRICES,
     MOCK_MYINVESTOR_OTP,
     MOCK_MYINVESTOR_PASSWORD,
     MOCK_MYINVESTOR_USER,
@@ -20,12 +21,15 @@ import {
     TEXT_XPATH,
     blurActiveElement,
     openMoreMenuPage,
-    selectTab,
     setInputValue,
     submitLoginForm,
-    waitForText,
 } from '../helpers/ui.js'
 import { switchToWebView } from '../helpers/webview.js'
+
+const MYINVESTOR_CARD_TITLE = '//h3[.//span[normalize-space(.)="MyInvestor"]]'
+const FEATURES_MODAL =
+    '//h3[normalize-space(.)="Select features to fetch from MyInvestor"]/../..'
+const FETCH_COOLDOWN_MS = 60_000
 
 async function expandBottomNav(): Promise<void> {
     const collapsed = $(
@@ -79,7 +83,7 @@ async function signInWithEntityMocks(serverPort: number): Promise<void> {
 }
 
 async function openMyInvestorCard(): Promise<void> {
-    const cardTitle = $(`//h3[normalize-space()="MyInvestor"]`)
+    const cardTitle = $(MYINVESTOR_CARD_TITLE)
     await cardTitle.waitForDisplayed({ timeout: 20_000 })
     await cardTitle.scrollIntoView({ block: 'center' })
     await cardTitle.click()
@@ -87,30 +91,25 @@ async function openMyInvestorCard(): Promise<void> {
 
 async function triggerMyInvestorFetch(): Promise<void> {
     const fetchOnCard = $(
-        `(//h3[normalize-space()="MyInvestor"]/ancestor::div[.//button[normalize-space()="Fetch"]][1]//button[normalize-space()="Fetch"])[1]`,
+        `${MYINVESTOR_CARD_TITLE}/../..//button[normalize-space(.)="Fetch"]`,
     )
-    if (await fetchOnCard.isDisplayed().catch(() => false)) {
-        await fetchOnCard.scrollIntoView({ block: 'center' })
-        await fetchOnCard.click()
-    } else {
-        await openMyInvestorCard()
-    }
-
-    await waitForText('Select features to fetch from MyInvestor', 15_000)
+    await fetchOnCard.waitForDisplayed({ timeout: 20_000 })
+    await fetchOnCard.scrollIntoView({ block: 'center' })
+    await fetchOnCard.click()
 
     const modalFetch = $(
-        `(//div[contains(concat(" ", @class, " "), " fixed ")]//button[normalize-space()="Fetch"])[last()]`,
+        `${FEATURES_MODAL}//button[normalize-space(.)="Fetch"]`,
     )
-    await modalFetch.waitForEnabled({ timeout: 10_000 })
+    await modalFetch.waitForClickable({ timeout: 15_000 })
     await modalFetch.click()
 }
 
 async function closeFeatureSelectorIfOpen(): Promise<void> {
     const cancelBtn = $(
-        `(//div[contains(concat(" ", @class, " "), " fixed ")][.//*[contains(normalize-space(), "Select features to fetch")]]//button[normalize-space()="Cancel"])[last()]`,
+        `${FEATURES_MODAL}//button[normalize-space(.)="Cancel"]`,
     )
-    if (await cancelBtn.isDisplayed().catch(() => false)) {
-        await cancelBtn.click().catch(() => {})
+    if (await cancelBtn.isDisplayed()) {
+        await cancelBtn.click()
     }
 }
 
@@ -135,6 +134,7 @@ async function waitForDisplayedText(
 
 describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () => {
     let server: EntityAndRatesMockServer
+    let refetchAllowedAt: number | undefined
 
     before(async () => {
         server = await startEntityAndRatesMockServer()
@@ -145,16 +145,37 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
         await server?.close()
     })
 
+    afterEach(function () {
+        if (this.currentTest?.state === 'failed') {
+            const responses = server.requests
+                .slice(-12)
+                .map(
+                    ({ method, path, status }) =>
+                        `${method} ${path} -> ${status}`,
+                )
+            console.error(`Recent mock responses:\n${responses.join('\n')}`)
+        }
+    })
+
     it('loads FX exchange-rate float matrices through CapacitorHttp without worker errors', async () => {
         await browser.waitUntil(
-            async () =>
-                server.requests.some((req) =>
-                    req.path.includes('/currencies/eur.min.json'),
+            () =>
+                [
+                    '/__mock/fx/currencies/eur.min.json',
+                    ...Object.keys(MOCK_METAL_PRICES).map(
+                        (symbol) => `/__mock/metals/price/${symbol}/EUR`,
+                    ),
+                ].every((path) =>
+                    server.requests.some(
+                        (req) =>
+                            req.path.split('?')[0] === path &&
+                            req.status === 200,
+                    ),
                 ),
             {
                 timeout: 30_000,
                 timeoutMsg:
-                    'Expected GetExchangeRatesImpl to fetch /currencies/eur.min.json via CapacitorHttp',
+                    'Expected EUR matrix and all four metal prices via CapacitorHttp',
             },
         )
         await assertNoUnexpectedPyodideErrors()
@@ -168,16 +189,14 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
 
         await openMyInvestorCard()
         await $(
-            '//*[contains(normalize-space(), "Enter credentials for")]',
+            '//h3[.//span[normalize-space(.)="Enter credentials for MyInvestor"]]',
         ).waitForDisplayed({ timeout: 10_000 })
 
         await setInputValue('#user', MOCK_MYINVESTOR_USER)
         await setInputValue('#password', 'WrongPassword999!')
         await clickButtonByText('Submit')
 
-        await $(
-            '//*[contains(normalize-space(), "Invalid credentials")]',
-        ).waitForDisplayed({ timeout: 25_000 })
+        await waitForDisplayedText('Invalid credentials for MyInvestor', 25_000)
         await assertNoUnexpectedPyodideErrors()
 
         await setInputValue('#user', MOCK_MYINVESTOR_USER)
@@ -185,7 +204,7 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
         await clickButtonByText('Submit')
 
         await $(
-            '//*[contains(normalize-space(), "code for MyInvestor")]',
+            '//h3[normalize-space(.)="Enter 6-digit code for MyInvestor"]',
         ).waitForDisplayed({ timeout: 25_000 })
 
         for (const digit of MOCK_MYINVESTOR_OTP) {
@@ -211,20 +230,25 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
             'Data successfully fetched from MyInvestor',
             45_000,
         )
+        refetchAllowedAt = Date.now() + FETCH_COOLDOWN_MS
         await closeFeatureSelectorIfOpen()
 
         await assertNoUnexpectedPyodideErrors()
 
         expect(
-            server.requests.some((r) =>
-                r.path.includes(
-                    '/cperf-server/api/v2/securities-accounts/sec-e2e-001/orders',
-                ),
+            server.requests.some(
+                (r) =>
+                    r.status === 200 &&
+                    r.path.includes(
+                        '/cperf-server/api/v2/securities-accounts/sec-e2e-001/orders',
+                    ),
             ),
         ).toBe(true)
         expect(
-            server.requests.some((r) =>
-                r.path.includes('/broker/v2/stock-orders'),
+            server.requests.some(
+                (r) =>
+                    r.status === 200 &&
+                    r.path.includes('/broker/v2/stock-orders'),
             ),
         ).toBe(true)
 
@@ -239,21 +263,31 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
 
         await clickBottomNav('My Money')
         await $(HEADING_XPATH('My Money')).waitForDisplayed({ timeout: 15_000 })
-        const budgetCard = $('//*[normalize-space(text())="Budget"]')
-        await budgetCard.waitForDisplayed({ timeout: 10_000 })
+        const budgetCard = $('//h3[normalize-space(.)="Budget"]')
+        await budgetCard.waitForDisplayed({ timeout: 15_000 })
+        await budgetCard.scrollIntoView({ block: 'center' })
         await budgetCard.click()
-        await $(HEADING_XPATH('Budget')).waitForDisplayed({ timeout: 15_000 })
-        const invTab = $(
-            '//*[@role="tab"][starts-with(normalize-space(), "Investments")]',
-        )
-        await invTab.waitForClickable({ timeout: 10_000 })
-        await invTab.click()
+        const contributions = $('[data-testid="recurring-kpi-investments"]')
+        await contributions.waitForClickable({ timeout: 15_000 })
+        await contributions.click()
         await waitForDisplayedText(MOCK_CONTRIBUTION_ALIAS)
 
         await assertNoUnexpectedPyodideErrors()
     })
 
     it('surfaces upstream HTTP 503 failure cleanly on re-fetch without losing persisted SQLCipher data (KO)', async () => {
+        const cooldownEndsAt = refetchAllowedAt
+        if (cooldownEndsAt === undefined) {
+            throw new Error(
+                'The initial MyInvestor fetch must succeed before testing a re-fetch',
+            )
+        }
+        await browser.waitUntil(() => Date.now() >= cooldownEndsAt, {
+            timeout: FETCH_COOLDOWN_MS + 5_000,
+            interval: 500,
+            timeoutMsg: 'MyInvestor re-fetch cooldown did not elapse',
+        })
+
         server.setFailEntityFetch(true)
         try {
             await clickBottomNav('Integrations')
@@ -262,13 +296,20 @@ describe('Entity fetch, native HTTP/SQLite bridges, and background worker', () =
             })
 
             await triggerMyInvestorFetch()
-            await $(
-                '//*[contains(normalize-space(), "Failed to fetch data") or contains(normalize-space(), "Something went wrong") or contains(normalize-space(), "Unexpected error")]',
-            ).waitForDisplayed({ timeout: 30_000 })
-            await closeFeatureSelectorIfOpen()
+            await waitForDisplayedText(
+                'Failed to fetch data from MyInvestor',
+                30_000,
+            )
+            expect(
+                server.requests.some(
+                    (req) =>
+                        req.target === 'myinvestor-api' && req.status === 503,
+                ),
+            ).toBe(true)
         } finally {
             server.setFailEntityFetch(false)
             await drainPyodideWorkerErrors()
+            await closeFeatureSelectorIfOpen()
         }
 
         await clickBottomNav('Transactions')

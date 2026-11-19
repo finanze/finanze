@@ -20,11 +20,18 @@ const SIGNATURE_ID = 'SIG987654'
 const CASH_ACCOUNT_ID = '326832'
 const SEC_ACCOUNT_ID = 'sec-e2e-001'
 const CARD_ID = 'card-e2e-8899'
+export const MOCK_METAL_PRICES: Readonly<Record<string, number>> = {
+    XAU: 2435.75,
+    XAG: 32.48,
+    XPT: 945.36,
+    XPD: 1028.59,
+}
 
 export interface RecordedMockRequest {
     method: string
     path: string
     target: string
+    status: number
 }
 
 export interface EntityAndRatesMockServer {
@@ -213,7 +220,7 @@ function buildStockOrdersStressList() {
 
 export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMockServer> {
     const requests: RecordedMockRequest[] = []
-    let otpValidated = false
+    let verifiedDeviceId: string | undefined
     let failEntityFetch = false
 
     const server: Server = createServer(async (request, response) => {
@@ -233,11 +240,14 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
 
         const parsed = new URL(request.url ?? '/', 'http://127.0.0.1')
         const pathname = parsed.pathname
-        requests.push({
-            method: request.method ?? 'GET',
-            path: pathname + parsed.search,
-            target: pathname.split('/')[2] ?? 'unknown',
-        })
+        response.once('finish', () =>
+            requests.push({
+                method: request.method ?? 'GET',
+                path: pathname + parsed.search,
+                target: pathname.split('/')[2] ?? 'unknown',
+                status: response.statusCode,
+            }),
+        )
 
         if (pathname === '/__mock/features/keys') {
             return sendJson(200, { version: 1, algo: 1, entries: {} })
@@ -265,6 +275,17 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
             return sendJson(404, { error: 'fx route not found' })
         }
 
+        if (pathname.startsWith('/__mock/metals/')) {
+            const symbol =
+                /^\/__mock\/metals\/price\/(XAU|XAG|XPT|XPD)\/EUR$/.exec(
+                    pathname,
+                )?.[1]
+            if (symbol) {
+                return sendJson(200, { price: MOCK_METAL_PRICES[symbol] })
+            }
+            return sendJson(404, { error: 'metal price route not found' })
+        }
+
         if (pathname.startsWith('/__mock/ft')) {
             const partial = parsed.searchParams.get('partial') ?? ''
             return sendJson(200, {
@@ -286,6 +307,7 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
 
         if (pathname.startsWith('/__mock/myinvestor-api')) {
             const apiPath = pathname.replace('/__mock/myinvestor-api', '')
+            const deviceId = request.headers['x-device-id']
 
             if (
                 request.method === 'POST' &&
@@ -296,7 +318,6 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
                     body.customerId !== MOCK_MYINVESTOR_USER ||
                     body.password !== MOCK_MYINVESTOR_PASSWORD
                 ) {
-                    otpValidated = false
                     return sendJson(400, {
                         status: {
                             code: 'INVALID_CREDENTIALS',
@@ -305,7 +326,7 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
                     })
                 }
 
-                if (!otpValidated) {
+                if (!verifiedDeviceId || deviceId !== verifiedDeviceId) {
                     return sendJson(202, {
                         payload: {
                             data: {
@@ -317,7 +338,6 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
                     })
                 }
 
-                otpValidated = false
                 return sendJson(200, {
                     payload: {
                         data: {
@@ -358,7 +378,10 @@ export async function startEntityAndRatesMockServer(): Promise<EntityAndRatesMoc
                         status: { code: 'INVALID_OTP', message: 'Bad OTP' },
                     })
                 }
-                otpValidated = true
+                if (typeof deviceId !== 'string' || !deviceId) {
+                    return sendJson(400, { error: 'Missing x-device-id' })
+                }
+                verifiedDeviceId = deviceId
                 return sendJson(200, {
                     payload: {
                         data: {
@@ -830,6 +853,7 @@ export async function installEntityAndRatesMocks(
                     'https://latest.currency-api.pages.dev/v1',
                     `${base}/__mock/fx`,
                 ],
+                ['https://api.gold-api.com', `${base}/__mock/metals`],
                 ['https://www.ft.com', `${base}/__mock/ft`],
             ]
 
