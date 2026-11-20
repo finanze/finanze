@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { getReleaseUpdateInfo, ReleaseUpdateInfo } from "@/utils/releaseUtils"
+import { isStableVersion } from "@/utils/buildVersion"
 
 export interface ReleaseUpdateState {
   isChecking: boolean
@@ -41,7 +42,11 @@ export function useReleaseUpdate(options: UseReleaseUpdateOptions = {}) {
     setState(prev => ({ ...prev, isChecking: true, error: null }))
 
     try {
-      if (typeof window !== "undefined" && window.ipcAPI?.checkForUpdates) {
+      if (
+        isStableVersion(__APP_VERSION__) &&
+        typeof window !== "undefined" &&
+        window.ipcAPI?.checkForUpdates
+      ) {
         void window.ipcAPI.checkForUpdates()
       }
 

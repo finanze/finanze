@@ -12,7 +12,6 @@ import {
   FullBackupsInfo,
   FullBackupInfo,
   SyncStatus,
-  formatBackupAppVersion,
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { useI18n } from "@/i18n"
@@ -29,26 +28,6 @@ function getErrorCode(error: unknown): string | null {
     typeof (error as { code: unknown }).code === "string"
   ) {
     return (error as { code: string }).code
-  }
-  return null
-}
-
-function getMinAppVersion(error: unknown): string | null {
-  if (
-    error &&
-    typeof error === "object" &&
-    "details" in error &&
-    error.details &&
-    typeof error.details === "object" &&
-    "min_app_version" in error.details
-  ) {
-    const raw = (error.details as { min_app_version?: unknown }).min_app_version
-    if (typeof raw === "string" && raw.trim().length > 0) {
-      return raw.trim()
-    }
-    if (typeof raw === "number") {
-      return formatBackupAppVersion(raw)
-    }
   }
   return null
 }
@@ -600,35 +579,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
           .map(([type]) => type as BackupFileType) as BackupFileType[])
       : ([] as BackupFileType[])
 
-  const highestOutdatedVersion =
-    backups && isOutdatedApp
-      ? outdatedAppTypes.reduce<number | null>((max, type) => {
-          const remoteVersion = backups.pieces[type]?.remote?.version
-          if (
-            typeof remoteVersion === "number" &&
-            Number.isFinite(remoteVersion) &&
-            remoteVersion >= 0
-          ) {
-            return max === null || remoteVersion > max ? remoteVersion : max
-          }
-          return max
-        }, null)
-      : null
-
-  const requiredBackupVersion = formatBackupAppVersion(highestOutdatedVersion)
-
-  const getUnsupportedVersionMessage = useCallback(
-    (error: unknown): string => {
-      const minVer = getMinAppVersion(error)
-      return minVer
-        ? t.settings.backup.unsupportedVersionError.replace("{version}", minVer)
-        : t.settings.backup.unsupportedVersionGeneric
-    },
-    [
-      t.settings.backup.unsupportedVersionError,
-      t.settings.backup.unsupportedVersionGeneric,
-    ],
-  )
+  const unsupportedVersionMessage = t.settings.backup.unsupportedVersionGeneric
 
   useEffect(() => {
     isConflictRef.current = isConflict
@@ -697,7 +648,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
         errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
       ) {
-        const msg = getUnsupportedVersionMessage(error)
+        const msg = unsupportedVersionMessage
         await fetchBackups(false)
         setStatusMessage(msg)
       } else {
@@ -784,7 +735,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
         errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
       ) {
-        const msg = getUnsupportedVersionMessage(error)
+        const msg = unsupportedVersionMessage
         await fetchBackups(false)
         setStatusMessage(msg)
       } else {
@@ -884,7 +835,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
         errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
       ) {
-        const msg = getUnsupportedVersionMessage(error)
+        const msg = unsupportedVersionMessage
         await fetchBackups(false)
         setStatusMessage(msg)
       } else {
@@ -923,7 +874,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     fetchBackups,
     fetchEntities,
     fetchSettings,
-    getUnsupportedVersionMessage,
+    unsupportedVersionMessage,
     refreshData,
     refreshRealEstate,
     refreshFlows,
@@ -1043,7 +994,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
         errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
       ) {
-        const msg = getUnsupportedVersionMessage(error)
+        const msg = unsupportedVersionMessage
         globalAutoSyncInFlight = false
         await fetchBackups(false)
         setStatusMessage(msg)
@@ -1079,7 +1030,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     fetchBackups,
     fetchEntities,
     fetchSettings,
-    getUnsupportedVersionMessage,
+    unsupportedVersionMessage,
     refreshData,
     refreshRealEstate,
     refreshFlows,
@@ -1278,7 +1229,6 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     isOutdatedApp,
     outdatedAppTypes,
     outdatedAppUploadTypes,
-    requiredBackupVersion,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,

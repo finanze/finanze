@@ -59,6 +59,11 @@ parser.add_argument(
     action="store_true",
     help="Replace existing build output without confirmation",
 )
+parser.add_argument(
+    "--no-publish",
+    action="store_true",
+    help="Do not publish Electron packages from the build command",
+)
 args = parser.parse_args()
 
 # --- Backend Packaging ---
@@ -126,6 +131,9 @@ if args.target in ["frontend", "full"]:
                 eb_cmd += f" --{args.arch}"
         eb_cmd += " --config.mac.identity=null --config.mac.notarize=false"
         pnpm_dist_cmd = eb_cmd
+
+    if args.no_publish:
+        pnpm_dist_cmd += " --publish never"
 
     logger.info(f"Running: {pnpm_dist_cmd}")
     if "VITE_SUPABASE_URL" in env:

@@ -196,10 +196,10 @@ def handle_backup_transfer_failed(e):
 
 def handle_unsupported_backup_version(e: UnsupportedBackupVersion):
     details = {}
-    if e.remote_version is not None:
-        details["remote_version"] = e.remote_version
-    if e.min_app_version is not None:
-        details["min_app_version"] = e.min_app_version
+    if e.remote_schema_revision is not None:
+        details["remote_schema_revision"] = e.remote_schema_revision
+    if e.remote_schema_hash is not None:
+        details["remote_schema_hash"] = e.remote_schema_hash
     payload = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
     if details:
         payload["details"] = details

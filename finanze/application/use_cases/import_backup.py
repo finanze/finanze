@@ -23,8 +23,8 @@ from domain.backup import (
     BackupTransferPiece,
     FullBackupInfo,
     SyncStatus,
+    is_remote_schema_incompatible,
     BackupInfoParams,
-    format_backup_app_version,
 )
 from domain.cloud_auth import CloudPermission, CloudUserRole
 from domain.exception.exceptions import (
@@ -83,14 +83,15 @@ class ImportBackupImpl(ImportBackup):
             if piece.type not in request.types:
                 continue
             backupable = self._backupable_ports.get(piece.type)
-            if (
-                backupable is not None
-                and piece.version is not None
-                and piece.version > backupable.get_version()
+            if backupable is not None and is_remote_schema_incompatible(
+                piece.schema_revision,
+                piece.schema_hash,
+                backupable.get_schema_revision(),
+                backupable.get_schema_hash(),
             ):
                 raise UnsupportedBackupVersion(
-                    remote_version=piece.version,
-                    min_app_version=format_backup_app_version(piece.version),
+                    remote_schema_revision=piece.schema_revision,
+                    remote_schema_hash=piece.schema_hash,
                 )
 
         if request.initialize:
@@ -195,13 +196,15 @@ class ImportBackupImpl(ImportBackup):
                     continue
 
                 backupable = self._backupable_ports.get(piece.type)
-                if (
-                    piece.version is not None
-                    and piece.version > backupable.get_version()
+                if is_remote_schema_incompatible(
+                    piece.schema_revision,
+                    piece.schema_hash,
+                    backupable.get_schema_revision(),
+                    backupable.get_schema_hash(),
                 ):
                     raise UnsupportedBackupVersion(
-                        remote_version=piece.version,
-                        min_app_version=format_backup_app_version(piece.version),
+                        remote_schema_revision=piece.schema_revision,
+                        remote_schema_hash=piece.schema_hash,
                     )
 
                 process_request = BackupProcessRequest(
@@ -228,7 +231,8 @@ class ImportBackupImpl(ImportBackup):
                     date=piece.date,
                     type=piece.type,
                     size=piece.size,
-                    version=piece.version,
+                    schema_revision=piece.schema_revision,
+                    schema_hash=piece.schema_hash,
                 )
                 imported_backup_infos.append(backup_info)
 

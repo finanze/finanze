@@ -98,7 +98,6 @@ interface BackupStatusContentProps {
   conflictUploadTypes: BackupFileType[]
   isOutdatedApp?: boolean
   outdatedAppUploadTypes?: BackupFileType[]
-  requiredBackupVersion?: string | null
   hasCredentialsMismatch: boolean
   baseActionsDisabled: boolean
   overallStatus: SyncStatus | null
@@ -131,7 +130,6 @@ export function BackupStatusContent({
   conflictUploadTypes,
   isOutdatedApp = false,
   outdatedAppUploadTypes = [],
-  requiredBackupVersion = null,
   hasCredentialsMismatch,
   baseActionsDisabled,
   overallStatus,
@@ -298,20 +296,10 @@ export function BackupStatusContent({
           {isOutdatedApp && !hasCredentialsMismatch && (
             <div className="flex flex-col gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3">
               <p className="text-sm font-medium text-red-500">
-                {requiredBackupVersion
-                  ? t.settings.backup.outdatedAppTitle.replace(
-                      "{version}",
-                      requiredBackupVersion,
-                    )
-                  : t.settings.backup.outdatedAppTitleGeneric}
+                {t.settings.backup.outdatedAppTitleGeneric}
               </p>
               <p className="text-xs text-muted-foreground">
-                {requiredBackupVersion
-                  ? t.settings.backup.outdatedAppDescription.replace(
-                      "{version}",
-                      requiredBackupVersion,
-                    )
-                  : t.settings.backup.outdatedAppDescriptionGeneric}
+                {t.settings.backup.outdatedAppDescriptionGeneric}
               </p>
               <div className="flex gap-2 mt-1">
                 <Button

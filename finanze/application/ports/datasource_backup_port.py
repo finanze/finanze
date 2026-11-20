@@ -25,5 +25,9 @@ class Backupable(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_version(self) -> int:
+    def get_schema_revision(self) -> int:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_schema_hash(self) -> Optional[str]:
         raise NotImplementedError

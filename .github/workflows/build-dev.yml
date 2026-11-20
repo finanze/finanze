@@ -14,9 +14,28 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+
+  build-metadata:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      metadata: ${{ steps.build.outputs.metadata }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Compute build metadata
+        id: build
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          args=()
+          if [[ -n "$PR_NUMBER" ]]; then args=(--pr "$PR_NUMBER"); fi
+          python3 .github/scripts/build_metadata.py preview "${args[@]}" >> "$GITHUB_OUTPUT"
 
   pr-comment-init:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && ((github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build'))) }}
@@ -88,6 +107,7 @@ jobs:
 
 
   build-app:
+    needs: build-metadata
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     strategy:
@@ -162,85 +182,19 @@ jobs:
           python3 -m venv $HOME/venv
           echo "$HOME/venv/bin" >> $GITHUB_PATH
 
-      - name: Install CD, packaging & runtime deps
+      - name: Install packaging & runtime deps
         shell: bash
         run: |
-          pip install -r requirements-packaging.txt -r requirements.txt -r requirements-cd.txt
+          pip install -r requirements-packaging.txt -r requirements.txt
 
-      - name: Compute Dev Version
-        id: dev_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v bump-my-version &> /dev/null; then
-            echo "bump-my-version not found after installation." >&2
-            exit 1
-          fi
-          git fetch --tags --quiet || true
-          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
-          if [[ $BASE_VERSION =~ ^v ]]; then
-            TAG_BASE="$BASE_VERSION"
-            BASE_NO_V=${BASE_VERSION#v}
-          else
-            TAG_BASE="v$BASE_VERSION"
-            BASE_NO_V="$BASE_VERSION"
-          fi
-          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
-          else
-            COUNT=$(git rev-list HEAD --count)
-          fi
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            DEV_VERSION="${BASE_NO_V}-pr${{ github.event.pull_request.number }}-${SHORT_SHA}"
-          else
-            DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
-          fi
-          echo "Computed dev version: $DEV_VERSION (base: $BASE_NO_V)"
-          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Hack bumpversion config with dev version
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
+      - name: Apply build metadata
         env:
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
+          BUILD_METADATA: ${{ needs.build-metadata.outputs.metadata }}
         shell: bash
-        run: |
-          set -euo pipefail
-          echo "Injecting DEV_VERSION into .bumpversion.toml (hack)"
-          cp .bumpversion.toml .bumpversion.toml.bak
-          python3 - <<'PY'
-          import os, pathlib, re
-          DEV=os.environ['DEV_VERSION']
-          path=pathlib.Path('.bumpversion.toml')
-          text=path.read_text()
-          # Replace all occurrences of {new_version} (with braces) by the actual dev version string
-          new_text=text.replace('{new_version}', DEV)
-          path.write_text(new_text)
-          print('Replaced {new_version} placeholders with', DEV)
-          # Show resulting lines referencing replace patterns
-          for line in new_text.splitlines():
-              if 'replace =' in line:
-                  print('CONFIG:', line)
-          PY
-          echo "Diff preview (first 30 lines):"
-          head -n 30 .bumpversion.toml
-
-      - name: Replace project versions with dev version (ephemeral)
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
-        env:
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Running bump-my-version replace using injected config"
-          bump-my-version replace --allow-dirty || { echo "bump-my-version replace failed" >&2; exit 1; }
-          echo "Replacement complete. Showing updated versions:"
-          grep -E 'version =|"version":' pyproject.toml frontend/app/package.json || true
+        run: python3 .github/scripts/build_metadata.py apply --electron
 
       - name: Package
         env:
-          FINANZE_DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
@@ -259,8 +213,6 @@ jobs:
           APPLE_TEAM_ID: ${{ startsWith(matrix.os, 'macos-') && secrets.APPLE_TEAM_ID || '' }}
         shell: bash
         run: |
-          echo "Using dev version for artifact naming only: $FINANZE_DEV_VERSION"
-          
           # Determine OS and arch parameters
           OS_PARAM=""
           
@@ -279,19 +231,13 @@ jobs:
             SIGNING_PARAM="--no-sign"
           fi
 
-          bash .github/scripts/retry.sh python3 package.py --target full --noconfirm $OS_PARAM $SIGNING_PARAM
-
-      - name: Write Dev Version File
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
-        shell: bash
-        run: |
-          echo "${{ steps.dev_version.outputs.dev_version }}" > DEV_VERSION
+          bash .github/scripts/retry.sh python3 package.py --target full --noconfirm --no-publish $OS_PARAM $SIGNING_PARAM
 
       - name: Upload macOS artifact
         if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
+          name: finanze-${{ needs.build-metadata.outputs.version }}-${{ matrix.os }}
           path: dist/*.dmg
           if-no-files-found: warn
           include-hidden-files: false
@@ -300,7 +246,7 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
+          name: finanze-${{ needs.build-metadata.outputs.version }}-${{ matrix.os }}
           path: dist/*.AppImage
           if-no-files-found: warn
           include-hidden-files: false
@@ -309,7 +255,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
+          name: finanze-${{ needs.build-metadata.outputs.version }}-${{ matrix.os }}
           path: dist/*.exe
           if-no-files-found: warn
           include-hidden-files: false
@@ -319,7 +265,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const version = '${{ steps.dev_version.outputs.dev_version }}';
+            const version = '${{ needs.build-metadata.outputs.version }}';
             const runId = context.runId;
             const prNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
@@ -381,6 +327,7 @@ jobs:
 
 
   build-android:
+    needs: build-metadata
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build'))) }}
 
     runs-on: ubuntu-latest
@@ -415,9 +362,6 @@ jobs:
       - name: Install Python build deps
         run: pip install python-minifier
 
-      - name: Install CD deps
-        run: pip install -r requirements-cd.txt
-
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
@@ -448,74 +392,10 @@ jobs:
         working-directory: frontend/app
         run: pnpm install:pyodide
 
-      - name: Compute Dev Version
-        id: dev_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v bump-my-version &> /dev/null; then
-            echo "bump-my-version not found after installation." >&2
-            exit 1
-          fi
-          git fetch --tags --quiet || true
-          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
-          if [[ $BASE_VERSION =~ ^v ]]; then
-            TAG_BASE="$BASE_VERSION"
-            BASE_NO_V=${BASE_VERSION#v}
-          else
-            TAG_BASE="v$BASE_VERSION"
-            BASE_NO_V="$BASE_VERSION"
-          fi
-          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
-          else
-            COUNT=$(git rev-list HEAD --count)
-          fi
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            DEV_VERSION="${BASE_NO_V}-pr${{ github.event.pull_request.number }}-${SHORT_SHA}"
-          else
-            DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
-          fi
-          echo "Computed dev version: $DEV_VERSION (base: $BASE_NO_V)"
-          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Hack bumpversion config with dev version
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
+      - name: Apply build metadata
         env:
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Injecting DEV_VERSION into .bumpversion.toml (hack)"
-          cp .bumpversion.toml .bumpversion.toml.bak
-          python3 - <<'PY'
-          import os, pathlib, re
-          DEV=os.environ['DEV_VERSION']
-          path=pathlib.Path('.bumpversion.toml')
-          text=path.read_text()
-          new_text=text.replace('{new_version}', DEV)
-          path.write_text(new_text)
-          print('Replaced {new_version} placeholders with', DEV)
-          for line in new_text.splitlines():
-              if 'replace =' in line:
-                  print('CONFIG:', line)
-          PY
-          echo "Diff preview (first 30 lines):"
-          head -n 30 .bumpversion.toml
-
-      - name: Replace project versions with dev version (ephemeral)
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
-        env:
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Running bump-my-version replace using injected config"
-          bump-my-version replace --allow-dirty || { echo "bump-my-version replace failed" >&2; exit 1; }
-          echo "Replacement complete. Showing updated versions:"
-          grep -E 'version =|"version":' pyproject.toml frontend/app/package.json || true
+          BUILD_METADATA: ${{ needs.build-metadata.outputs.metadata }}
+        run: python3 .github/scripts/build_metadata.py apply
 
       - name: Decode keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > frontend/app/android/finanze-release.jks
@@ -573,7 +453,7 @@ jobs:
       - name: Rename outputs
         shell: bash
         run: |
-          VERSION=${{ steps.dev_version.outputs.dev_version }}
+          VERSION=${{ needs.build-metadata.outputs.version }}
           mkdir -p dist-android
           cp frontend/app/android/app/build/outputs/apk/full/release/app-full-release.apk dist-android/Finanze-${VERSION}-android-full.apk
           cp frontend/app/android/app/build/outputs/bundle/fullRelease/app-full-release.aab dist-android/Finanze-${VERSION}-android-full.aab
@@ -583,29 +463,29 @@ jobs:
       - name: Upload Android full APK
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-full-apk
-          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-full.apk
+          name: finanze-${{ needs.build-metadata.outputs.version }}-android-full-apk
+          path: dist-android/Finanze-${{ needs.build-metadata.outputs.version }}-android-full.apk
           if-no-files-found: warn
 
       - name: Upload Android full AAB
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-full-aab
-          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-full.aab
+          name: finanze-${{ needs.build-metadata.outputs.version }}-android-full-aab
+          path: dist-android/Finanze-${{ needs.build-metadata.outputs.version }}-android-full.aab
           if-no-files-found: warn
 
       - name: Upload Android store APK
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-store-apk
-          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.apk
+          name: finanze-${{ needs.build-metadata.outputs.version }}-android-store-apk
+          path: dist-android/Finanze-${{ needs.build-metadata.outputs.version }}-android-store.apk
           if-no-files-found: warn
 
       - name: Upload Android store AAB
         uses: actions/upload-artifact@v7
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-store-aab
-          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.aab
+          name: finanze-${{ needs.build-metadata.outputs.version }}-android-store-aab
+          path: dist-android/Finanze-${{ needs.build-metadata.outputs.version }}-android-store.aab
           if-no-files-found: warn
 
       - name: Update PR comment
@@ -613,7 +493,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const version = '${{ steps.dev_version.outputs.dev_version }}';
+            const version = '${{ needs.build-metadata.outputs.version }}';
             const runId = context.runId;
             const prNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
@@ -677,7 +557,8 @@ jobs:
 
 
   build-docker:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build'))) }}
+    needs: [build-metadata, publish-next]
+    if: ${{ !cancelled() && needs.build-metadata.result == 'success' && (needs.publish-next.result == 'success' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
 
     runs-on: ubuntu-latest
 
@@ -686,40 +567,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Install CD deps
-        shell: bash
-        run: |
-          pip install -r requirements-cd.txt
-
-      - name: Compute Dev Version
-        id: dev_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --tags --quiet || true
-          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
-          if [[ $BASE_VERSION =~ ^v ]]; then
-            TAG_BASE="$BASE_VERSION"
-            BASE_NO_V=${BASE_VERSION#v}
-          else
-            TAG_BASE="v$BASE_VERSION"
-            BASE_NO_V="$BASE_VERSION"
-          fi
-          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
-          else
-            COUNT=$(git rev-list HEAD --count)
-          fi
-            SHORT_SHA=$(git rev-parse --short HEAD)
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            DEV_VERSION="${BASE_NO_V}-pr${{ github.event.pull_request.number }}-${SHORT_SHA}"
-          else
-            DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
-          fi
-          echo "Computed dev version for docker: $DEV_VERSION (base: $BASE_NO_V)"
-          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Determine Docker Tag
         id: docker_tag
@@ -742,43 +589,10 @@ jobs:
           echo "noselenium_tags=$NOSELENIUM_TAGS" >> "$GITHUB_OUTPUT"
           echo "Using Docker tag: $DOCKER_TAG"
 
-      - name: Hack bumpversion config with dev version
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
+      - name: Apply build metadata
         env:
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Injecting DEV_VERSION into .bumpversion.toml (hack)"
-          cp .bumpversion.toml .bumpversion.toml.bak
-          python3 - <<'PY'
-          import os, pathlib, re
-          DEV=os.environ['DEV_VERSION']
-          path=pathlib.Path('.bumpversion.toml')
-          text=path.read_text()
-          # Replace all occurrences of {new_version} (with braces) by the actual dev version string
-          new_text=text.replace('{new_version}', DEV)
-          path.write_text(new_text)
-          print('Replaced {new_version} placeholders with', DEV)
-          # Show resulting lines referencing replace patterns
-          for line in new_text.splitlines():
-              if 'replace =' in line:
-                  print('CONFIG:', line)
-          PY
-          echo "Diff preview (first 30 lines):"
-          head -n 30 .bumpversion.toml
-
-      - name: Replace project versions with dev version (ephemeral)
-        if: ${{ steps.dev_version.outputs.dev_version != '' }}
-        env:
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Running bump-my-version replace using injected config"
-          bump-my-version replace --allow-dirty || { echo "bump-my-version replace failed" >&2; exit 1; }
-          echo "Replacement complete. Showing updated versions:"
-          grep -E 'version =|"version":' pyproject.toml frontend/app/package.json || true
+          BUILD_METADATA: ${{ needs.build-metadata.outputs.metadata }}
+        run: python3 .github/scripts/build_metadata.py apply
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -869,8 +683,9 @@ jobs:
 
   publish-next:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
-    needs: [ build-app, build-android, build-docker ]
+    needs: [build-metadata, build-app, build-android]
     runs-on: ubuntu-latest
+    concurrency: publish-finanze-schema
     permissions:
       contents: write
 
@@ -879,33 +694,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Install CD deps
-        shell: bash
-        run: pip install -r requirements-cd.txt
-
-      - name: Compute Dev Version
-        id: dev_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --tags --quiet || true
-          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
-          if [[ $BASE_VERSION =~ ^v ]]; then
-            BASE_NO_V=${BASE_VERSION#v}
-          else
-            BASE_NO_V="$BASE_VERSION"
-          fi
-          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
-          else
-            COUNT=$(git rev-list HEAD --count)
-          fi
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
-          echo "Computed dev version: $DEV_VERSION"
-          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
@@ -929,6 +717,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 .github/scripts/build_metadata.py verify-next
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -f next "$GITHUB_SHA"
@@ -937,14 +726,14 @@ jobs:
       - name: Create or update next pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
+          DEV_VERSION: ${{ needs.build-metadata.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
           TITLE="Next (develop build $DEV_VERSION)"
           if gh release view next >/dev/null 2>&1; then
             echo "Updating existing 'next' pre-release"
-            gh release edit next --prerelease --latest=false --title "$TITLE" --target develop
+            gh release edit next --prerelease --latest=false --title "$TITLE" --target "$GITHUB_SHA"
             echo "Deleting previous assets"
             for asset in $(gh release view next --json assets --jq '.assets[].name'); do
               echo "Removing $asset"
@@ -955,7 +744,7 @@ jobs:
             gh release create next \
               --prerelease \
               --latest=false \
-              --target develop \
+              --target "$GITHUB_SHA" \
               --title "$TITLE" \
               --notes "Rolling pre-release automatically built from the latest \`develop\` commit. Not intended for production use."
           fi
@@ -967,7 +756,7 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const tag = 'next';
-            const version = '${{ steps.dev_version.outputs.dev_version }}';
+            const version = '${{ needs.build-metadata.outputs.version }}';
 
             const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
             const { data: assets } = await github.rest.repos.listReleaseAssets({
@@ -1017,23 +806,15 @@ jobs:
               }
             }
 
-            const dockerResult = '${{ needs.build-docker.result }}';
-            let dockerSection;
-            if (dockerResult === 'success') {
-              dockerSection = [
-                `| Image | Tag | Pull Command |`,
-                `|-------|-----|-------------|`,
-                `| \`finanze/finanze\` | \`next\` | \`docker pull finanze/finanze:next\` |`,
-                `| \`finanze/finanze\` | \`next-selenium\` | \`docker pull finanze/finanze:next-selenium\` |`,
-                `| \`finanze/finanze-frontend\` | \`next\` | \`docker pull finanze/finanze-frontend:next\` |`,
-              ].join('\n');
-            } else if (dockerResult === 'failure') {
-              dockerSection = `❌ Docker build failed.`;
-            } else if (dockerResult === 'cancelled') {
-              dockerSection = `⚪ Docker build was cancelled.`;
-            } else {
-              dockerSection = `⚠️ Docker build status unknown.`;
-            }
+            const dockerSection = [
+              `Docker images are published after the release assets and may lag behind them.`,
+              ``,
+              `| Image | Tag | Pull Command |`,
+              `|-------|-----|-------------|`,
+              `| \`finanze/finanze\` | \`next\` | \`docker pull finanze/finanze:next\` |`,
+              `| \`finanze/finanze\` | \`next-selenium\` | \`docker pull finanze/finanze:next-selenium\` |`,
+              `| \`finanze/finanze-frontend\` | \`next\` | \`docker pull finanze/finanze-frontend:next\` |`,
+            ].join('\n');
 
             const table = [
               ``,
@@ -1071,3 +852,5 @@ jobs:
               owner, repo, release_id: release.id,
               body: newBody,
             });
+        env:
+          BUILD_METADATA: ${{ needs.build-metadata.outputs.metadata }}

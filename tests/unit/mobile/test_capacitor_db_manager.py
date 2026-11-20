@@ -9,7 +9,10 @@ import pytest
 
 from domain.data_init import DatasourceInitParams, DecryptionError, MigrationAheadOfTime
 from domain.user import User
-from infrastructure.repository.db.version_registry import get_schema_version
+from infrastructure.repository.db.version_registry import (
+    get_schema_hash,
+    get_schema_revision,
+)
 
 
 _MOBILE_ROOT = (
@@ -102,7 +105,8 @@ async def test_other_database_error_is_preserved_and_cleans_up(mobile_db, operat
 
 def test_get_version_matches_schema_version(mobile_db):
     manager, _, _, _ = mobile_db
-    assert manager.get_version() == get_schema_version()
+    assert manager.get_schema_revision() == get_schema_revision()
+    assert manager.get_schema_hash() == get_schema_hash()
 
 
 @pytest.mark.asyncio

@@ -23,6 +23,7 @@ from domain.backup import (
     FullBackupInfo,
     SyncStatus,
     BackupUploadParams,
+    is_remote_schema_incompatible,
     BackupInfoParams,
 )
 from domain.cloud_auth import CloudPermission, CloudUserRole
@@ -99,7 +100,8 @@ class UploadBackupImpl(UploadBackup):
                 date=piece.date,
                 type=piece.type,
                 size=piece.size,
-                version=piece.version,
+                schema_revision=piece.schema_revision,
+                schema_hash=piece.schema_hash,
             )
             backup_infos.append(backup_info)
 
@@ -128,7 +130,8 @@ class UploadBackupImpl(UploadBackup):
         if backupable is None:
             return None
 
-        local_version = backupable.get_version()
+        local_schema_revision = backupable.get_schema_revision()
+        local_schema_hash = backupable.get_schema_hash()
         local_last_update = await backupable.get_last_updated()
         local_backup = local_backup_registry.get(bkg_type)
         remote_backup = remote_backup_info.get(bkg_type)
@@ -136,11 +139,20 @@ class UploadBackupImpl(UploadBackup):
         if (
             remote_backup is not None
             and not force
-            and remote_backup.version is not None
-            and remote_backup.version > local_version
+            and is_remote_schema_incompatible(
+                remote_backup.schema_revision,
+                remote_backup.schema_hash,
+                local_schema_revision,
+                local_schema_hash,
+            )
         ):
             await self._check_remote_conflict(
-                bkg_type, local_backup, remote_backup, force, local_version
+                bkg_type,
+                local_backup,
+                remote_backup,
+                force,
+                local_schema_revision,
+                local_schema_hash,
             )
 
         # Check if we have any changes to upload
@@ -156,13 +168,23 @@ class UploadBackupImpl(UploadBackup):
 
         # CONFLICT: Remote backup changed since our last sync (someone else uploaded)
         await self._check_remote_conflict(
-            bkg_type, local_backup, remote_backup, force, local_version
+            bkg_type,
+            local_backup,
+            remote_backup,
+            force,
+            local_schema_revision,
+            local_schema_hash,
         )
 
         data = await backupable.export()
         local_last_update = await backupable.get_last_updated()
         piece = await self._handle_bkg(
-            hashed_pass, data, local_last_update, bkg_type, local_version
+            hashed_pass,
+            data,
+            local_last_update,
+            bkg_type,
+            local_schema_revision,
+            local_schema_hash,
         )
         if remote_backup:
             local_size = piece.size
@@ -189,24 +211,28 @@ class UploadBackupImpl(UploadBackup):
         local_backup: BackupInfo | None,
         remote_backup: BackupInfo | None,
         force: bool,
-        local_version: Optional[int] = None,
+        local_schema_revision: Optional[int] = None,
+        local_schema_hash: Optional[str] = None,
     ):
         if remote_backup is None or force:
             return
 
-        if (
-            remote_backup.version is not None
-            and local_version is not None
-            and remote_backup.version > local_version
+        if is_remote_schema_incompatible(
+            remote_backup.schema_revision,
+            remote_backup.schema_hash,
+            local_schema_revision,
+            local_schema_hash,
         ):
             self._log.warning(
-                "Conflict detected for %s: remote backup version %s is newer than local version %s",
+                "Conflict detected for %s: remote backup schema (revision=%s, hash=%s) is incompatible with local schema (revision=%s, hash=%s)",
                 bkg_type,
-                remote_backup.version,
-                local_version,
+                remote_backup.schema_revision,
+                remote_backup.schema_hash,
+                local_schema_revision,
+                local_schema_hash,
             )
             raise BackupConflict(
-                f"Conflict detected for {bkg_type.value}: remote backup was created with a newer app version. Use force upload to overwrite."
+                f"Conflict detected for {bkg_type.value}: remote backup has an incompatible schema. Use force upload to overwrite."
             )
 
         # Check if remote backup is different from what we last synced
@@ -256,7 +282,8 @@ class UploadBackupImpl(UploadBackup):
         data: bytes,
         local_last_update: datetime,
         bkg_type: BackupFileType,
-        local_version: Optional[int] = None,
+        local_schema_revision: Optional[int] = None,
+        local_schema_hash: Optional[str] = None,
     ) -> BackupTransferPiece:
         data_backup_request = BackupProcessRequest(
             protocol=CURRENT_PROTOCOL_VERSION,
@@ -272,5 +299,6 @@ class UploadBackupImpl(UploadBackup):
             type=bkg_type,
             payload=compiled.payload,
             size=compiled.size,
-            version=local_version,
+            schema_revision=local_schema_revision,
+            schema_hash=local_schema_hash,
         )

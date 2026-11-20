@@ -4,6 +4,8 @@ export interface GitHubRelease {
   tag_name: string
   name: string
   published_at: string
+  draft?: boolean
+  prerelease?: boolean
   body: string
   assets: GitHubReleaseAsset[]
 }

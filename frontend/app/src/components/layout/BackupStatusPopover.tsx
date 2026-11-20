@@ -54,7 +54,6 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
     conflictUploadTypes,
     isOutdatedApp,
     outdatedAppUploadTypes,
-    requiredBackupVersion,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,
@@ -278,12 +277,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                 <div className="relative space-y-2 pt-1">
                   <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2">
                     <p className="text-xs text-muted-foreground">
-                      {requiredBackupVersion
-                        ? t.settings.backup.outdatedAppDescription.replace(
-                            "{version}",
-                            requiredBackupVersion,
-                          )
-                        : t.settings.backup.outdatedAppDescriptionGeneric}
+                      {t.settings.backup.outdatedAppDescriptionGeneric}
                     </p>
                   </div>
                   <div className="flex gap-2">

@@ -17,6 +17,7 @@ from domain.backup import (
     BackupsInfoRequest,
     BackupsInfo,
     BackupInfoParams,
+    is_remote_schema_incompatible,
 )
 from domain.cloud_auth import (
     CloudAuthData,
@@ -89,7 +90,8 @@ class GetBackupsImpl(GetBackups):
             if backupable is None:
                 continue
 
-            local_version = backupable.get_version()
+            local_schema_revision = backupable.get_schema_revision()
+            local_schema_hash = backupable.get_schema_hash()
 
             if cloud_token:
                 remote_backup = remote_bkg_info.pieces.get(backup_type)
@@ -97,8 +99,12 @@ class GetBackupsImpl(GetBackups):
                     continue
                 status = (
                     SyncStatus.OUTDATED_APP
-                    if remote_backup.version is not None
-                    and remote_backup.version > local_version
+                    if is_remote_schema_incompatible(
+                        remote_backup.schema_revision,
+                        remote_backup.schema_hash,
+                        local_schema_revision,
+                        local_schema_hash,
+                    )
                     else None
                 )
                 full_backup_pieces[backup_type] = FullBackupInfo(
@@ -116,7 +122,11 @@ class GetBackupsImpl(GetBackups):
             remote_backup = remote_bkg_info.pieces.get(backup_type)
 
             status, has_local_changes = self._calculate_sync_status(
-                local_backup, remote_backup, last_update, local_version
+                local_backup,
+                remote_backup,
+                last_update,
+                local_schema_revision,
+                local_schema_hash,
             )
 
             full_backup_pieces[backup_type] = FullBackupInfo(
@@ -172,7 +182,8 @@ class GetBackupsImpl(GetBackups):
         local: BackupInfo | None,
         remote: BackupInfo | None,
         last_update: datetime,
-        local_version: Optional[int] = None,
+        local_schema_revision: Optional[int] = None,
+        local_schema_hash: Optional[str] = None,
     ) -> tuple[SyncStatus, bool]:
         # Sync Status Decision Table:
         # +---------------+---------------+------------------+----------+-------------------------------------------------------------+
@@ -195,11 +206,11 @@ class GetBackupsImpl(GetBackups):
 
         has_local_changes = local is None or last_update > local.date
 
-        if (
-            remote is not None
-            and remote.version is not None
-            and local_version is not None
-            and remote.version > local_version
+        if remote is not None and is_remote_schema_incompatible(
+            remote.schema_revision,
+            remote.schema_hash,
+            local_schema_revision,
+            local_schema_hash,
         ):
             return SyncStatus.OUTDATED_APP, has_local_changes
 

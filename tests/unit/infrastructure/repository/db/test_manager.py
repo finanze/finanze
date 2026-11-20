@@ -13,7 +13,11 @@ from infrastructure.repository.db import manager as manager_module
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.upgrader import DBVersionMigration
-from infrastructure.repository.db.version_registry import get_schema_version, versions
+from infrastructure.repository.db.version_registry import (
+    compute_schema_hash,
+    get_schema_hash,
+    get_schema_revision,
+)
 
 
 class _FailingMigration(DBVersionMigration):
@@ -108,7 +112,13 @@ class TestInitializeMigrationFailureLocksDatabase:
 class TestDBManagerImportPrecheckAndRollback:
     def test_get_version_matches_registry_schema_version(self):
         db_manager = DBManager(DBClient())
-        assert db_manager.get_version() == get_schema_version(versions)
+        assert db_manager.get_schema_revision() == get_schema_revision()
+        assert db_manager.get_schema_hash() == get_schema_hash()
+        assert len(get_schema_hash()) == 43
+        assert compute_schema_hash(["M", "A", "H"]) == compute_schema_hash(
+            ["H", "M", "A"]
+        )
+        assert compute_schema_hash(["M", "A"]) != compute_schema_hash(["M", "H"])
 
     @pytest.mark.asyncio
     async def test_import_ahead_of_time_keeps_existing_db_unlocked_and_intact(
@@ -130,11 +140,13 @@ class TestDBManagerImportPrecheckAndRollback:
         future_payload = _build_sqlite_payload(
             tmp_path,
             "future_backup.db",
-            ["v0 Genesis", "v99.0.0:0_future"],
+            ["unrecognized_migration_at_same_revision"],
             record_values=("future-data",),
         )
 
-        with pytest.raises(MigrationAheadOfTime, match="v99.0.0:0_future"):
+        with pytest.raises(
+            MigrationAheadOfTime, match="unrecognized_migration_at_same_revision"
+        ):
             await db_manager.import_data(future_payload, initialize=False)
 
         assert db_manager.unlocked is True

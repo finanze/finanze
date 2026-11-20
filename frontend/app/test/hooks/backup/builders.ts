@@ -8,13 +8,13 @@ import {
 
 export interface BuildPieceOptions {
   hasLocalChanges?: boolean
-  remoteVersion?: number | null
+  remoteSchemaRevision?: number | null
 }
 
 export function buildPiece(
   status: SyncStatus,
   hasLocalChanges?: boolean,
-  remoteVersion?: number | null,
+  remoteSchemaRevision?: number | null,
 ): FullBackupInfo {
   const now = new Date().toISOString()
   const localId = "local-id-1"
@@ -33,7 +33,9 @@ export function buildPiece(
     date: now,
     type: BackupFileType.DATA,
     size: 100,
-    ...(remoteVersion !== undefined ? { version: remoteVersion } : {}),
+    ...(remoteSchemaRevision !== undefined
+      ? { schema_revision: remoteSchemaRevision }
+      : {}),
   }
 
   const resolveHasLocalChanges = () => {
@@ -79,7 +81,8 @@ export function buildPiece(
         local: localInfo,
         remote: {
           ...remoteInfo,
-          version: remoteVersion !== undefined ? remoteVersion : 130001,
+          schema_revision:
+            remoteSchemaRevision !== undefined ? remoteSchemaRevision : 96,
         },
         status: SyncStatus.OUTDATED_APP,
         has_local_changes: hasLocalChanges ?? false,
@@ -113,7 +116,7 @@ export function buildBackupsInfo(
       [BackupFileType.DATA]: buildPiece(
         dataStatus,
         options?.hasLocalChanges,
-        options?.remoteVersion,
+        options?.remoteSchemaRevision,
       ),
     },
   }

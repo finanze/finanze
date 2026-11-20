@@ -30,7 +30,11 @@ from infrastructure.repository.db.settings_snapshot import (
     restore_settings_rows_if_empty,
 )
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
-from infrastructure.repository.db.version_registry import get_schema_version, versions
+from infrastructure.repository.db.version_registry import (
+    get_schema_hash,
+    get_schema_revision,
+    versions,
+)
 
 DB_NAME = "data.db"
 _T = TypeVar("_T")
@@ -374,8 +378,11 @@ class DBManager(DatasourceInitiator, Backupable):
             row = await cursor.fetchone()
             return datetime.fromisoformat(row["value"])
 
-    def get_version(self) -> int:
-        return get_schema_version(versions)
+    def get_schema_revision(self) -> int:
+        return get_schema_revision()
+
+    def get_schema_hash(self) -> str:
+        return get_schema_hash()
 
     async def get_hashed_password(self) -> Optional[str]:
         if not self._unlocked:
