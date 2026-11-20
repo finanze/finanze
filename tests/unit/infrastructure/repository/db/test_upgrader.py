@@ -12,9 +12,10 @@ from infrastructure.repository.db.upgrader import (
 
 
 class FakeMigration(DBVersionMigration):
-    def __init__(self, migration_name, callback=None):
+    def __init__(self, migration_name, callback=None, updates_last_update=False):
         self._name = migration_name
         self._callback = callback
+        self._updates_last_update = updates_last_update
         self.applied = False
         self.applied_count = 0
 
@@ -27,6 +28,7 @@ class FakeMigration(DBVersionMigration):
         self.applied_count += 1
         if self._callback:
             await self._callback(cursor, context)
+        return self._updates_last_update
 
 
 class FailingMigration(DBVersionMigration):
@@ -370,3 +372,66 @@ class TestMigrationAheadOfTime:
 
         with pytest.raises(MigrationAheadOfTime, match="from_another_branch"):
             await upgrader.upgrade()
+
+
+class TestLastUpdateBehavior:
+    @pytest.mark.asyncio
+    async def test_seeds_last_update_when_missing(self, db):
+        db_client, conn = db
+        upgrader = DatabaseUpgrader(
+            db_client, [FakeMigration("first")], _make_context()
+        )
+
+        await upgrader.upgrade()
+
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row is not None and row[0]
+
+    @pytest.mark.asyncio
+    async def test_preserves_existing_last_update_for_normal_migrations(self, db):
+        db_client, conn = db
+        sentinel = "2026-01-01T10:00:00+00:00"
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', ?)",
+            (sentinel,),
+        )
+        conn.commit()
+        upgrader = DatabaseUpgrader(
+            db_client,
+            [FakeMigration("first"), FakeMigration("second")],
+            _make_context(),
+        )
+
+        await upgrader.upgrade()
+
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row[0] == sentinel
+
+    @pytest.mark.asyncio
+    async def test_updates_last_update_when_migration_returns_true(self, db):
+        db_client, conn = db
+        sentinel = "2026-01-01T10:00:00+00:00"
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', ?)",
+            (sentinel,),
+        )
+        conn.commit()
+        upgrader = DatabaseUpgrader(
+            db_client,
+            [
+                FakeMigration("external_import", updates_last_update=True),
+                FakeMigration("schema_only"),
+            ],
+            _make_context(),
+        )
+
+        await upgrader.upgrade()
+
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row[0] != sentinel

@@ -31,8 +31,9 @@ class V0702ExternalIntegrationsMigration(DBVersionMigration, QueryMixin):
 
         config = await config_port.load_legacy()
         if config is None or "integrations" not in config:
-            return
+            return False
 
+        migrated = False
         integrations_entry = config["integrations"]
         google_sheets_entry = integrations_entry.get("sheets", {}).get(
             "credentials", {}
@@ -47,6 +48,7 @@ class V0702ExternalIntegrationsMigration(DBVersionMigration, QueryMixin):
                 "client_secret": gs_client_secret,
             }
             await self.migrate_active(cursor, "GOOGLE_SHEETS", sheets_payload)
+            migrated = True
         else:
             await self.keep_off(cursor, "GOOGLE_SHEETS")
 
@@ -57,6 +59,7 @@ class V0702ExternalIntegrationsMigration(DBVersionMigration, QueryMixin):
                 "api_key": etherscan_api_key,
             }
             await self.migrate_active(cursor, "ETHERSCAN", etherscan_payload)
+            migrated = True
         else:
             await self.keep_off(cursor, "ETHERSCAN")
 
@@ -71,8 +74,11 @@ class V0702ExternalIntegrationsMigration(DBVersionMigration, QueryMixin):
                 "secret_key": gc_secret_key,
             }
             await self.migrate_active(cursor, "GOCARDLESS", gocardless_payload)
+            migrated = True
         else:
             await self.keep_off(cursor, "GOCARDLESS")
+
+        return migrated
 
     async def migrate_active(
         self, cursor: DBCursor, integration_id: str, payload: dict

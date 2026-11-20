@@ -269,6 +269,9 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         if js is None:
             raise RuntimeError("Pyodide JS bridge is not available")
 
+        async with self._client.tx():
+            pass
+
         await self._client.wal_checkpoint()
         await js.jsBridge.sqlite.exportDatabaseToStaging("EXPORTED_DATA")
         return b""

@@ -177,6 +177,39 @@ class TestLoginUpgrade:
         await manager.lock()
 
     @pytest.mark.asyncio
+    async def test_upgrade_preserves_last_update_without_legacy_config_and_bumps_with_it(
+        self, tmp_path, monkeypatch
+    ):
+        sentinel = "2026-01-01T10:00:00+00:00"
+
+        user_without = _user(tmp_path / "without_config")
+        await _create_legacy_db(
+            monkeypatch,
+            user_without,
+            statements=(
+                f"INSERT OR REPLACE INTO sys_config (key, value) VALUES ('last_update', '{sentinel}')",
+            ),
+        )
+        manager_without, _, _ = await _login(user_without)
+        assert await manager_without.get_last_updated() == datetime.fromisoformat(
+            sentinel
+        )
+        await manager_without.lock()
+
+        user_with = _user(tmp_path / "with_config")
+        await _create_legacy_db(
+            monkeypatch,
+            user_with,
+            statements=(
+                f"INSERT OR REPLACE INTO sys_config (key, value) VALUES ('last_update', '{sentinel}')",
+            ),
+        )
+        (user_with.path / "config.yml").write_text(read_sample("desktop_v8_custom.yml"))
+        manager_with, _, _ = await _login(user_with)
+        assert await manager_with.get_last_updated() > datetime.fromisoformat(sentinel)
+        await manager_with.lock()
+
+    @pytest.mark.asyncio
     async def test_failing_config_port_does_not_block_login(
         self, tmp_path, monkeypatch
     ):

@@ -41,6 +41,8 @@ class V01104Settings(DBVersionMigration, QueryMixin):
 
             raw = await config_port.load_legacy()
             sections, last_update = legacy_to_sections(raw)
+            if not sections:
+                return False
             updated_at = (last_update or datetime.now().astimezone()).isoformat()
             for key, section in sections.items():
                 await cursor.execute(
@@ -48,5 +50,7 @@ class V01104Settings(DBVersionMigration, QueryMixin):
                     (key, serialize_section(section), updated_at),
                 )
             self._log.info("Migrated %d legacy settings sections", len(sections))
+            return True
         except Exception as e:
             self._log.exception(f"Could not migrate legacy settings: {e}")
+            return False
