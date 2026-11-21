@@ -28,7 +28,8 @@ class BackupInfo:
     date: datetime
     type: BackupFileType
     size: int
-    version: Optional[int] = None
+    schema_revision: Optional[int] = None
+    schema_hash: Optional[str] = None
 
 
 @dataclass
@@ -86,7 +87,8 @@ class BackupTransferPiece:
     type: BackupFileType
     payload: bytes
     size: int
-    version: Optional[int] = None
+    schema_revision: Optional[int] = None
+    schema_hash: Optional[str] = None
 
 
 @dataclass
@@ -135,11 +137,21 @@ class BackupSettings:
     mode: BackupMode
 
 
-def format_backup_app_version(version: Optional[int]) -> Optional[str]:
-    if version is None or version < 0:
-        return None
-    app_code = version // 100
-    major = app_code // 10_000
-    minor = (app_code % 10_000) // 100
-    patch = app_code % 100
-    return f"{major}.{minor}.{patch}"
+def is_remote_schema_incompatible(
+    remote_revision: Optional[int],
+    remote_hash: Optional[str],
+    local_revision: Optional[int],
+    local_hash: Optional[str] = None,
+) -> bool:
+    if remote_revision is None or local_revision is None:
+        return False
+    if remote_revision > local_revision:
+        return True
+    if (
+        remote_revision == local_revision
+        and remote_hash is not None
+        and local_hash is not None
+        and remote_hash != local_hash
+    ):
+        return True
+    return False

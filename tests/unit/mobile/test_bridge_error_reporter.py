@@ -164,7 +164,7 @@ class TestBackupExceptionFiltering:
     @pytest.mark.parametrize(
         "exc",
         [
-            UnsupportedBackupVersion(remote_version=130001, min_app_version="0.13.0"),
+            UnsupportedBackupVersion(remote_schema_revision=96),
             MigrationAheadOfTime("v99.0.0:0_future"),
             UnsupportedBackupProtocol(99),
         ],
@@ -211,9 +211,7 @@ class TestMobileHandlerBackupExceptions:
         mobile_router.error_reporter = reporter
 
         async def route(_request):
-            raise UnsupportedBackupVersion(
-                remote_version=130001, min_app_version="0.13.0"
-            )
+            raise UnsupportedBackupVersion(remote_schema_revision=96)
 
         mobile_router.add("POST", "/api/v1/cloud/backup/import", route)
         response = await mobile_router.handle(
@@ -224,8 +222,7 @@ class TestMobileHandlerBackupExceptions:
         body = json.loads(response["json"])
         assert body["code"] == "UNSUPPORTED_BACKUP_VERSION"
         assert body["details"] == {
-            "remote_version": 130001,
-            "min_app_version": "0.13.0",
+            "remote_schema_revision": 96,
         }
         reporter.capture_exception.assert_not_called()
 

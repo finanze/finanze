@@ -361,15 +361,12 @@ class UnsupportedBackupProtocol(Exception):
 class UnsupportedBackupVersion(Exception):
     def __init__(
         self,
-        remote_version: Optional[int] = None,
-        min_app_version: Optional[str] = None,
+        remote_schema_revision: Optional[int] = None,
+        remote_schema_hash: Optional[str] = None,
     ):
-        self.remote_version = remote_version
-        self.min_app_version = min_app_version
-        detail = f" (requires v{min_app_version})" if min_app_version else ""
-        super().__init__(
-            f"Remote backup version is newer than supported by this app{detail}"
-        )
+        self.remote_schema_revision = remote_schema_revision
+        self.remote_schema_hash = remote_schema_hash
+        super().__init__("Remote backup schema is newer than supported by this app")
 
 
 class UnauthorizedToken(Exception):

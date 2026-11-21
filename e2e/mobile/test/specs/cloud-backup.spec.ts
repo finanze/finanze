@@ -347,7 +347,7 @@ describe('Cloud backup and Point 3 DB protection', () => {
 
         const originalBackup = mockServer.getDataPiece()
         expect(originalBackup).not.toBeNull()
-        expect(originalBackup!.version).toBeGreaterThanOrEqual(120005)
+        expect(originalBackup!.schema_revision).toBeGreaterThanOrEqual(95)
 
         const tenMinutesAgoIso = new Date(
             Date.now() - 10 * 60_000,
@@ -405,12 +405,12 @@ describe('Cloud backup and Point 3 DB protection', () => {
 
         const futureVersionPiece = await mockServer.restoreDataPieceAsNewer(
             originalBackup!,
-            { version: 130001 },
+            { schema_revision: originalBackup!.schema_revision! + 1 },
         )
         await openSettingsTab('Cloud')
         await clickButtonByText('Sync now', 20_000)
         await waitForText('Update required', 20_000)
-        await waitForText('Newer backup version (v0.13.0)', 15_000)
+        await waitForText('Newer backup version', 15_000)
         const useRemoteBtn = $('//button[normalize-space()="Use remote"]')
         await useRemoteBtn.waitForDisplayed({ timeout: 5_000 })
         expect(await useRemoteBtn.isEnabled()).toBe(false)
@@ -421,7 +421,7 @@ describe('Cloud backup and Point 3 DB protection', () => {
         const overriddenPiece = mockServer.getDataPiece()
         expect(overriddenPiece).not.toBeNull()
         expect(overriddenPiece!.id).not.toBe(futureVersionPiece.id)
-        expect(overriddenPiece!.version).toBe(originalBackup!.version)
+        expect(overriddenPiece!.schema_revision).toBe(originalBackup!.schema_revision)
     })
 
     it('protects onboarding Restore from Cloud against outdated, wrong-key, and mid-upgrade failing backups, then restores valid backup', async () => {
@@ -439,7 +439,7 @@ describe('Cloud backup and Point 3 DB protection', () => {
         await resetToFreshOnboarding(mockServer.port)
 
         await mockServer.restoreDataPieceAsNewer(agedValidBackup, {
-            version: 130001,
+            schema_revision: agedValidBackup.schema_revision! + 1,
         })
         await clickButtonByText(
             'Have a Cloud account? Restore your data',
@@ -449,7 +449,7 @@ describe('Cloud backup and Point 3 DB protection', () => {
         await setInputValue('input[type="password"]', CLOUD_PASS, 10_000)
         await clickButtonByText('Sign in with Email', 15_000)
         await waitForText(
-            'This backup was created with Finanze v0.13.0. Please update the app to restore it.',
+            'This backup was created with a newer version of Finanze. Please update the app to restore it.',
             20_000,
         )
 

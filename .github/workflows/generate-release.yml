@@ -13,6 +13,7 @@ jobs:
       github.event.pull_request.base.ref == 'main' &&
       startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
+    concurrency: publish-finanze-schema
 
     permissions:
       contents: write
@@ -22,10 +23,10 @@ jobs:
       version_tag: ${{ steps.get_version.outputs.version_tag }}
 
     steps:
-      - name: Checkout main branch
+      - name: Checkout the merged release
         uses: actions/checkout@v7
         with:
-          ref: 'main'
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Setup Python
@@ -74,11 +75,14 @@ jobs:
           RELEASE_NAME: "Release ${{ steps.get_version.outputs.version_tag }}"
           PR_BODY: ${{ github.event.pull_request.body }}
           REPO_FULL_NAME: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
+          test "$TAG" = "v${RELEASE_BRANCH#release/}"
+          python3 .github/scripts/build_metadata.py stable "$TAG"
           echo "Creating GitHub Release for tag: $TAG"
           echo "$PR_BODY" > release_notes.md
           echo -e "\n\n---\n\nView the full [CHANGELOG.md](https://github.com/$REPO_FULL_NAME/blob/$TAG/CHANGELOG.md) for this release." >> release_notes.md
           gh release create "$TAG" \
-            --target "main" \
+            --target "$(git rev-parse HEAD)" \
             --title "$RELEASE_NAME" \
             --notes-file release_notes.md

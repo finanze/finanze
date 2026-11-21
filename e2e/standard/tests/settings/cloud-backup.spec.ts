@@ -198,7 +198,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
 
     const validBackup = cloudServer.getDataPiece();
     expect(validBackup).toBeDefined();
-    expect(validBackup!.version).toBeGreaterThanOrEqual(120005);
+    expect(validBackup!.schema_revision).toBeGreaterThanOrEqual(95);
 
     const twentyMinutesAgo = new Date(Date.now() - 20 * 60_000).toISOString();
     const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
@@ -221,7 +221,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
       "Subscriptions",
     );
 
-    // KO 1a: Point 3a — remote backup has ahead-of-time DB migration (without version header)
+    // KO 1a: Remote backup has an unknown DB migration (without schema metadata)
     await cloudServer.mutateDataPieceWithPython({
       basePayload: validBackup!.payload,
       password: TEST_PASSWORD,
@@ -331,9 +331,9 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
       }),
     ).toHaveCount(0);
 
-    // KO + OK 1d: Remote XYYZZMM version > local reports OUTDATED_APP, disables Use remote, allows Use local override
+    // KO + OK 1d: Remote schema revision > local reports OUTDATED_APP, disables Use remote, allows Use local override
     await cloudServer.restoreDataPieceAsNewer(validBackup!, {
-      version: 130001,
+      schema_revision: validBackup!.schema_revision! + 1,
     });
 
     await openCloudSettings(page);
@@ -345,7 +345,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
       page.getByText("Update required", { exact: true }),
     ).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.getByText("Newer backup version (v0.13.0)"),
+      page.getByText("Newer backup version"),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Use remote" }),
@@ -358,7 +358,7 @@ test.describe("Cloud Backup & Restore — Real SQLCipher Point 3 & Version Flows
     await expect(page.getByText("Synced", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
-    expect(cloudServer.getDataPiece()?.version).toBe(validBackup!.version);
+    expect(cloudServer.getDataPiece()?.schema_revision).toBe(validBackup!.schema_revision);
   });
 
   test("onboarding Cloud Restore cleans up broken DB files, stays LOCKED across Point 3 failures, and restores valid backup", async ({

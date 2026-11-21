@@ -81,7 +81,7 @@ const MOCK_BACKUPS_OUTDATED_APP = {
         date: new Date().toISOString(),
         type: "DATA",
         size: 1024,
-        version: 130001,
+        schema_revision: 96,
       },
       last_update: new Date().toISOString(),
       has_local_changes: false,
@@ -222,8 +222,7 @@ export async function setupCloudMocks(page: Page, options: CloudMockOptions) {
           body: JSON.stringify({
             code: "UNSUPPORTED_BACKUP_VERSION",
             details: {
-              remote_version: 130001,
-              min_app_version: "0.13.0",
+              remote_schema_revision: 96,
             },
           }),
         });

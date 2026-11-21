@@ -94,7 +94,7 @@ test.describe("Cloud Restore - Cloud Login Errors", () => {
 
     await expect(
       page.getByText(
-        "This backup was created with Finanze v0.13.0. Please update the app to restore it.",
+        "This backup was created with a newer version of Finanze. Please update the app to restore it.",
       ),
     ).toBeVisible({ timeout: 10_000 });
 
@@ -188,7 +188,7 @@ test.describe("Cloud Restore - Credentials and Import", () => {
 
     await expect(
       page.getByText(
-        "This backup was created with Finanze v0.13.0. Please update the app to restore it.",
+        "This backup was created with a newer version of Finanze. Please update the app to restore it.",
       ),
     ).toBeVisible({ timeout: 10_000 });
 

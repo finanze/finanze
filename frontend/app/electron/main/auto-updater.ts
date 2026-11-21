@@ -4,6 +4,7 @@ import ElectronUpdater, {
   type UpdateInfo,
 } from "electron-updater"
 import { AppConfig, OS } from "../types"
+import { isStableVersion } from "../../src/utils/buildVersion"
 import { captureException } from "./telemetry"
 
 const { autoUpdater } = ElectronUpdater
@@ -49,7 +50,9 @@ function sendToAllWindows(channel: string, ...args: unknown[]) {
 }
 
 export function setupAutoUpdater(appConfig: AppConfig): void {
-  supportsNativeAutoUpdate = !appConfig.isDev
+  supportsNativeAutoUpdate =
+    !appConfig.isDev && isStableVersion(__APP_VERSION__)
+  if (!supportsNativeAutoUpdate) return
 
   let defaultChannel = "latest"
   if (appConfig.os === OS.MAC && appConfig.arch !== "arm64") {

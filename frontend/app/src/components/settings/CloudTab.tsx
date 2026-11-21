@@ -817,7 +817,6 @@ export function CloudTab() {
               conflictUploadTypes={backupStatus.conflictUploadTypes}
               isOutdatedApp={backupStatus.isOutdatedApp}
               outdatedAppUploadTypes={backupStatus.outdatedAppUploadTypes}
-              requiredBackupVersion={backupStatus.requiredBackupVersion}
               hasCredentialsMismatch={backupStatus.hasCredentialsMismatch}
               baseActionsDisabled={backupStatus.baseActionsDisabled}
               overallStatus={backupStatus.overallStatus}

@@ -2,7 +2,6 @@ import sqlite3
 
 import pytest
 
-from domain.backup import format_backup_app_version
 from domain.data_init import DatasourceInitContext, MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import (
@@ -10,17 +9,13 @@ from infrastructure.repository.db.upgrader import (
     DatabaseUpgrader,
     DuplicateMigrationNameError,
 )
-from infrastructure.repository.db.version_registry import (
-    get_schema_version,
-    parse_migration_version_code,
-    versions,
-)
 
 
 class FakeMigration(DBVersionMigration):
-    def __init__(self, migration_name, callback=None):
+    def __init__(self, migration_name, callback=None, updates_last_update=False):
         self._name = migration_name
         self._callback = callback
+        self._updates_last_update = updates_last_update
         self.applied = False
         self.applied_count = 0
 
@@ -33,6 +28,7 @@ class FakeMigration(DBVersionMigration):
         self.applied_count += 1
         if self._callback:
             await self._callback(cursor, context)
+        return self._updates_last_update
 
 
 class FailingMigration(DBVersionMigration):
@@ -378,83 +374,64 @@ class TestMigrationAheadOfTime:
             await upgrader.upgrade()
 
 
-class TestVersionRegistryDerivation:
-    def test_all_registered_migrations_parse_and_strictly_increase(self):
-        assert len(versions) > 0
-        codes = [parse_migration_version_code(m.name) for m in versions]
-        assert codes[0] == 0
+class TestLastUpdateBehavior:
+    @pytest.mark.asyncio
+    async def test_seeds_last_update_when_missing(self, db):
+        db_client, conn = db
+        upgrader = DatabaseUpgrader(
+            db_client, [FakeMigration("first")], _make_context()
+        )
 
-        for idx in range(len(codes) - 1):
-            prev_migration = versions[idx]
-            next_migration = versions[idx + 1]
-            assert codes[idx] < codes[idx + 1], (
-                f"Migration order violation: {prev_migration.name} ({codes[idx]}) "
-                f"is not strictly less than {next_migration.name} ({codes[idx + 1]})"
-            )
+        await upgrader.upgrade()
 
-        assert get_schema_version() == codes[-1]
-        assert get_schema_version([]) == 0
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row is not None and row[0]
 
-    @pytest.mark.parametrize(
-        "migration_name,expected_code",
-        [
-            ("v0 Genesis", 0),
-            ("v0.1.0:1_example", 10002),
-            ("v0.1.1:0", 10101),
-            ("v0.12.0:4_ai_settings", 120005),
-            ("v1.2.3:0_major", 1020301),
-            ("v0.1.0:98_max_seq", 10099),
-        ],
-    )
-    def test_parse_migration_version_code_known_values(
-        self, migration_name, expected_code
-    ):
-        assert parse_migration_version_code(migration_name) == expected_code
+    @pytest.mark.asyncio
+    async def test_preserves_existing_last_update_for_normal_migrations(self, db):
+        db_client, conn = db
+        sentinel = "2026-01-01T10:00:00+00:00"
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', ?)",
+            (sentinel,),
+        )
+        conn.commit()
+        upgrader = DatabaseUpgrader(
+            db_client,
+            [FakeMigration("first"), FakeMigration("second")],
+            _make_context(),
+        )
 
-    @pytest.mark.parametrize(
-        "invalid_name",
-        [
-            "",
-            "0.12.0:0",
-            "v0.12:0",
-            "v0.12.0",
-            "v0.12.0_missing_seq",
-            "v0.12.0:-1_negative",
-            "v1.2.3:abc",
-            "arbitrary_migration_name",
-        ],
-    )
-    def test_parse_migration_version_code_rejects_invalid_format(self, invalid_name):
-        with pytest.raises(ValueError):
-            parse_migration_version_code(invalid_name)
+        await upgrader.upgrade()
 
-    @pytest.mark.parametrize(
-        "out_of_bounds_name",
-        [
-            "v0.100.0:0_minor_overflow",
-            "v0.1.100:0_patch_overflow",
-            "v0.1.0:99_seq_overflow",
-            "v0.1.0:100_seq_overflow",
-        ],
-    )
-    def test_parse_migration_version_code_rejects_out_of_bounds(
-        self, out_of_bounds_name
-    ):
-        with pytest.raises(ValueError):
-            parse_migration_version_code(out_of_bounds_name)
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row[0] == sentinel
 
-    @pytest.mark.parametrize(
-        "version_code,expected_app_version",
-        [
-            (120005, "0.12.0"),
-            (10002, "0.1.0"),
-            (10102, "0.1.1"),
-            (130001, "0.13.0"),
-            (1020301, "1.2.3"),
-            (0, "0.0.0"),
-            (None, None),
-            (-1, None),
-        ],
-    )
-    def test_format_backup_app_version(self, version_code, expected_app_version):
-        assert format_backup_app_version(version_code) == expected_app_version
+    @pytest.mark.asyncio
+    async def test_updates_last_update_when_migration_returns_true(self, db):
+        db_client, conn = db
+        sentinel = "2026-01-01T10:00:00+00:00"
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', ?)",
+            (sentinel,),
+        )
+        conn.commit()
+        upgrader = DatabaseUpgrader(
+            db_client,
+            [
+                FakeMigration("external_import", updates_last_update=True),
+                FakeMigration("schema_only"),
+            ],
+            _make_context(),
+        )
+
+        await upgrader.upgrade()
+
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row[0] != sentinel

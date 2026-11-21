@@ -14,7 +14,8 @@ export interface StoredBackupPiece {
   date: string;
   type: "DATA" | "CONFIG";
   size: number;
-  version?: number;
+  schema_revision?: number;
+  schema_hash?: string;
   payload: Buffer;
 }
 
@@ -35,7 +36,7 @@ export interface CloudBackupMockServer {
     basePayload: Buffer;
     password: string;
     mode: Exclude<PayloadMutationMode, "backdate_last_update">;
-    version?: number;
+    schema_revision?: number;
   }) => Promise<StoredBackupPiece>;
   createBackdatedBackupPiece: (params: {
     piece: StoredBackupPiece;
@@ -124,7 +125,8 @@ function serializePieceMeta(piece: StoredBackupPiece) {
     date: piece.date,
     type: piece.type,
     size: piece.size,
-    ...(piece.version !== undefined ? { version: piece.version } : {}),
+    ...(piece.schema_revision !== undefined ? { schema_revision: piece.schema_revision } : {}),
+    ...(piece.schema_hash !== undefined ? { schema_hash: piece.schema_hash } : {}),
   };
 }
 
@@ -207,7 +209,8 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
           size: number;
           date: string;
           protocol: number;
-          version?: number;
+          schema_revision?: number;
+          schema_hash?: string;
         }>;
       };
       const uploads = (body.pieces ?? []).map((piece) => {
@@ -218,7 +221,8 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
           size: piece.size,
           date: piece.date,
           protocol: piece.protocol,
-          ...(piece.version !== undefined ? { version: piece.version } : {}),
+          ...(piece.schema_revision !== undefined ? { schema_revision: piece.schema_revision } : {}),
+          ...(piece.schema_hash !== undefined ? { schema_hash: piece.schema_hash } : {}),
         });
         const headers: Record<string, string> = {
           "Content-Type": "application/octet-stream",
@@ -227,8 +231,11 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
           "x-amz-meta-date": piece.date,
           "x-amz-meta-type": piece.type,
         };
-        if (piece.version !== undefined) {
-          headers["x-amz-meta-version"] = String(piece.version);
+        if (piece.schema_revision !== undefined) {
+          headers["x-amz-meta-schema_revision"] = String(piece.schema_revision);
+        }
+        if (piece.schema_hash !== undefined) {
+          headers["x-amz-meta-schema_hash"] = piece.schema_hash;
         }
         return {
           type: piece.type,
@@ -248,17 +255,21 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
       }
       const payload = await readBuffer(request);
       stagedUploads.delete(token);
-      const rawHeaderVersion = request.headers["x-amz-meta-version"];
-      const parsedVersion =
-        typeof rawHeaderVersion === "string"
-          ? Number.parseInt(rawHeaderVersion, 10)
-          : staged.version;
+      const rawHeaderRevision = request.headers["x-amz-meta-schema_revision"];
+      const parsedRevision =
+        typeof rawHeaderRevision === "string"
+          ? Number.parseInt(rawHeaderRevision, 10)
+          : staged.schema_revision;
+      const rawHeaderHash = request.headers["x-amz-meta-schema_hash"];
+      const parsedHash =
+        typeof rawHeaderHash === "string" ? rawHeaderHash : staged.schema_hash;
       pieces.set(staged.type, {
         ...staged,
         size: payload.length,
-        ...(parsedVersion !== undefined && !Number.isNaN(parsedVersion)
-          ? { version: parsedVersion }
+        ...(parsedRevision !== undefined && !Number.isNaN(parsedRevision)
+          ? { schema_revision: parsedRevision }
           : {}),
+        ...(parsedHash !== undefined ? { schema_hash: parsedHash } : {}),
         payload,
       });
       response.writeHead(200);
@@ -333,10 +344,15 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
         date: overrides.date ?? nextFutureIsoDate(current?.date ?? piece.date),
         type: "DATA",
         size: piece.payload.length,
-        ...(overrides.version !== undefined
-          ? { version: overrides.version }
-          : piece.version !== undefined
-            ? { version: piece.version }
+        ...(overrides.schema_revision !== undefined
+          ? { schema_revision: overrides.schema_revision }
+          : piece.schema_revision !== undefined
+            ? { schema_revision: piece.schema_revision }
+            : {}),
+        ...(overrides.schema_hash !== undefined
+          ? { schema_hash: overrides.schema_hash }
+          : piece.schema_hash !== undefined
+            ? { schema_hash: piece.schema_hash }
             : {}),
         payload: Buffer.from(piece.payload),
       };
@@ -348,7 +364,7 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
       basePayload,
       password,
       mode,
-      version,
+      schema_revision,
     }) => {
       const mutatedPayload = mutateEncryptedPayload(
         basePayload,
@@ -362,7 +378,7 @@ export async function startCloudBackupMockServer(): Promise<CloudBackupMockServe
         date: nextFutureIsoDate(current?.date),
         type: "DATA",
         size: mutatedPayload.length,
-        ...(version !== undefined ? { version } : {}),
+        ...(schema_revision !== undefined ? { schema_revision } : {}),
         payload: mutatedPayload,
       };
       pieces.set("DATA", updated);

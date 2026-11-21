@@ -1185,7 +1185,10 @@ export function GeneralTab() {
           {t.common.officialWebpage}
         </button>
         <p className="text-[0.5rem] text-gray-500 dark:text-gray-400">
-          v{__APP_VERSION__} by marcosav
+          {/^\d/.test(__APP_VERSION__)
+            ? `v${__APP_VERSION__}`
+            : __APP_VERSION__}{" "}
+          by marcosav
         </p>
       </div>
     </>

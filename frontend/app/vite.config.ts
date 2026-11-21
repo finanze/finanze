@@ -1,4 +1,10 @@
-import { rmSync, statSync, createReadStream, readFileSync } from "node:fs"
+import {
+  rmSync,
+  statSync,
+  createReadStream,
+  existsSync,
+  readFileSync,
+} from "node:fs"
 import { spawn } from "node:child_process"
 import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
@@ -58,9 +64,11 @@ export default defineConfig(({ command, mode }) => {
     : null
 
   // npm_package_version is unset under `pnpm exec`, which package.py uses.
-  const appVersion: string = JSON.parse(
-    readFileSync(resolve(__dirname, "package.json"), "utf-8"),
-  ).version
+  const metadataPath = resolve(__dirname, "finanze-build.json")
+  const metadata: { version: string } | null = existsSync(metadataPath)
+    ? JSON.parse(readFileSync(metadataPath, "utf-8"))
+    : null
+  const appVersion = metadata?.version ?? pkg.version
 
   // Stack traces reaching Better Stack are minified unless the maps are uploaded.
   const sourceMapAuthToken = env.BETTER_STACK_API_TOKEN

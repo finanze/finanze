@@ -250,9 +250,9 @@ describe("popover manual sync", () => {
 })
 
 describe("popover outdated app handling — OUTDATED_APP", () => {
-  it("renders red dot, status label, v0.13.0 warning, disabled Use Remote, and Use Local force-upload", async () => {
+  it("renders red dot, status label, generic warning, disabled Use Remote, and Use Local force-upload", async () => {
     mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteVersion: 130001 }),
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
     )
     mockUploadBackup.mockResolvedValue(
       buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
@@ -272,7 +272,7 @@ describe("popover outdated app handling — OUTDATED_APP", () => {
 
     expect(
       screen.getByText(
-        "The cloud backup was created with Finanze v0.13.0. Update the app to sync it, or overwrite it with your local data.",
+        "The cloud backup was created with a newer version of Finanze. Update the app to sync it, or overwrite it with your local data.",
       ),
     ).toBeInTheDocument()
 

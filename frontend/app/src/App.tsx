@@ -42,6 +42,7 @@ import { useState, useEffect, useRef } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
 import { useAndroidApkUpdater } from "./hooks/useAndroidApkUpdater"
 import { getPlatformAssets } from "@/utils/releaseUtils"
+import { isStableVersion } from "@/utils/buildVersion"
 import { isNativeMobile, isAndroid } from "@/lib/platform"
 import { PlatformType } from "@/types"
 
@@ -59,6 +60,7 @@ function App() {
   const releaseModalDismissedRef = useRef(false)
   const [skippedVersions, setSkippedVersions] = useState<string[]>([])
   const androidUpdateEnabled = isAndroid() && __CONNECTIONS__
+  const nativeAutoUpdateEnabled = isStableVersion(__APP_VERSION__)
   const {
     state: apkUpdaterState,
     download: downloadApk,
@@ -69,7 +71,11 @@ function App() {
     downloadUpdate: startAutoUpdateDownload,
     quitAndInstall: startAutoUpdateInstallation,
   } = useAutoUpdater({
-    checkOnMount: isAuthenticated && !isInitializing && !isNativeMobile(),
+    checkOnMount:
+      nativeAutoUpdateEnabled &&
+      isAuthenticated &&
+      !isInitializing &&
+      !isNativeMobile(),
   })
 
   // Load skipped versions from localStorage on mount
@@ -257,7 +263,9 @@ function App() {
                       latestVersion={updateInfo.latestVersion}
                       release={updateInfo.release}
                       onSkipVersion={handleSkipVersion}
-                      autoUpdateSupported={autoUpdateState.isSupported}
+                      autoUpdateSupported={
+                        nativeAutoUpdateEnabled && autoUpdateState.isSupported
+                      }
                       isAutoUpdateDownloading={autoUpdateState.isDownloading}
                       autoUpdateProgress={autoUpdateState.progress}
                       autoUpdateDownloadedBytes={

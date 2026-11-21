@@ -185,7 +185,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     setRole(CloudRole.PLUS)
 
     mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteVersion: 130001 }),
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
     )
 
     const events: Array<{ hadTransfer: boolean; conflict?: boolean }> = []
@@ -502,7 +502,7 @@ describe("post-scrape auto-upload", () => {
     mockGetBackupsInfo.mockResolvedValue(
       buildBackupsInfo(SyncStatus.OUTDATED_APP, {
         hasLocalChanges: true,
-        remoteVersion: 130001,
+        remoteSchemaRevision: 96,
       }),
     )
 

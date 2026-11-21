@@ -257,10 +257,10 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, UnsupportedBackupVersion):
             status = 409
             details = {}
-            if e.remote_version is not None:
-                details["remote_version"] = e.remote_version
-            if e.min_app_version is not None:
-                details["min_app_version"] = e.min_app_version
+            if e.remote_schema_revision is not None:
+                details["remote_schema_revision"] = e.remote_schema_revision
+            if e.remote_schema_hash is not None:
+                details["remote_schema_hash"] = e.remote_schema_hash
             data = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
             if details:
                 data["details"] = details

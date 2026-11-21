@@ -1,4 +1,5 @@
 import sys
+from contextlib import asynccontextmanager
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -9,7 +10,10 @@ import pytest
 
 from domain.data_init import DatasourceInitParams, DecryptionError, MigrationAheadOfTime
 from domain.user import User
-from infrastructure.repository.db.version_registry import get_schema_version
+from infrastructure.repository.db.version_registry import (
+    get_schema_hash,
+    get_schema_revision,
+)
 
 
 _MOBILE_ROOT = (
@@ -102,7 +106,8 @@ async def test_other_database_error_is_preserved_and_cleans_up(mobile_db, operat
 
 def test_get_version_matches_schema_version(mobile_db):
     manager, _, _, _ = mobile_db
-    assert manager.get_version() == get_schema_version()
+    assert manager.get_schema_revision() == get_schema_revision()
+    assert manager.get_schema_hash() == get_schema_hash()
 
 
 @pytest.mark.asyncio
@@ -241,4 +246,34 @@ async def test_import_data_mid_upgrade_failure_logged_in_restores_rollback_backu
     assert [c.args[0] for c in delete_staging_file.await_args_list] == [
         "DECOMPILED_DATA",
         "ROLLBACK_DATA",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_export_updates_last_update_before_staging_export(mobile_db):
+    manager, client, sqlite, _ = mobile_db
+    events = []
+
+    @asynccontextmanager
+    async def fake_tx(skip_last_update=False):
+        events.append(("tx", skip_last_update))
+        yield None
+
+    async def fake_wal_checkpoint():
+        events.append(("wal_checkpoint",))
+
+    async def fake_export_to_staging(name):
+        events.append(("export", name))
+
+    client.tx = fake_tx
+    client.wal_checkpoint = fake_wal_checkpoint
+    sqlite.exportDatabaseToStaging.side_effect = fake_export_to_staging
+
+    result = await manager.export()
+
+    assert result == b""
+    assert events == [
+        ("tx", False),
+        ("wal_checkpoint",),
+        ("export", "EXPORTED_DATA"),
     ]

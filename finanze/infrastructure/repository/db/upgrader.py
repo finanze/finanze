@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import List, Set
+from typing import List, Optional, Set
 
 from domain.data_init import DatasourceInitContext, MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
@@ -19,7 +19,9 @@ class DBVersionMigration(ABC):
         pass
 
     @abstractmethod
-    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(
+        self, cursor: DBCursor, context: DatasourceInitContext
+    ) -> Optional[bool]:
         pass
 
 
@@ -68,6 +70,19 @@ class DatabaseUpgrader:
             result = await cursor.fetchone()
             return (result[0] + 1) if result[0] is not None else 0
 
+    async def _has_last_update(self) -> bool:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sys_config'"
+            )
+            if await cursor.fetchone() is None:
+                return False
+            await cursor.execute(
+                "SELECT value FROM sys_config WHERE key = ?", ("last_update",)
+            )
+            row = await cursor.fetchone()
+            return bool(row and row[0])
+
     @asynccontextmanager
     async def _phase(self, description: str):
         try:
@@ -108,12 +123,14 @@ class DatabaseUpgrader:
         async with self._phase("Reading current migration version"):
             next_version = await self._get_next_version()
 
+        should_update_last_update = False
         for migration in pending:
             async with self._phase(f"Migration {migration.name}"):
                 async with self._db_client.tx(skip_last_update=True) as cursor:
                     self._log.info(f"Applying migration: {migration.name}")
 
-                    await migration.upgrade(cursor, self._context)
+                    if await migration.upgrade(cursor, self._context):
+                        should_update_last_update = True
 
                     applied_at = datetime.now().astimezone().isoformat()
 
@@ -124,6 +141,6 @@ class DatabaseUpgrader:
             next_version += 1
 
         async with self._phase("Finalising migrations"):
-            async with self._db_client.tx():
-                # Update last update date after successful migration
-                pass
+            if should_update_last_update or not await self._has_last_update():
+                async with self._db_client.tx():
+                    pass

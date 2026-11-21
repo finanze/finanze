@@ -30,12 +30,7 @@ import {
   isLightTheme,
 } from "@/components/auth/authStyles"
 import { ErrorReportingToggle } from "@/components/telemetry/ErrorReportingToggle"
-import {
-  SyncStatus,
-  formatBackupAppVersion,
-  type FullBackupsInfo,
-  type BackupFileType,
-} from "@/types"
+import { SyncStatus, type FullBackupsInfo, type BackupFileType } from "@/types"
 
 type RestoreStep = "login" | "checking" | "credentials" | "importing" | "error"
 
@@ -153,33 +148,12 @@ export function CloudRestore({
           return
         }
 
-        const outdatedPieces = Object.values(backupsInfo.pieces).filter(
-          piece => piece.status === SyncStatus.OUTDATED_APP,
-        )
-        if (outdatedPieces.length > 0) {
-          const highestVersion = outdatedPieces.reduce<number | null>(
-            (max, piece) => {
-              const remoteVersion = piece.remote?.version
-              if (
-                typeof remoteVersion === "number" &&
-                Number.isFinite(remoteVersion) &&
-                remoteVersion >= 0
-              ) {
-                return max === null || remoteVersion > max ? remoteVersion : max
-              }
-              return max
-            },
-            null,
+        if (
+          Object.values(backupsInfo.pieces).some(
+            piece => piece.status === SyncStatus.OUTDATED_APP,
           )
-          const ver = formatBackupAppVersion(highestVersion)
-          setError(
-            ver
-              ? t.login.cloudRestore.unsupportedBackupVersion.replace(
-                  "{version}",
-                  ver,
-                )
-              : t.login.cloudRestore.unsupportedBackupVersionGeneric,
-          )
+        ) {
+          setError(t.login.cloudRestore.unsupportedBackupVersionGeneric)
           setStep("login")
           return
         }
@@ -434,30 +408,7 @@ export function CloudRestore({
         maybeCode === "UNSUPPORTED_BACKUP_VERSION" ||
         maybeCode === "UNSUPPORTED_BACKUP_PROTOCOL"
       ) {
-        const details =
-          typeof err === "object" &&
-          err &&
-          "details" in err &&
-          typeof (err as { details?: unknown }).details === "object" &&
-          (err as { details?: unknown }).details !== null
-            ? ((err as { details: { min_app_version?: unknown } }).details ??
-              null)
-            : null
-        const rawMinVer = details?.min_app_version
-        const minVer =
-          typeof rawMinVer === "string" && rawMinVer.trim().length > 0
-            ? rawMinVer.trim()
-            : typeof rawMinVer === "number"
-              ? formatBackupAppVersion(rawMinVer)
-              : null
-        setError(
-          minVer
-            ? t.login.cloudRestore.unsupportedBackupVersion.replace(
-                "{version}",
-                minVer,
-              )
-            : t.login.cloudRestore.unsupportedBackupVersionGeneric,
-        )
+        setError(t.login.cloudRestore.unsupportedBackupVersionGeneric)
       } else if (maybeCode === "INVALID_BACKUP_CREDENTIALS") {
         setError(t.login.cloudRestore.invalidEncryptionKey)
       } else if (maybeCode === "TOO_MANY_REQUESTS") {

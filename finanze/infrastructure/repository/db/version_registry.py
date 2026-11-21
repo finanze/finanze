@@ -1,4 +1,7 @@
-import re
+import base64
+import hashlib
+import json
+from functools import lru_cache
 
 from infrastructure.repository.db.versions.v0.v00.v0_genesis import V0Genesis
 from infrastructure.repository.db.versions.v0.v01.v011_0 import V0110
@@ -352,23 +355,26 @@ versions = [
     V01204AISettings(),
 ]
 
-_MIGRATION_VERSION_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+):(\d+)(?:_.*)?$")
+
+def get_schema_revision() -> int:
+    return len(versions)
 
 
-def parse_migration_version_code(name: str) -> int:
-    if name == "v0 Genesis":
-        return 0
-    match = _MIGRATION_VERSION_RE.fullmatch(name)
-    if not match:
-        raise ValueError(f"Invalid migration name format: {name}")
-    major, minor, patch, seq = (int(part) for part in match.groups())
-    if not (0 <= minor < 100 and 0 <= patch < 100 and 0 <= seq < 99):
-        raise ValueError(f"Migration version components out of bounds: {name}")
-    return major * 1_000_000 + minor * 10_000 + patch * 100 + (seq + 1)
+def compute_schema_hash(names: list[str]) -> str:
+    canonical = json.dumps(
+        sorted(names), ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    return (
+        base64.urlsafe_b64encode(hashlib.sha256(canonical).digest())
+        .decode("ascii")
+        .rstrip("=")
+    )
 
 
-def get_schema_version(migration_list=None) -> int:
-    target = versions if migration_list is None else migration_list
-    if not target:
-        return 0
-    return parse_migration_version_code(target[-1].name)
+@lru_cache(maxsize=1)
+def _cached_registry_hash(names: tuple[str, ...]) -> str:
+    return compute_schema_hash(list(names))
+
+
+def get_schema_hash() -> str:
+    return _cached_registry_hash(tuple(m.name for m in versions))

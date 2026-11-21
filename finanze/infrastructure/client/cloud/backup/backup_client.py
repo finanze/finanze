@@ -57,8 +57,10 @@ class BackupClient(BackupRepository):
                     "date": piece.date.isoformat(),
                     "protocol": piece.protocol,
                 }
-                if piece.version is not None:
-                    piece_payload["version"] = piece.version
+                if piece.schema_revision is not None:
+                    piece_payload["schema_revision"] = piece.schema_revision
+                if piece.schema_hash is not None:
+                    piece_payload["schema_hash"] = piece.schema_hash
                 piece_payloads.append(piece_payload)
 
             upload_request_body = {"pieces": piece_payloads}
@@ -161,8 +163,8 @@ class BackupClient(BackupRepository):
                         BackupFileType(piece_info["type"]),
                     )
 
-                    raw_version = piece_info.get("version")
-                    version = int(raw_version) if raw_version is not None else None
+                    schema_revision = piece_info.get("schema_revision")
+                    schema_hash = piece_info.get("schema_hash")
 
                     piece = BackupTransferPiece(
                         id=UUID(piece_info["id"]),
@@ -171,7 +173,8 @@ class BackupClient(BackupRepository):
                         type=BackupFileType(piece_info["type"]),
                         payload=payload,
                         size=len(payload),
-                        version=version,
+                        schema_revision=schema_revision,
+                        schema_hash=schema_hash,
                     )
                     pieces.append(piece)
                     self._log.info(
@@ -214,15 +217,16 @@ class BackupClient(BackupRepository):
             for backup_type_str, piece_info in info_response.get("pieces", {}).items():
                 try:
                     backup_type = BackupFileType(backup_type_str)
-                    raw_version = piece_info.get("version")
-                    version = int(raw_version) if raw_version is not None else None
+                    schema_revision = piece_info.get("schema_revision")
+                    schema_hash = piece_info.get("schema_hash")
                     backup_info = BackupInfo(
                         id=UUID(piece_info["id"]),
                         protocol=piece_info["protocol"],
                         date=datetime.fromisoformat(piece_info["date"]),
                         type=backup_type,
                         size=piece_info["size"],
-                        version=version,
+                        schema_revision=schema_revision,
+                        schema_hash=schema_hash,
                     )
                     backup_infos[backup_type] = backup_info
                 except (KeyError, ValueError) as e:
