@@ -1,4 +1,10 @@
+overrides:
+  bplist-parser: 0.3.2
+
 allowBuilds:
   appium: true
   appium-ios-tuntap: true
+  edgedriver: false
+  esbuild: true
+  geckodriver: false
   sharp: true
