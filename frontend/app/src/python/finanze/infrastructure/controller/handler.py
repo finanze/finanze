@@ -20,6 +20,7 @@ from domain.exception.exceptions import (
     LabelingRuleNotFound,
     InvalidLabelingRule,
     ExternalLabelingUnavailable,
+    AIProviderError,
     InvalidProvidedCredentials,
     InvalidUserCredentials,
     UnauthorizedToken,
@@ -30,6 +31,8 @@ from domain.exception.exceptions import (
     ExecutionConflict,
     BackupConflict,
     BackupTransferFailed,
+    UnsupportedBackupProtocol,
+    UnsupportedBackupVersion,
     ExternalIntegrationRequired,
     ExternalProviderAppNotLinked,
     IntegrationNotFound,
@@ -39,7 +42,7 @@ from domain.exception.exceptions import (
     TooManyRequests,
     AddressNotFound,
 )
-from domain.data_init import DataEncryptedError
+from domain.data_init import DataEncryptedError, MigrationAheadOfTime
 from domain.dezimal import Dezimal
 
 
@@ -183,6 +186,13 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, ExternalLabelingUnavailable):
             status = 502
             data = {"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}
+        elif isinstance(e, AIProviderError):
+            status = 502
+            data = {
+                "code": "AI_PROVIDER_ERROR",
+                "reason": e.code.value,
+                "message": e.details,
+            }
         elif isinstance(e, InvalidUserCredentials):
             status = 401
             data = {"code": "INVALID_CREDENTIALS", "message": str(e)}
@@ -244,6 +254,22 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, BackupTransferFailed):
             status = 502
             data = {"code": "BACKUP_TRANSFER_FAILED", "message": str(e)}
+        elif isinstance(e, UnsupportedBackupVersion):
+            status = 409
+            details = {}
+            if e.remote_schema_revision is not None:
+                details["remote_schema_revision"] = e.remote_schema_revision
+            if e.remote_schema_hash is not None:
+                details["remote_schema_hash"] = e.remote_schema_hash
+            data = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
+            if details:
+                data["details"] = details
+        elif isinstance(e, UnsupportedBackupProtocol):
+            status = 409
+            data = {"code": "UNSUPPORTED_BACKUP_PROTOCOL", "message": str(e)}
+        elif isinstance(e, MigrationAheadOfTime):
+            status = 503
+            data = {"code": "UNSUPPORTED_BACKUP_VERSION", "message": str(e)}
         elif isinstance(e, PermissionDenied):
             status = 403
             data = {"code": "PERMISSION_DENIED", "message": str(e)}

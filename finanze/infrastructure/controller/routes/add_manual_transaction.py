@@ -1,3 +1,4 @@
+from domain.exception.exceptions import ManualAccountNotFound
 from domain.use_cases.add_manual_transaction import AddManualTransaction
 from quart import jsonify, request
 from infrastructure.controller.mappers.transaction_mapper import (
@@ -15,6 +16,8 @@ async def add_manual_transaction(add_manual_transaction_uc: AddManualTransaction
 
     try:
         await add_manual_transaction_uc.execute(add_request)
+    except ManualAccountNotFound:
+        return jsonify({"code": "NOT_FOUND", "message": "Account not found"}), 404
     except ValueError as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 

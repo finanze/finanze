@@ -95,6 +95,12 @@ class IntegrationSetupErrorCode(str, Enum):
     MISSING_SERVER_URL = "MISSING_SERVER_URL"
     AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
     AUTHORIZATION_EXPIRED = "AUTHORIZATION_EXPIRED"
+    AUTHORIZATION_RETRY_REQUIRED = "AUTHORIZATION_RETRY_REQUIRED"
+    NOT_ENTITLED = "NOT_ENTITLED"
+    RUNTIME_FAILED = "RUNTIME_FAILED"
+    RUNTIME_NOT_FOUND = "RUNTIME_NOT_FOUND"
+    RUNTIME_OUTDATED = "RUNTIME_OUTDATED"
+    RUNTIME_NOT_AUTHENTICATED = "RUNTIME_NOT_AUTHENTICATED"
 
 
 INTEGRATION_SETUP_UNAUTHORIZED_CODES = (
@@ -107,6 +113,11 @@ INTEGRATION_SETUP_BAD_REQUEST_CODES = (
     IntegrationSetupErrorCode.MISSING_SERVER_URL,
     IntegrationSetupErrorCode.AUTHORIZATION_DENIED,
     IntegrationSetupErrorCode.AUTHORIZATION_EXPIRED,
+    IntegrationSetupErrorCode.AUTHORIZATION_RETRY_REQUIRED,
+    IntegrationSetupErrorCode.NOT_ENTITLED,
+    IntegrationSetupErrorCode.RUNTIME_NOT_FOUND,
+    IntegrationSetupErrorCode.RUNTIME_OUTDATED,
+    IntegrationSetupErrorCode.RUNTIME_NOT_AUTHENTICATED,
 )
 
 
@@ -126,6 +137,21 @@ class AIProviderErrorCode(str, Enum):
     UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
     UNAVAILABLE = "UNAVAILABLE"
     MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
+    REAUTHENTICATION_REQUIRED = "REAUTHENTICATION_REQUIRED"
+    RATE_LIMITED = "RATE_LIMITED"
+
+
+AI_PROVIDER_FALLBACK_ERRORS = frozenset(
+    {
+        AIProviderErrorCode.INVALID_CREDENTIALS,
+        AIProviderErrorCode.INSUFFICIENT_FUNDS,
+        AIProviderErrorCode.UNSUPPORTED_OPERATION,
+        AIProviderErrorCode.UNAVAILABLE,
+        AIProviderErrorCode.MODEL_NOT_FOUND,
+        AIProviderErrorCode.REAUTHENTICATION_REQUIRED,
+        AIProviderErrorCode.RATE_LIMITED,
+    }
+)
 
 
 class AIProviderError(Exception):
@@ -257,8 +283,9 @@ class InvalidLabelingRule(Exception):
 
 
 class ExternalLabelingUnavailable(Exception):
-    def __init__(self, details: str):
+    def __init__(self, details: str, code: Optional[str] = None):
         self.details = details
+        self.code = code
         super().__init__(details)
 
 
@@ -296,6 +323,14 @@ class UnsupportedFileFormat(Exception):
     pass
 
 
+class PdfNoTextLayer(UnsupportedFileFormat):
+    pass
+
+
+class NoTableFound(UnsupportedFileFormat):
+    pass
+
+
 class CalculationInputError(Exception):
     def __init__(self, details: str):
         self.details = details
@@ -321,6 +356,17 @@ class BackupTransferFailed(Exception):
 class UnsupportedBackupProtocol(Exception):
     def __init__(self, protocol_version: int):
         super().__init__(f"Unsupported backup protocol version: {protocol_version}")
+
+
+class UnsupportedBackupVersion(Exception):
+    def __init__(
+        self,
+        remote_schema_revision: Optional[int] = None,
+        remote_schema_hash: Optional[str] = None,
+    ):
+        self.remote_schema_revision = remote_schema_revision
+        self.remote_schema_hash = remote_schema_hash
+        super().__init__("Remote backup schema is newer than supported by this app")
 
 
 class UnauthorizedToken(Exception):

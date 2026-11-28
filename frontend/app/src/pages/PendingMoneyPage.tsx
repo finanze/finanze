@@ -10,12 +10,8 @@ import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { ManualAccountBalanceToggle } from "@/components/manual/ManualAccountBalanceToggle"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -38,7 +34,6 @@ import {
   ChevronDown,
   CircleCheckBig,
   Edit,
-  HelpCircle,
   Plus,
   SlidersHorizontal,
   Tag,
@@ -47,7 +42,7 @@ import {
   X,
 } from "lucide-react"
 import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency, formatDate, lowercaseLabel } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
@@ -60,9 +55,7 @@ import {
   PendingFlow,
   PendingFlowStats,
   CreatePendingFlowRequest,
-  DataSource,
 } from "@/types"
-import { ProductType, type Account } from "@/types/position"
 import {
   createPendingFlow,
   updatePendingFlow,
@@ -87,7 +80,7 @@ const DEFAULT_STATUS_FILTER: FlowStatus[] = [
 export default function PendingMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings, exchangeRates } = useAppContext()
-  const { refreshPendingFlows, positionsData, refreshData } = useFinancialData()
+  const { refreshPendingFlows, refreshData } = useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
 
@@ -461,25 +454,6 @@ export default function PendingMoneyPage() {
     () => allCategories.map(c => ({ value: c, label: c })),
     [allCategories],
   )
-
-  const manualAccountOptions = useMemo(() => {
-    if (!positionsData?.positions) return []
-    const opts: { value: string; label: string }[] = []
-    Object.values(positionsData.positions).forEach(globalPositions => {
-      globalPositions.forEach(gp => {
-        const product = gp.products[ProductType.ACCOUNT] as
-          { entries?: Account[] } | undefined
-        product?.entries?.forEach(account => {
-          if (account.source !== DataSource.MANUAL || !account.id) return
-          const parts = [gp.entity.name]
-          if (account.name?.trim()) parts.push(account.name.trim())
-          if (account.iban) parts.push(`···${account.iban.slice(-4)}`)
-          opts.push({ value: account.id, label: parts.join(" · ") })
-        })
-      })
-    })
-    return opts
-  }, [positionsData])
 
   const isDefaultStatusFilter =
     statusFilter.length === DEFAULT_STATUS_FILTER.length &&
@@ -1125,8 +1099,8 @@ export default function PendingMoneyPage() {
             <div className="text-xs text-gray-500">
               {earningsCount}{" "}
               {earningsCount === 1
-                ? t.management.flowType.EARNING.toLowerCase()
-                : t.management.earnings.toLowerCase()}
+                ? lowercaseLabel(t.management.flowType.EARNING, locale)
+                : lowercaseLabel(t.management.earnings, locale)}
             </div>
             {renderDistribution(
               flowDistribution.earnings,
@@ -1157,8 +1131,8 @@ export default function PendingMoneyPage() {
             <div className="text-xs text-gray-500">
               {expensesCount}{" "}
               {expensesCount === 1
-                ? t.management.flowType.EXPENSE.toLowerCase()
-                : t.management.expenses.toLowerCase()}
+                ? lowercaseLabel(t.management.flowType.EXPENSE, locale)
+                : lowercaseLabel(t.management.expenses, locale)}
             </div>
             {renderDistribution(
               flowDistribution.expenses,
@@ -1537,14 +1511,14 @@ export default function PendingMoneyPage() {
         title={t.management.deleteConfirmTitle.replace(
           "{type}",
           deletingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         message={t.management.deleteConfirm.replace(
           "{type}",
           deletingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         confirmText={t.common.delete}
         cancelText={t.common.cancel}
@@ -1557,8 +1531,8 @@ export default function PendingMoneyPage() {
         title={t.management.markCompletedTitle.replace(
           "{type}",
           completingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         message={
           <>
@@ -1566,69 +1540,34 @@ export default function PendingMoneyPage() {
               {t.management.markCompletedConfirm.replace(
                 "{type}",
                 completingFlow?.flow_type === FlowType.EARNING
-                  ? t.management.flowType.EARNING.toLowerCase()
-                  : t.management.flowType.EXPENSE.toLowerCase(),
+                  ? lowercaseLabel(t.management.flowType.EARNING, locale)
+                  : lowercaseLabel(t.management.flowType.EXPENSE, locale),
               )}
             </span>
-            <span className="mt-4 flex items-center justify-between gap-3">
-              <span className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">
-                  {t.management.applyToAccountBalance}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {t.management.applyToAccountBalanceHint}
-                </span>
-              </span>
-              <span className="flex items-center gap-2">
-                <Switch
-                  checked={applyToAccount}
-                  onCheckedChange={checked => {
-                    setApplyToAccount(checked)
-                    if (!checked) setSettleAccountError(false)
-                  }}
-                  disabled={manualAccountOptions.length === 0}
-                />
-                {manualAccountOptions.length === 0 && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <HelpCircle size={14} />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 text-sm">
-                      {t.management.noManualAccounts}
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </span>
-            </span>
-            {applyToAccount && (
-              <span className="block mt-3">
-                <select
-                  className={cn(
-                    "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    settleAccountError
-                      ? "border-red-500 focus-visible:ring-red-500"
-                      : "border-input",
-                  )}
-                  value={settleAccountId}
-                  onChange={e => {
-                    setSettleAccountId(e.target.value)
-                    if (e.target.value) setSettleAccountError(false)
-                  }}
-                >
-                  <option value="">{t.management.selectAccount}</option>
-                  {manualAccountOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </span>
-            )}
+            <ManualAccountBalanceToggle
+              className="mt-4"
+              delta={
+                completingFlow
+                  ? (completingFlow.flow_type === FlowType.EARNING ? 1 : -1) *
+                    Number(completingFlow.amount)
+                  : null
+              }
+              currency={completingFlow?.currency || defaultCurrency}
+              hint={t.manualAccountBalance.settleHint}
+              enabled={applyToAccount}
+              onEnabledChange={checked => {
+                setApplyToAccount(checked)
+                if (!checked) setSettleAccountError(false)
+              }}
+              accountId={settleAccountId}
+              onAccountIdChange={value => {
+                setSettleAccountId(value)
+                if (value) setSettleAccountError(false)
+              }}
+              error={settleAccountError}
+              errorMessage={t.manualAccountBalance.selectAccountError}
+              disabled={isSettling}
+            />
           </>
         }
         confirmText={t.management.markCompleted}

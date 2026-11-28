@@ -180,4 +180,38 @@ describe("FileImportPreviewDialog", () => {
       rerender(<FileImportPreviewDialog {...props} isOpen={false} />)
     }).not.toThrow()
   })
+
+  it("hides internal fields in transaction sample entries while showing user-facing fields", () => {
+    renderPreviewDialog({
+      isOpen: true,
+      importData: {
+        transactions: {
+          account: [
+            {
+              id: "internal-tx-uuid",
+              source: "MANUAL",
+              entity_account_id: "internal-acc-uuid",
+              labels_locked: false,
+              linked_tx: "linked-ref-123",
+              name: "Payroll Deposit",
+              amount: 2450,
+              currency: "EUR",
+              counterparty: "ACME Corp",
+              iban: "ES9121000418450200051332",
+              product_type: ProductType.ACCOUNT,
+            },
+          ],
+          investment: [],
+        } as any,
+      },
+    })
+
+    expect(screen.getByText("ACME Corp")).toBeInTheDocument()
+    expect(screen.getByText("ES9121000418450200051332")).toBeInTheDocument()
+    expect(screen.queryByText("internal-tx-uuid")).not.toBeInTheDocument()
+    expect(screen.queryByText("MANUAL")).not.toBeInTheDocument()
+    expect(screen.queryByText("internal-acc-uuid")).not.toBeInTheDocument()
+    expect(screen.queryByText("Labels Locked")).not.toBeInTheDocument()
+    expect(screen.queryByText("linked-ref-123")).not.toBeInTheDocument()
+  })
 })

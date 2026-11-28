@@ -95,6 +95,7 @@ import {
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { Switch } from "@/components/ui/Switch"
 import { cn, getCurrencySymbol } from "@/lib/utils"
+import { formatDate } from "@/lib/formatters"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 
 const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
@@ -751,7 +752,7 @@ function EuriborSuggestField(
       try {
         const [year, month] = period.split("-")
         const date = new Date(Number(year), Number(month) - 1)
-        return date.toLocaleDateString(props.locale, {
+        return formatDate(date, props.locale, {
           month: "short",
           year: "numeric",
         })

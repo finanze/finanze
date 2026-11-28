@@ -40,6 +40,8 @@ import { AdvancedSettingsForm } from "@/components/ui/AdvancedSettingsForm"
 import { GeneralTab } from "@/components/settings/GeneralTab"
 import { CloudTab } from "@/components/settings/CloudTab"
 import { McpTab } from "@/components/settings/McpTab"
+import { AIModelsCard } from "@/components/ai/AIModelsCard"
+import { AI_SETTINGS_TAB } from "@/components/ai/TaskAIProviders"
 import { BottomNavCard } from "@/components/settings/BottomNavCard"
 import { isNativeMobile } from "@/lib/platform"
 import {
@@ -52,7 +54,15 @@ import { cn } from "@/lib/utils"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { DataDisplayMode } from "@/types"
 
-const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
+const APPLICATION_LOCALES: Locale[] = [
+  "en-US",
+  "es-ES",
+  "it-IT",
+  "de-DE",
+  "pt-PT",
+  "fr-FR",
+]
+const LEGACY_MCP_TAB = "mcp"
 const GENERAL_TAB_SETTINGS: SettingsKey[] = ["general", "data", "assets"]
 const TAB_GRID_COLS: Record<number, string> = {
   2: "sm:grid-cols-2",
@@ -75,9 +85,10 @@ export default function SettingsPage() {
   const { alertColor } = useBackupAlert()
   const { mode: dataDisplayMode, setMode: setDataDisplayMode } =
     useDataDisplayMode()
-  const [activeTab, setActiveTab] = useState(
-    searchParams.get("tab") || "general",
-  )
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get("tab") || "general"
+    return tab === LEGACY_MCP_TAB ? AI_SETTINGS_TAB : tab
+  })
   const [biometricAvailability, setBiometricAvailability] =
     useState<BiometricAvailability | null>(null)
   const [hasStoredBiometricCredentials, setHasStoredBiometricCredentials] =
@@ -87,7 +98,7 @@ export default function SettingsPage() {
 
   const isCloudEnabled = featureFlags.CLOUD === FFStatus.ON
   const isMcpAvailable = !isNativeMobile()
-  const tabCount = 2 + Number(isCloudEnabled) + Number(isMcpAvailable)
+  const tabCount = 3 + Number(isCloudEnabled)
 
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
@@ -228,15 +239,15 @@ export default function SettingsPage() {
               <SlidersHorizontal className="h-4 w-4 shrink-0" />
               {t.settings.application}
             </TabsTrigger>
-            {isMcpAvailable && (
-              <TabsTrigger
-                value="mcp"
-                className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
-              >
-                <Bot className="h-4 w-4 shrink-0" />
-                {t.settings.mcp.tabTitle}
-              </TabsTrigger>
-            )}
+            <TabsTrigger
+              value={AI_SETTINGS_TAB}
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
+            >
+              <Bot className="h-4 w-4 shrink-0" />
+              {isMcpAvailable
+                ? t.settings.aiTab.title
+                : t.settings.aiTab.titleNoMcp}
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -512,11 +523,10 @@ export default function SettingsPage() {
           </TabsContent>
         )}
 
-        {isMcpAvailable && (
-          <TabsContent value="mcp" className="space-y-4 mt-4">
-            <McpTab />
-          </TabsContent>
-        )}
+        <TabsContent value={AI_SETTINGS_TAB} className="space-y-4 mt-4">
+          <AIModelsCard />
+          {isMcpAvailable && <McpTab />}
+        </TabsContent>
       </Tabs>
     </div>
   )

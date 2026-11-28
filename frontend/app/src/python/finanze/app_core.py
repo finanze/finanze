@@ -146,27 +146,31 @@ class MobileAppCore:
         self.error_reporter.set_enabled(consent.error_reporting)
 
     async def initialize_deferred(self):
+        if self._deferred_ready.is_set():
+            return
         if self._deferred_loading:
             await self._deferred_ready.wait()
             return
 
         self._deferred_loading = True
+        try:
+            from finanze.app_deferred import DeferredComponents
 
-        from finanze.app_deferred import DeferredComponents
+            self._deferred = DeferredComponents(self)
+            await self._deferred.initialize()
+            self._setup_deferred_routes()
 
-        self._deferred = DeferredComponents(self)
-        await self._deferred.initialize()
-        self._setup_deferred_routes()
+            await self.ff_client.load()
 
-        await self.ff_client.load()
+            from finanze.build_config import INCLUDE_CONNECTIONS
 
-        from finanze.build_config import INCLUDE_CONNECTIONS
+            if not INCLUDE_CONNECTIONS:
+                self.ff_client._features["CONNECTIONS"] = "OFF"
 
-        if not INCLUDE_CONNECTIONS:
-            self.ff_client._features["CONNECTIONS"] = "OFF"
-
-        self._deferred_ready.set()
-        print("MobileApp Deferred Components Initialized")
+            self._deferred_ready.set()
+            print("MobileApp Deferred Components Initialized")
+        finally:
+            self._deferred_loading = False
 
     def _setup_deferred_routes(self):
         from finanze.mobile_routes import setup_deferred_routes
@@ -174,29 +178,33 @@ class MobileAppCore:
         setup_deferred_routes(self.router, self._deferred)
 
     async def initialize_lazy(self):
+        if self._lazy_ready.is_set():
+            return
         if self._lazy_loading:
             await self._lazy_ready.wait()
             return
 
         self._lazy_loading = True
+        try:
+            from finanze.build_config import INCLUDE_CONNECTIONS
 
-        from finanze.build_config import INCLUDE_CONNECTIONS
+            if INCLUDE_CONNECTIONS:
+                from infrastructure.client.entity.financial.tr.tr_websocket_patch import (
+                    apply_traderepublic_websocket_patch,
+                )
 
-        if INCLUDE_CONNECTIONS:
-            from infrastructure.client.entity.financial.tr.tr_websocket_patch import (
-                apply_traderepublic_websocket_patch,
-            )
+                apply_traderepublic_websocket_patch()
 
-            apply_traderepublic_websocket_patch()
+            from finanze.app_lazy import LazyComponents
 
-        from finanze.app_lazy import LazyComponents
+            self._lazy = LazyComponents(self, self._deferred)
+            await self._lazy.initialize()
+            self._setup_lazy_routes()
 
-        self._lazy = LazyComponents(self, self._deferred)
-        await self._lazy.initialize()
-        self._setup_lazy_routes()
-
-        self._lazy_ready.set()
-        print("MobileApp Lazy Components Initialized")
+            self._lazy_ready.set()
+            print("MobileApp Lazy Components Initialized")
+        finally:
+            self._lazy_loading = False
 
     def _setup_lazy_routes(self):
         from finanze.mobile_routes import setup_lazy_routes

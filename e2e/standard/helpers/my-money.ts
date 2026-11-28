@@ -15,4 +15,7 @@ export async function navigateToMyMoneyPage(
         await myMoney.click()
     }
     await destination.click()
+    await expect(
+        page.getByRole('heading', { name, exact: true }).first(),
+    ).toBeVisible({ timeout: 10_000 })
 }

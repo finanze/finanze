@@ -14,7 +14,7 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency, formatDate, lowercaseLabel } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
@@ -483,7 +483,7 @@ function DepositsViewContent({
     selectedEntities.length > 0
       ? t.investments.noPositionsFound.replace(
           "{type}",
-          t.common.deposits.toLowerCase(),
+          lowercaseLabel(t.common.deposits, locale),
         )
       : t.investments.noInvestmentsRegistered
 
@@ -919,7 +919,7 @@ function DepositsViewContent({
                               {" " +
                                 t.investments.ofInvestmentType.replace(
                                   "{type}",
-                                  t.common.deposits.toLowerCase(),
+                                  lowercaseLabel(t.common.deposits, locale),
                                 )}
                             </div>
 

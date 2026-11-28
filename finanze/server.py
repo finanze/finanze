@@ -61,6 +61,9 @@ from application.use_cases.fetch_external_financial_data import (
 )
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.forecast import ForecastImpl
+from application.use_cases.forward_integration_oauth_callback import (
+    ForwardIntegrationOAuthCallbackImpl,
+)
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_available_external_entities import (
     GetAvailableExternalEntitiesImpl,
@@ -81,6 +84,7 @@ from application.use_cases.get_mcp_config import GetMcpConfigImpl
 from application.use_cases.update_mcp_config import UpdateMcpConfigImpl
 from application.use_cases.regenerate_mcp_token import RegenerateMcpTokenImpl
 from application.use_cases.authorize_mcp_access import AuthorizeMcpAccessImpl
+from application.use_cases.authorize_api_access import AuthorizeApiAccessImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_market_forecast_closed_positions import (
@@ -110,9 +114,11 @@ from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
 from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
+from application.use_cases.suggest_template_fields import SuggestTemplateFieldsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
 from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
@@ -127,16 +133,15 @@ from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
+from application.use_cases.poll_external_integration_connection import (
+    PollExternalIntegrationConnectionImpl,
+)
 from application.use_cases.create_label import CreateLabelImpl
 from application.use_cases.create_labeling_rule import CreateLabelingRuleImpl
 from application.use_cases.delete_label import DeleteLabelImpl
 from application.use_cases.delete_labeling_rule import DeleteLabelingRuleImpl
-from application.use_cases.get_external_labeling_providers import (
-    GetExternalLabelingProvidersImpl,
-)
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
-)
+from application.use_cases.get_ai_providers import GetAIProvidersImpl
+from application.use_cases.get_ai_models import GetAIModelsImpl
 from application.use_cases.get_local_models import GetLocalModelsImpl
 from application.use_cases.download_local_model import DownloadLocalModelImpl
 from application.use_cases.delete_local_model import DeleteLocalModelImpl
@@ -166,6 +171,7 @@ from application.use_cases.restore_recurring_movement import (
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
+from domain.platform import Distribution
 from domain.telemetry import TelemetryContext
 from domain.user_login import LoginRequest
 from infrastructure.client.cloud.backup.backup_client import BackupClient
@@ -173,10 +179,36 @@ from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
     HttpFileTransferStrategy,
 )
 from infrastructure.client.ai.openai.openai_client import OpenAIClient
+from infrastructure.client.ai.chatgpt.chatgpt_client import ChatGPTClient
+from infrastructure.client.ai.chatgpt.chatgpt_oauth import ChatGPTOAuth
 from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
     OpenAICompatibleClient,
 )
 from infrastructure.client.ai.openrouter.openrouter_client import OpenRouterClient
+from infrastructure.agent_runtime.runtime_pool import AgentRuntimePool
+from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeSandbox
+from infrastructure.client.ai.github_copilot.copilot_runtime_provisioner import (
+    CopilotRuntimeProvisioner,
+)
+from infrastructure.client.ai.github_copilot.github_copilot_client import (
+    GITHUB_DEVICE_SCOPE,
+    PROVIDER as GITHUB_COPILOT_RUNTIME,
+    GitHubCopilotClient,
+    resolve_github_copilot_client_id,
+)
+from infrastructure.client.ai.github_copilot.github_device_flow import (
+    GitHubDeviceFlow,
+)
+from infrastructure.client.ai.claude_agent.claude_agent_client import (
+    ClaudeAgentClient,
+)
+from infrastructure.client.ai.claude_agent.claude_cli_locator import (
+    CLI_PATH_ENV as CLAUDE_CLI_PATH_ENV,
+    ClaudeCliLocator,
+)
+from infrastructure.client.ai.claude_agent.claude_model_discovery import (
+    ClaudeModelDiscovery,
+)
 from infrastructure.local_models.huggingface_catalog_client import (
     HuggingFaceCatalogClient,
 )
@@ -277,13 +309,18 @@ from infrastructure.config.server_details_adapter import (
     detect_os_version,
     resolve_version,
 )
+from infrastructure.controller.api_session_guard import register_api_session_guard
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
+from infrastructure.api_session.in_memory_api_session_store import (
+    InMemoryApiSessionStore,
+)
 from infrastructure.crypto.public_key_derivation_adapter import (
     PublicKeyDerivationAdapter,
 )
 from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.keychain.public_keychain_adapter import PublicKeychainAdapter
+from infrastructure.client.ai.ai_model_presets import AI_MODEL_PRESETS
 from infrastructure.labeling.ai_labeling_presets import (
     LABELING_BATCH_SIZES,
     LABELING_PRESETS,
@@ -339,6 +376,9 @@ from infrastructure.calculations.loan_calculator import LoanCalculator
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
+from infrastructure.repository.host_identity.host_identity_repository import (
+    HostIdentityRepository,
+)
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
@@ -386,7 +426,18 @@ from infrastructure.repository.virtual.virtual_import_repository import (
 from infrastructure.sheets.sheets_adapter import SheetsAdapter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from infrastructure.table.csv_file_table_adapter import CSVFileTableAdapter
+from infrastructure.table.html_file_table_adapter import HTMLFileTableAdapter
+from infrastructure.table.pdf_file_table_adapter import PDFFileTableAdapter
 from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
+from infrastructure.ai_import.ai_import_extractor_adapter import (
+    AIImportExtractorAdapter,
+)
+from infrastructure.ai_import.import_document import ImportDocumentReader
+from infrastructure.ai_import.memory_import_preview_store import (
+    MemoryImportPreviewStore,
+)
+from infrastructure.ai_import.pdfium_page_renderer import PdfiumPageRenderer
+from infrastructure.ai_import.pillow_image_normalizer import PillowImageNormalizer
 from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
@@ -413,6 +464,7 @@ class FinanzeServer:
         self._db_client = None
         self._financial_entity_fetchers = None
         self._local_model_runtime = None
+        self._agent_runtime_pool = None
         self._error_reporter = NoopErrorReporter()
         self._log = logging.getLogger(__name__)
 
@@ -464,6 +516,11 @@ class FinanzeServer:
         db_client = self._db_client
         db_manager = DBManager(db_client)
         data_manager = UserDataManager(args.data_dir)
+        api_session_port = (
+            InMemoryApiSessionStore(remember_ttl=args.api_session_remember_ttl)
+            if args.api_session
+            else None
+        )
 
         telemetry_consent_port = FileTelemetryConsent(args.data_dir)
         await self._setup_error_reporting(telemetry_consent_port)
@@ -472,6 +529,9 @@ class FinanzeServer:
 
         settings_repository = SettingsRepository(db_client, FileLegacyConfigSource())
         mcp_config_repository = McpConfigRepository(db_client)
+        external_integration_repository = ExternalIntegrationRepository(
+            client=db_client
+        )
         sheets_initiator = SheetsServiceLoader()
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
@@ -502,7 +562,36 @@ class FinanzeServer:
             ExternalIntegrationId.LOCAL_MODELS: LocalModelsAIClient(
                 local_model_runtime, llama_router, local_model_catalog
             ),
+            ExternalIntegrationId.CHATGPT: ChatGPTClient(
+                ChatGPTOAuth(HostIdentityRepository(db_client), args.port),
+                external_integration_repository,
+            ),
         }
+        agent_runtime_sandbox = AgentRuntimeSandbox(
+            args.data_dir / Path("agent_runtimes")
+        )
+        await agent_runtime_sandbox.cleanup_stale()
+        agent_runtime_pool = AgentRuntimePool()
+        self._agent_runtime_pool = agent_runtime_pool
+        ai_clients[ExternalIntegrationId.GITHUB_COPILOT] = GitHubCopilotClient(
+            GitHubDeviceFlow(resolve_github_copilot_client_id(), GITHUB_DEVICE_SCOPE),
+            CopilotRuntimeProvisioner(
+                agent_runtime_sandbox.runtime_dir(GITHUB_COPILOT_RUNTIME)
+            ),
+            agent_runtime_pool,
+            agent_runtime_sandbox,
+            external_integration_repository,
+        )
+        if detect_distribution() != Distribution.DOCKER or os.getenv(
+            CLAUDE_CLI_PATH_ENV
+        ):
+            ai_clients[ExternalIntegrationId.CLAUDE_AGENT] = ClaudeAgentClient(
+                ClaudeCliLocator(),
+                ClaudeModelDiscovery(),
+                agent_runtime_pool,
+                agent_runtime_sandbox,
+                client_app=f"finanze/{resolve_version()}",
+            )
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -577,6 +666,8 @@ class FinanzeServer:
                 FileFormat.CSV: csv_tsv_adapter,
                 FileFormat.TSV: csv_tsv_adapter,
                 FileFormat.XLSX: XLSXFileTableAdapter(),
+                FileFormat.HTML: HTMLFileTableAdapter(),
+                FileFormat.PDF: PDFFileTableAdapter(),
             }
         )
 
@@ -598,9 +689,6 @@ class FinanzeServer:
         last_fetches_repository = LastFetchesRepository(client=db_client)
         fetch_pointers_repository = FetchPointersRepository(client=db_client)
         tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
-        external_integration_repository = ExternalIntegrationRepository(
-            client=db_client
-        )
         periodic_flow_repository = PeriodicFlowRepository(client=db_client)
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)
@@ -644,6 +732,15 @@ class FinanzeServer:
         credentials_port = CredentialsRepository(client=db_client)
 
         transaction_handler = TransactionHandler(client=db_client)
+        import_preview_store = MemoryImportPreviewStore()
+        ai_import_extractor = AIImportExtractorAdapter(
+            config_port=settings_repository,
+            external_integration_port=external_integration_repository,
+            clients=ai_clients,
+            document_reader=ImportDocumentReader(
+                table_rw_adapter, PillowImageNormalizer(), PdfiumPageRenderer()
+            ),
+        )
 
         transaction_labeler = TransactionLabelerAdapter(
             transaction_port=transaction_repository,
@@ -663,6 +760,7 @@ class FinanzeServer:
             sheets_initiator,
             cloud_register,
             self._error_reporter,
+            api_session_port=api_session_port,
         )
         register_user = RegisterUserImpl(
             db_manager,
@@ -671,6 +769,7 @@ class FinanzeServer:
             sheets_initiator,
             cloud_register,
             self._error_reporter,
+            api_session_port=api_session_port,
         )
         change_user_password = ChangeUserPasswordImpl(
             db_manager, data_manager, settings_repository
@@ -690,6 +789,7 @@ class FinanzeServer:
             data_manager,
             server_options_port,
             feature_flag_port,
+            api_session_port=api_session_port,
         )
         user_logout = UserLogoutImpl(
             db_manager,
@@ -697,6 +797,9 @@ class FinanzeServer:
             sheets_initiator,
             cloud_register,
             self._error_reporter,
+            agent_runtime_port=agent_runtime_pool,
+            import_preview_store=import_preview_store,
+            api_session_port=api_session_port,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -758,6 +861,8 @@ class FinanzeServer:
             transaction_handler,
             transaction_repository,
             transaction_labeler,
+            settings_repository,
+            transaction_label_repository,
         )
         export_sheets = ExportSheetsImpl(
             position_repository,
@@ -806,6 +911,8 @@ class FinanzeServer:
             template_parser=template_parser,
             transaction_handler_port=transaction_handler,
             transaction_labeler=transaction_labeler,
+            ai_import_extractor=ai_import_extractor,
+            preview_store=import_preview_store,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
             financial_entity_fetchers,
@@ -955,6 +1062,13 @@ class FinanzeServer:
                 external_integrations,
             )
         )
+        poll_external_integration_connection = PollExternalIntegrationConnectionImpl(
+            external_integration_repository,
+            external_integrations,
+        )
+        forward_integration_oauth_callback = ForwardIntegrationOAuthCallbackImpl(
+            external_integrations
+        )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
         get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
@@ -1028,6 +1142,11 @@ class FinanzeServer:
             real_estate_port=real_estate_repository,
             loan_calculator=loan_calculator,
         )
+        manual_account_balance_updater = ManualAccountBalanceUpdater(
+            position_port=position_repository,
+            snapshot_writer=manual_position_snapshot_writer,
+            exchange_rate_provider=exchange_rate_client,
+        )
         manual_historic_writer = ManualHistoricWriter(
             historic_repository,
             transaction_port=transaction_repository,
@@ -1052,6 +1171,7 @@ class FinanzeServer:
             label_port=label_repository,
             transaction_label_port=transaction_label_repository,
             transaction_labeler=transaction_labeler,
+            balance_updater=manual_account_balance_updater,
         )
         update_manual_transaction = UpdateManualTransactionImpl(
             entity_port=entity_repository,
@@ -1122,9 +1242,7 @@ class FinanzeServer:
         )
         settle_pending_flow = SettlePendingFlowImpl(
             pending_flow_port=pending_flow_repository,
-            position_port=position_repository,
-            snapshot_writer=manual_position_snapshot_writer,
-            exchange_rate_provider=exchange_rate_client,
+            balance_updater=manual_account_balance_updater,
             transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
@@ -1132,6 +1250,9 @@ class FinanzeServer:
         delete_template = DeleteTemplateImpl(template_repository)
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
+        suggest_template_fields = SuggestTemplateFieldsImpl(
+            table_rw_adapter, template_parser, template_repository
+        )
 
         get_labels = GetLabelsImpl(label_repository)
         create_label = CreateLabelImpl(label_repository)
@@ -1170,12 +1291,10 @@ class FinanzeServer:
             transaction_labeler,
             transaction_handler,
         )
-        get_external_labeling_providers = GetExternalLabelingProvidersImpl(
-            external_integration_repository, external_labeling_providers
+        get_ai_providers = GetAIProvidersImpl(
+            external_integration_repository, ai_clients, AI_MODEL_PRESETS
         )
-        get_external_labeling_models = GetExternalLabelingModelsImpl(
-            external_integration_repository, external_labeling_providers
-        )
+        get_ai_models = GetAIModelsImpl(external_integration_repository, ai_clients)
         validate_ai_model = ValidateAIModelImpl(
             external_integration_repository, ai_clients
         )
@@ -1287,6 +1406,15 @@ class FinanzeServer:
         self._log.info("Setting up REST API...")
 
         self._quart_app = quart(static_upload_dir, self._error_reporter)
+        if api_session_port is not None:
+            register_api_session_guard(
+                self._quart_app,
+                AuthorizeApiAccessImpl(api_session_port, db_manager),
+            )
+        else:
+            self._log.warning(
+                "API session protection disabled (FINANZE_API_SESSION=false): any client reaching the server can use the API while unlocked"
+            )
         mcp_tool_catalog = McpToolCatalog()
         await register_routes(
             self._quart_app,
@@ -1368,6 +1496,7 @@ class FinanzeServer:
             delete_template,
             get_templates,
             get_template_fields,
+            suggest_template_fields,
             upload_backup,
             import_backup,
             get_backups,
@@ -1389,8 +1518,8 @@ class FinanzeServer:
             preview_labeling_rule_uc=preview_labeling_rule,
             relabel_transactions_uc=relabel_transactions,
             update_transaction_labels_uc=update_transaction_labels,
-            get_external_labeling_providers_uc=get_external_labeling_providers,
-            get_external_labeling_models_uc=get_external_labeling_models,
+            get_ai_providers_uc=get_ai_providers,
+            get_ai_models_uc=get_ai_models,
             validate_ai_model_uc=validate_ai_model,
             get_ai_server_info_uc=get_ai_server_info,
             get_cashflow_summary_uc=get_cashflow_summary,
@@ -1406,6 +1535,8 @@ class FinanzeServer:
             delete_local_model_uc=delete_local_model,
             list_hugging_face_quants_uc=list_hugging_face_quants,
             import_local_model_uc=import_local_model,
+            poll_external_integration_connection_uc=poll_external_integration_connection,
+            forward_integration_oauth_callback_uc=forward_integration_oauth_callback,
         )
 
         self._log.info("Setting up MCP server...")
@@ -1533,7 +1664,7 @@ class FinanzeServer:
 
         config = uvicorn.Config(
             self._asgi_app,
-            host="0.0.0.0",
+            host=self._args.host,
             port=self._args.port,
             log_config=None,
             log_level=None,
@@ -1564,8 +1695,17 @@ class FinanzeServer:
             await self._error_reporter.flush()
             await self._close_financial_entity_fetchers()
             await self._stop_local_models()
+            await self._stop_agent_runtimes()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    async def _stop_agent_runtimes(self):
+        if self._agent_runtime_pool is None:
+            return
+        try:
+            await self._agent_runtime_pool.release_all()
+        except Exception:
+            self._log.warning("Error stopping agent runtimes", exc_info=True)
 
     async def _stop_local_models(self):
         if self._local_model_runtime is None:

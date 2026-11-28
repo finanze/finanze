@@ -15,6 +15,7 @@ from domain.ai import (
     AIGenerationStatus,
     AIModel,
     AIModelCapability,
+    AIModelPricing,
     AIModelProvider,
     AIReasoningEffort,
 )
@@ -23,6 +24,7 @@ from domain.exception.exceptions import (
     AIProviderError,
     AIProviderErrorCode,
     ExternalLabelingUnavailable,
+    TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.external_labeling import (
@@ -183,6 +185,13 @@ class TestRecommendedModels:
 
 class TestLabel:
     @pytest.mark.asyncio
+    async def test_rate_limit_is_a_typed_fallback_error(self):
+        provider = _provider(FakeAIClient(error=TooManyRequests()))
+        with pytest.raises(ExternalLabelingUnavailable) as error:
+            await provider.label(_request("gen"), CREDENTIALS)
+        assert error.value.code == "RATE_LIMITED"
+
+    @pytest.mark.asyncio
     async def test_model_info_is_cached(self):
         client = FakeAIClient(models={"gen": GENERATION_MODEL})
         provider = _provider(client)
@@ -322,8 +331,10 @@ class TestLabel:
             models={"gen": GENERATION_MODEL},
             error=AIProviderError(AIProviderErrorCode.INSUFFICIENT_FUNDS, "No funds"),
         )
-        with pytest.raises(ExternalLabelingUnavailable):
+        with pytest.raises(ExternalLabelingUnavailable) as error:
             await _provider(client).label(_request("gen"), CREDENTIALS)
+        assert error.value.details == "No funds"
+        assert error.value.code == "INSUFFICIENT_FUNDS"
 
     @pytest.mark.asyncio
     async def test_falls_back_to_probabilistic_preset_without_model_info(self):
@@ -382,6 +393,14 @@ class TestDynamicModels:
                 ),
                 "dec": DECISIONS_MODEL,
                 "bad": AIModel(id="bad", name="Bad", load_failed=True),
+                "priced": AIModel(
+                    id="priced",
+                    name="Priced",
+                    pricing=AIModelPricing(
+                        input_per_million=Dezimal("0.1"),
+                        output_per_million=Dezimal("0.5"),
+                    ),
+                ),
             }
         )
         models = await _provider(client).list_models(CREDENTIALS)
@@ -393,6 +412,15 @@ class TestDynamicModels:
             ExternalLabelingModel(
                 id="bad", name="Bad", probabilistic=False, load_failed=True
             ),
+            ExternalLabelingModel(
+                id="priced",
+                name="Priced",
+                probabilistic=False,
+                pricing=AIModelPricing(
+                    input_per_million=Dezimal("0.1"),
+                    output_per_million=Dezimal("0.5"),
+                ),
+            ),
         ]
 
     @pytest.mark.asyncio
@@ -400,5 +428,48 @@ class TestDynamicModels:
         client = FakeAIClient(
             error=AIProviderError(AIProviderErrorCode.UNAVAILABLE, "Down")
         )
-        with pytest.raises(ExternalLabelingUnavailable):
+        with pytest.raises(ExternalLabelingUnavailable) as error:
             await _provider(client).list_models(CREDENTIALS)
+        assert error.value.code == "UNAVAILABLE"
+
+
+class TestModelAvailability:
+    @pytest.mark.asyncio
+    async def test_dynamic_catalog_answers_availability(self):
+        client = FakeAIClient(
+            features={AIClientFeature.GENERATION, AIClientFeature.MODEL_LISTING},
+            models={"gen": GENERATION_MODEL},
+        )
+        provider = _provider(client)
+
+        assert await provider.is_model_available("gen", CREDENTIALS) is True
+        assert await provider.is_model_available("gone", CREDENTIALS) is False
+
+    @pytest.mark.parametrize(
+        "features",
+        [
+            {AIClientFeature.GENERATION},
+            {
+                AIClientFeature.GENERATION,
+                AIClientFeature.MODEL_LISTING,
+                AIClientFeature.CUSTOM_MODELS,
+            },
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_static_or_custom_catalogs_are_not_checked(self, features):
+        client = FakeAIClient(features=features)
+
+        assert await _provider(client).is_model_available("gone", CREDENTIALS) is None
+        assert client.get_model_calls == 0
+
+    @pytest.mark.asyncio
+    async def test_lookup_errors_are_unknown(self):
+        client = FakeAIClient(
+            features={AIClientFeature.GENERATION, AIClientFeature.MODEL_LISTING},
+            models={
+                "gen": AIProviderError(AIProviderErrorCode.UNAVAILABLE, "Down"),
+            },
+        )
+
+        assert await _provider(client).is_model_available("gen", CREDENTIALS) is None

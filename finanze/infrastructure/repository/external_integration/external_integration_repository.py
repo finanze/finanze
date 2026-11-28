@@ -39,14 +39,48 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
                 ),
             )
 
+    async def update_payload(
+        self, integration: ExternalIntegrationId, payload: ExternalIntegrationPayload
+    ):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.UPDATE_PAYLOAD,
+                (
+                    json.dumps(payload),
+                    integration.value,
+                    ExternalIntegrationStatus.ON.value,
+                ),
+            )
+
+    async def expire(self, integration: ExternalIntegrationId):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.EXPIRE,
+                (
+                    ExternalIntegrationStatus.EXPIRED.value,
+                    integration.value,
+                    ExternalIntegrationStatus.ON.value,
+                ),
+            )
+
     async def get_payload(
-        self, integration: ExternalIntegrationId
+        self, integration: ExternalIntegrationId, include_expired: bool = False
     ) -> Optional[ExternalIntegrationPayload]:
         async with self._db_client.read() as cursor:
-            await cursor.execute(
-                ExternalIntegrationQueries.GET_PAYLOAD,
-                (integration.value, ExternalIntegrationStatus.ON.value),
-            )
+            if include_expired:
+                await cursor.execute(
+                    ExternalIntegrationQueries.GET_PAYLOAD_INCLUDING_EXPIRED,
+                    (
+                        integration.value,
+                        ExternalIntegrationStatus.ON.value,
+                        ExternalIntegrationStatus.EXPIRED.value,
+                    ),
+                )
+            else:
+                await cursor.execute(
+                    ExternalIntegrationQueries.GET_PAYLOAD,
+                    (integration.value, ExternalIntegrationStatus.ON.value),
+                )
 
             row = await cursor.fetchone()
             if row is None:

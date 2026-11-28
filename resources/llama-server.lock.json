@@ -1,32 +1,32 @@
 {
-    "release": "v0.7.0",
-    "build": "b11669",
+    "release": "v1.0.0",
+    "build": "b12359",
     "license_sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
-    "base_url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669",
+    "base_url": "https://github.com/ggml-org/llama.cpp/releases/download/b12359",
     "assets": {
         "mac-arm64": {
-            "file": "llama-b11669-bin-macos-arm64.tar.gz",
-            "sha256": "dbed55493d72bc1ba2babc8770d669c2289b5bc4ee9fb2a4dfc158d45b7d13fd"
+            "file": "llama-b12359-bin-macos-arm64.tar.gz",
+            "sha256": "82b00abc740160e1b9980e6cc79c117345fa34af058c80e6c0a69aa8ddccde75"
         },
         "mac-x64": {
-            "file": "llama-b11669-bin-macos-x64.tar.gz",
-            "sha256": "cab28238d78158109b48deb27b05d50e0dcef56275d2e76da9ca8281526c7532"
+            "file": "llama-b12359-bin-macos-x64.tar.gz",
+            "sha256": "25320d529077ef5a3d16e7b5da26438f221d88c8c0930a32b0c79457f5eede56"
         },
         "linux-x64": {
-            "file": "llama-b11669-bin-ubuntu-x64.tar.gz",
-            "sha256": "cf07c1c112d709bd67e522017471de57ed0ec8bea031d732c5422351c07f65ac"
+            "file": "llama-b12359-bin-ubuntu-x64.tar.gz",
+            "sha256": "0bc1f091e8916102b6d8f2cf944233a620e90a0f856c72d0ce41150c65c2e72e"
         },
         "linux-arm64": {
-            "file": "llama-b11669-bin-ubuntu-arm64.tar.gz",
-            "sha256": "9ac6fda2058d35677608a06f751a50122ddfa4ce0ddb7f084466b8e79b6d4a99"
+            "file": "llama-b12359-bin-ubuntu-arm64.tar.gz",
+            "sha256": "dc7aa17a67884619b7223870aca9fd6addbc01717713b04a714add1c31137359"
         },
         "win-x64": {
-            "file": "llama-b11669-bin-win-cpu-x64.zip",
-            "sha256": "37b3efcf962847ca869745fd4ccf7f5e7e8dacfeff9fa3523b4ca8cdc66d632b"
+            "file": "llama-b12359-bin-win-cpu-x64.zip",
+            "sha256": "837c1655e87df3b66989f4be33a792a1399c785bf259038dc75c900096683e69"
         },
         "win-arm64": {
-            "file": "llama-b11669-bin-win-cpu-arm64.zip",
-            "sha256": "9cff39ffed17edcd03a7d876073f74d7b48cd43a1e5eafdd59ee094185ad871b"
+            "file": "llama-b12359-bin-win-cpu-arm64.zip",
+            "sha256": "d27564c754478d2832789dfcebfc5ace018e36a224c41d810b7cbc1ba8243ec0"
         }
     }
 }

@@ -8,17 +8,30 @@ import {
 import enTranslations from "./locales/en.json"
 import esTranslationsRaw from "./locales/es.json"
 import itTranslationsRaw from "./locales/it.json"
+import deTranslationsRaw from "./locales/de.json"
+import ptTranslations from "./locales/pt.json"
+import frTranslations from "./locales/fr.json"
 
-export type Locale = "en-US" | "es-ES" | "it-IT"
+export type Locale = "en-US" | "es-ES" | "it-IT" | "de-DE" | "pt-PT" | "fr-FR"
 export type Translations = typeof enTranslations
 
 const translations: Record<Locale, Translations> = {
   "en-US": enTranslations,
   "es-ES": esTranslationsRaw as unknown as Translations,
   "it-IT": itTranslationsRaw as unknown as Translations,
+  "de-DE": deTranslationsRaw as unknown as Translations,
+  "pt-PT": ptTranslations,
+  "fr-FR": frTranslations,
 }
 
-const VALID_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
+const VALID_LOCALES: Locale[] = [
+  "en-US",
+  "es-ES",
+  "it-IT",
+  "de-DE",
+  "pt-PT",
+  "fr-FR",
+]
 
 interface I18nContextType {
   locale: Locale

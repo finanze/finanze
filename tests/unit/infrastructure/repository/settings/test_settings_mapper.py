@@ -1,13 +1,18 @@
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 
 import pytest
 
 from domain.settings import (
     CURRENT_VERSION,
+    MAX_AI_PROVIDERS,
+    AIConfig,
+    AIImportConfig,
     AutoRefreshMaxOutdatedTime,
     AutoRefreshMode,
     EditMode,
+    ExternalLabelingConfig,
     PartialSettings,
     SettingsSection,
 )
@@ -18,6 +23,7 @@ from infrastructure.repository.settings.settings_mapper import (
     SECTION_TYPES,
     deserialize_section,
     legacy_to_sections,
+    parse_section,
     parse_timestamp,
     sections_to_partial_settings,
     sections_to_settings,
@@ -42,6 +48,98 @@ PARSEABLE_BROKEN_SAMPLES = [
     "desktop_scalar.yml",
     "mobile_list.json",
 ]
+
+
+class TestProviderCompatibility:
+    def test_converts_011_selection_and_preserves_options(self):
+        raw = parse_sample("desktop_real_0110.yml")["labeling"]
+        original = deepcopy(raw)
+        external = parse_section("labeling", raw).external
+
+        assert raw == original
+        assert len(external.providers) == 1
+        entry = external.providers[0]
+        assert entry.provider == original["external"]["provider"]
+        assert entry.model == original["external"]["model"]
+        assert entry.upstreamProvider == original["external"].get("upstreamProvider")
+        assert external.enabled is True
+        assert external.autoRun is True
+        for key in ("minConfidence", "maxPerRun"):
+            assert getattr(external, key) == int(original["external"][key])
+        assert external.instructions == original["external"]["instructions"]
+        assert external.examples.count == int(original["external"]["examples"]["count"])
+        assert external.examples.origins == original["external"]["examples"]["origins"]
+
+    @pytest.mark.parametrize(
+        "providers", [[], [{"provider": "OPENAI", "model": "gpt-6-luna"}]]
+    )
+    def test_new_list_takes_precedence(self, providers):
+        settings = parse_section(
+            "labeling",
+            {
+                "external": {
+                    "provider": "OPENROUTER",
+                    "model": "old",
+                    "providers": providers,
+                }
+            },
+        )
+        stored = settings_to_sections(PartialSettings(labeling=settings))["labeling"][
+            "external"
+        ]
+
+        assert stored["providers"] == [
+            {**entry, "upstreamProvider": None} for entry in providers
+        ]
+        assert "provider" not in stored
+        assert "model" not in stored
+        assert "upstreamProvider" not in stored
+
+    def test_unconfigured_or_disabled_settings_are_preserved(self):
+        assert parse_section("labeling", {"external": {}}).external.providers == []
+        external = parse_section(
+            "labeling",
+            {
+                "external": {
+                    "enabled": False,
+                    "provider": "OPENAI",
+                    "model": "gpt-6-luna",
+                }
+            },
+        ).external
+        assert not external.enabled
+        assert external.providers[0].provider == "OPENAI"
+
+    @pytest.mark.parametrize(
+        "providers",
+        [
+            [
+                {"provider": "OPENAI", "model": str(index)}
+                for index in range(MAX_AI_PROVIDERS + 1)
+            ],
+            [{"provider": "OPENAI", "model": "same"}] * 2,
+            [{"provider": "OPENAI", "model": "  "}],
+            [{"provider": "", "model": "model"}],
+        ],
+    )
+    @pytest.mark.parametrize(
+        "config_type", [ExternalLabelingConfig, AIConfig, AIImportConfig]
+    )
+    def test_rejects_invalid_priorities(self, providers, config_type):
+        with pytest.raises(ValueError):
+            config_type(providers=providers)
+
+    def test_ai_section_round_trips_and_defaults_when_missing(self):
+        entries = [
+            {"provider": "OPENAI", "model": "gpt-6-luna", "upstreamProvider": None}
+        ]
+        ai = parse_section("ai", {"providers": entries})
+        assert settings_to_sections(PartialSettings(ai=ai))["ai"] == {
+            "providers": entries
+        }
+        assert sections_to_settings({}, "now").ai.providers == []
+        importing = parse_section("importing", {}).ai
+        assert (importing.providers, importing.instructions) == ([], None)
 
 
 class TestLegacyToSections:
@@ -168,8 +266,8 @@ class TestLegacyToSections:
         assert settings.assets.crypto.hideUnknownTokens is False
         external = settings.labeling.external
         assert external.enabled is True
-        assert external.provider == "OPENROUTER"
-        assert external.model == "~typesafe/jev-latest"
+        assert external.providers[0].provider == "OPENROUTER"
+        assert external.providers[0].model == "~typesafe/jev-latest"
         assert (external.minConfidence, external.maxPerRun) == (70, 500)
         assert external.examples.origins == [LabelOrigin.MANUAL]
         assert external.instructions.startswith("I am based in Spain.")
@@ -243,7 +341,9 @@ class TestSettingsToSections:
         sections = settings_to_sections(partial)
 
         assert set(sections) == {"labeling"}
-        assert sections["labeling"]["external"]["provider"] == "OPENROUTER"
+        assert (
+            sections["labeling"]["external"]["providers"][0]["provider"] == "OPENROUTER"
+        )
 
     @pytest.mark.parametrize(
         "factory", [default_settings, custom_settings, labeling_settings]

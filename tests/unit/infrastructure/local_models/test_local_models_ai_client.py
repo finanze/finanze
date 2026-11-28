@@ -8,6 +8,7 @@ from domain.ai import (
     AIGeneration,
     AIGenerationRequest,
     AIGenerationStatus,
+    AIInputModality,
     AIMessage,
     AIMessageRole,
     AIModelCapability,
@@ -142,6 +143,8 @@ def test_features():
         AIClientFeature.GENERATION,
         AIClientFeature.DECISIONS,
         AIClientFeature.MODEL_LISTING,
+        AIClientFeature.ATTACHMENTS,
+        AIClientFeature.OPTIONAL_FIELDS,
     }
 
 
@@ -206,6 +209,7 @@ class TestListModels:
                 _model(CATALOG_ID),
                 _model("local/my-model", LocalModelState.SLEEPING),
                 _model("org/new-GGUF:Q4", LocalModelState.DOWNLOADING),
+                _model("org/paused-GGUF:Q4", LocalModelState.INCOMPLETE),
                 _model("custom", LocalModelState.FAILED, decisions=True),
             ]
         )
@@ -229,6 +233,33 @@ class TestListModels:
         assert by_id["local/my-model"].loaded is False
         assert by_id["custom"].load_failed is True
         assert by_id["zeta:Q4"].load_failed is False
+
+    @pytest.mark.asyncio
+    async def test_reports_vision_input(self):
+        router = FakeRouter([_model("vision:Q4", vision=True), _model("text:Q4")])
+        by_id = {m.id: m for m in await _client(router).list_models({})}
+        assert by_id["vision:Q4"].input_modalities == {
+            AIInputModality.TEXT,
+            AIInputModality.IMAGE,
+        }
+        assert by_id["text:Q4"].input_modalities == {AIInputModality.TEXT}
+
+    @pytest.mark.asyncio
+    async def test_reports_connection_context_length(self):
+        router = FakeRouter([_model("text:Q4")])
+        unknown = await _client(router).list_models({})
+        assert unknown[0].context_length is None
+
+        runtime = FakeRuntime(
+            connection=LocalRouterConnection(
+                base_url="http://127.0.0.1:5000",
+                mode=LocalRuntimeMode.BUILT_IN,
+                source=LocalRuntimeSource.BUILT_IN,
+                context_length=8192,
+            )
+        )
+        known = await _client(router, runtime).list_models({})
+        assert known[0].context_length == 8192
 
     @pytest.mark.asyncio
     async def test_runtime_errors_are_provider_errors(self):

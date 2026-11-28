@@ -15,20 +15,17 @@ from application.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegrationImpl,
 )
 from application.use_cases.download_local_model import DownloadLocalModelImpl
+from application.use_cases.get_ai_models import GetAIModelsImpl
+from application.use_cases.get_ai_providers import GetAIProvidersImpl
 from application.use_cases.get_external_integrations import (
     GetExternalIntegrationsImpl,
-)
-from application.use_cases.get_external_labeling_models import (
-    GetExternalLabelingModelsImpl,
-)
-from application.use_cases.get_external_labeling_providers import (
-    GetExternalLabelingProvidersImpl,
 )
 from application.use_cases.get_local_models import GetLocalModelsImpl
 from application.use_cases.import_local_model import ImportLocalModelImpl
 from application.use_cases.list_hugging_face_quants import ListHuggingFaceQuantsImpl
 from domain.data_init import DatasourceInitContext
 from domain.external_integration import ExternalIntegrationId
+from infrastructure.client.ai.ai_model_presets import AI_MODEL_PRESETS
 from infrastructure.client.http.http_response import HttpResponse
 from infrastructure.controller.config import quart
 from infrastructure.controller.exception_handler import register_exception_handlers
@@ -42,25 +39,16 @@ from infrastructure.controller.routes.disconnect_external_integration import (
 from infrastructure.controller.routes.download_local_model import (
     download_local_model,
 )
+from infrastructure.controller.routes.get_ai_models import get_ai_models
+from infrastructure.controller.routes.get_ai_providers import get_ai_providers
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
-)
-from infrastructure.controller.routes.get_external_labeling_models import (
-    get_external_labeling_models,
-)
-from infrastructure.controller.routes.get_external_labeling_providers import (
-    get_external_labeling_providers,
 )
 from infrastructure.controller.routes.get_local_models import get_local_models
 from infrastructure.controller.routes.import_local_model import import_local_model
 from infrastructure.controller.routes.list_hugging_face_quants import (
     list_hugging_face_quants,
 )
-from infrastructure.labeling.ai_labeling_presets import (
-    LABELING_BATCH_SIZES,
-    LABELING_PRESETS,
-)
-from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
 from infrastructure.local_models import llama_router_process
 from infrastructure.local_models.huggingface_catalog_client import (
     HuggingFaceCatalogClient,
@@ -100,7 +88,10 @@ class FakeLlamaServer:
         self.api_key = None
         self.cached: dict[str, dict] = {}
         self.presets: dict[str, str] = {}
+        self.preset_mmproj: dict[str, str] = {}
         self.states: dict[str, str] = {}
+        self.vision: set[str] = set()
+        self.removals: list[tuple[str, str]] = []
         self.hf_info = {
             "id": HF_REPO,
             "siblings": [
@@ -118,12 +109,20 @@ class FakeLlamaServer:
 
     def _reload_presets(self):
         self.presets = {}
+        self.preset_mmproj = {}
         current = None
         for line in presets_path(self.models_dir).read_text().splitlines():
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]
             elif current and line.startswith("model = "):
                 self.presets[current] = line[len("model = ") :]
+            elif current and line.startswith("mmproj = "):
+                self.preset_mmproj[current] = line[len("mmproj = ") :]
+
+    @staticmethod
+    def _architecture(vision: bool) -> dict:
+        inputs = ["text", "image"] if vision else ["text"]
+        return {"input_modalities": inputs, "output_modalities": ["text"]}
 
     def _entries(self) -> list[dict]:
         entries = [
@@ -132,6 +131,8 @@ class FakeLlamaServer:
                 "status": {"value": self.states.get(model_id, "downloaded")},
                 "meta": {"size": size},
                 "can_remove": True,
+                "architecture": self._architecture(model_id in self.vision),
+                "sidecars": ["mmproj"] if model_id in self.vision else [],
             }
             for model_id, size in self.cached.items()
         ]
@@ -140,6 +141,7 @@ class FakeLlamaServer:
                 "id": model_id,
                 "status": {"value": self.states.get(model_id, "unloaded")},
                 "can_remove": False,
+                "architecture": self._architecture(model_id in self.preset_mmproj),
             }
             for model_id in self.presets
         ]
@@ -159,11 +161,22 @@ class FakeLlamaServer:
                 self._reload_presets()
             return _response(200, {"data": self._entries()})
         if path == "/models" and method == "POST":
+            if json["model"] in self.states and self.states[json["model"]] == "loaded":
+                return _response(400, {"error": {"message": "unload it first"}})
             self.cached[json["model"]] = 1000
+            if "mmproj" in json.get("sidecars", []):
+                self.vision.add(json["model"])
             return _response(200, {"success": True})
         if path == "/models" and method == "DELETE":
             if params["model"] not in self.cached:
                 return _response(404, {"error": {"message": "Not found"}})
+            if self.states.get(params["model"]) == "loaded":
+                return _response(400, {"error": {"message": "unload it first"}})
+            if params.get("sidecar") == "mmproj":
+                self.removals.append(("sidecar", params["model"]))
+                self.vision.discard(params["model"])
+                return _response(200, {"success": True})
+            self.removals.append(("model", params["model"]))
             del self.cached[params["model"]]
             return _response(200, {"success": True})
         if path in ("/models/load", "/models/unload"):
@@ -265,13 +278,6 @@ async def ctx(tmp_path, executable, monkeypatch):
     hugging_face._session = server
     ai_client = LocalModelsAIClient(runtime, router, catalog)
     clients = {LOCAL_MODELS: ai_client}
-    providers = {
-        LOCAL_MODELS: AILabelingProvider(
-            ai_client,
-            LABELING_PRESETS.get(LOCAL_MODELS, []),
-            LABELING_BATCH_SIZES.get(LOCAL_MODELS),
-        )
-    }
 
     get_integrations_uc = GetExternalIntegrationsImpl(integrations, clients)
     connect_uc = ConnectExternalIntegrationImpl(integrations, clients)
@@ -283,8 +289,8 @@ async def ctx(tmp_path, executable, monkeypatch):
     delete_uc = DeleteLocalModelImpl(integrations, runtime, router, imports)
     import_uc = ImportLocalModelImpl(integrations, runtime, router, imports)
     quants_uc = ListHuggingFaceQuantsImpl(hugging_face)
-    providers_uc = GetExternalLabelingProvidersImpl(integrations, providers)
-    labeling_models_uc = GetExternalLabelingModelsImpl(integrations, providers)
+    providers_uc = GetAIProvidersImpl(integrations, clients, AI_MODEL_PRESETS)
+    ai_models_uc = GetAIModelsImpl(integrations, clients)
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -323,15 +329,13 @@ async def ctx(tmp_path, executable, monkeypatch):
     async def quants_route():
         return await list_hugging_face_quants(quants_uc)
 
-    @app.route("/api/v1/labeling/external/providers", methods=["GET"])
+    @app.route("/api/v1/ai/providers", methods=["GET"])
     async def providers_route():
-        return await get_external_labeling_providers(providers_uc)
+        return await get_ai_providers(providers_uc)
 
-    @app.route(
-        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
-    )
-    async def labeling_models_route(provider_id: str):
-        return await get_external_labeling_models(labeling_models_uc, provider_id)
+    @app.route("/api/v1/ai/providers/<provider_id>/models", methods=["GET"])
+    async def ai_models_route(provider_id: str):
+        return await get_ai_models(ai_models_uc, provider_id)
 
     yield Ctx(app.test_client(), server, spawned, models_dir, runtime, tmp_path)
 
@@ -419,20 +423,28 @@ async def test_built_in_model_lifecycle(ctx):
     assert models["local/phi-mini"]["name"] == "phi-mini"
     assert models["local/phi-mini"]["path"] == str(model_file.resolve())
 
-    response = await ctx.http.get("/api/v1/labeling/external/providers")
+    response = await ctx.http.get("/api/v1/ai/providers")
     provider = next(
         p for p in (await response.get_json())["providers"] if p["id"] == "LOCAL_MODELS"
     )
     assert provider["connected"] is True
     assert provider["dynamic_models"] is True
     assert provider["custom_models"] is False
+    assert provider["attachments"] is True
 
     response = await ctx.http.get(
-        "/api/v1/labeling/external/providers/LOCAL_MODELS/models"
+        "/api/v1/ai/providers/LOCAL_MODELS/models", query_string={"task": "IMPORTING"}
     )
     assert response.status_code == 200
-    labeling_models = (await response.get_json())["models"]
-    assert {m["id"] for m in labeling_models} == {HF_MODEL, "local/phi-mini"}
+    ai_models = (await response.get_json())["models"]
+    assert {m["id"] for m in ai_models} == {HF_MODEL, "local/phi-mini"}
+    assert {m["eligible"] for m in ai_models} == {True}
+    assert {tuple(m["input_modalities"]) for m in ai_models} == {("TEXT",)}
+
+    response = await ctx.http.get(
+        "/api/v1/ai/providers", query_string={"task": "UNKNOWN"}
+    )
+    assert response.status_code == 400
 
     ctx.server.states["local/phi-mini"] = "loaded"
     response = await ctx.http.delete(
@@ -472,6 +484,102 @@ async def test_model_in_folder_is_listed(ctx):
     assert response.status_code == 204
     assert not (local_dir / "qwen.gguf").exists()
     assert (await ctx.overview(refresh=True))["models"] == []
+
+
+@pytest.mark.asyncio
+async def test_vision_lifecycle(ctx):
+    await ctx.connect()
+    catalog_id = "unsloth/Qwen3.5-0.8B-GGUF:Q4_K_M"
+    ctx.server.hf_info["siblings"].append(
+        {"rfilename": "mmproj-F16.gguf", "lfs": {"size": 200}}
+    )
+
+    response = await ctx.http.get(
+        "/api/v1/ai/local/huggingface/quants", query_string={"repo": HF_REPO}
+    )
+    quant = (await response.get_json())["quants"][0]
+    assert (quant["vision_file"], quant["vision_size"]) == ("mmproj-F16.gguf", 200)
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download",
+        json={"repo": HF_REPO, "quant": "Q4_K_M", "vision": True},
+    )
+    assert response.status_code == 204
+    assert ctx.server.vision == {HF_MODEL}
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download",
+        json={"catalog_id": catalog_id, "vision": "yes"},
+    )
+    assert response.status_code == 400
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download", json={"catalog_id": catalog_id}
+    )
+    assert response.status_code == 204
+    assert catalog_id not in ctx.server.vision
+
+    overview = await ctx.overview()
+    models = {m["id"]: m for m in overview["models"]}
+    assert models[HF_MODEL]["vision"] is True
+    assert models[HF_MODEL]["vision_removable"] is True
+    catalog_model = models[catalog_id]
+    assert catalog_model["vision"] is False
+    assert catalog_model["vision_addable"] is True
+    assert catalog_model["vision_size"] == 207346528
+
+    ctx.server.states[catalog_id] = "loaded"
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/download",
+        json={"catalog_id": catalog_id, "vision": True},
+    )
+    assert response.status_code == 204
+    assert ctx.server.states[catalog_id] == "unloaded"
+    assert catalog_id in ctx.server.vision
+
+    response = await ctx.http.get(
+        "/api/v1/ai/providers/LOCAL_MODELS/models", query_string={"task": "IMPORTING"}
+    )
+    modalities = {
+        m["id"]: m["input_modalities"] for m in (await response.get_json())["models"]
+    }
+    assert modalities[catalog_id] == ["IMAGE", "TEXT"]
+
+    ctx.server.states[catalog_id] = "loaded"
+    response = await ctx.http.delete(
+        "/api/v1/ai/local/models",
+        query_string={"model_id": catalog_id, "vision_only": "true"},
+    )
+    assert response.status_code == 204
+    assert catalog_id not in ctx.server.vision
+    assert catalog_id in ctx.server.cached
+    models = {m["id"]: m for m in (await ctx.overview())["models"]}
+    assert models[catalog_id]["vision"] is False
+
+    response = await ctx.http.delete(
+        "/api/v1/ai/local/models", query_string={"model_id": HF_MODEL}
+    )
+    assert response.status_code == 204
+    assert ctx.server.removals[-2:] == [("sidecar", HF_MODEL), ("model", HF_MODEL)]
+
+
+@pytest.mark.asyncio
+async def test_imported_model_uses_projector_in_same_folder(ctx):
+    await ctx.connect()
+    model_file = ctx.gguf("gemma-Q4_K_M.gguf")
+    projector = ctx.gguf("mmproj-gemma-F16.gguf")
+
+    response = await ctx.http.post(
+        "/api/v1/ai/local/models/import", json={"path": str(model_file)}
+    )
+    assert response.status_code == 200
+    assert (await response.get_json())["mmproj_path"] == str(projector.resolve())
+    assert ctx.server.preset_mmproj == {"local/gemma-q4_k_m": str(projector.resolve())}
+
+    models = (await ctx.overview(refresh=True))["models"]
+    assert [(m["id"], m["vision"], m["size"]) for m in models] == [
+        ("local/gemma-q4_k_m", True, 40)
+    ]
 
 
 @pytest.mark.asyncio

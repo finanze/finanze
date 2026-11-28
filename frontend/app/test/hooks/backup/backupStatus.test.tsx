@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { screen, waitFor, act, cleanup } from "@testing-library/react"
 import { BackupFileType, BackupMode, SyncStatus } from "@/types"
+import { ApiErrorException } from "@/utils/apiErrors"
 import { buildBackupsInfo, buildPiece, buildSyncResult } from "./builders"
 import {
   mockGetBackupsInfo,
   mockUploadBackup,
   mockImportBackup,
+  renderBackupHook,
   renderBackupUI,
   renderDualBackupUI,
   resetAllMocks,
@@ -359,5 +361,117 @@ describe("legacy persisted state", () => {
         types: expect.arrayContaining(["CONFIG"]),
       }),
     )
+  })
+})
+
+describe("outdated app handling (OUTDATED_APP)", () => {
+  it("exposes outdated app state when DATA has OUTDATED_APP and remote.schema_revision=96", async () => {
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
+    )
+
+    const { result } = renderBackupHook()
+
+    await waitFor(() => {
+      expect(result.current.overallStatus).toBe(SyncStatus.OUTDATED_APP)
+    })
+
+    expect(result.current.isOutdatedApp).toBe(true)
+    expect(result.current.outdatedAppUploadTypes).toEqual([BackupFileType.DATA])
+  })
+
+  it("runManualSync does not call importBackup or uploadBackup when DATA is OUTDATED_APP", async () => {
+    setBackupMode(BackupMode.MANUAL)
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
+    )
+
+    const { result } = renderBackupHook()
+
+    await waitFor(() => {
+      expect(result.current.isOutdatedApp).toBe(true)
+    })
+
+    mockGetBackupsInfo.mockClear()
+
+    await act(async () => {
+      await result.current.runManualSync()
+    })
+
+    expect(mockGetBackupsInfo).toHaveBeenCalled()
+    expect(mockImportBackup).not.toHaveBeenCalled()
+    expect(mockUploadBackup).not.toHaveBeenCalled()
+  })
+
+  it("Use Local (handleUpload) force-uploads DATA and resolves OUTDATED_APP", async () => {
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
+    )
+    mockUploadBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
+
+    renderBackupUI()
+
+    await waitFor(() => {
+      expect(screen.getByText("Newer backup version")).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("Update required")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Use remote" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Use local" })).not.toBeDisabled()
+
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Use local" }).click()
+    })
+
+    await waitFor(() => {
+      expect(mockUploadBackup).toHaveBeenCalledWith({
+        types: [BackupFileType.DATA],
+        force: true,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText("Newer backup version")).not.toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+  })
+
+  it("handleImport sets unsupportedVersionError message on UNSUPPORTED_BACKUP_VERSION", async () => {
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
+
+    const unsupportedError = Object.assign(
+      new ApiErrorException(
+        "UNSUPPORTED_BACKUP_VERSION",
+        "Backup requires a newer app version",
+      ),
+      { details: { remote_schema_revision: 96 } },
+    )
+    mockImportBackup.mockRejectedValue(unsupportedError)
+
+    const { result } = renderBackupHook()
+
+    await waitFor(() => {
+      expect(result.current.overallStatus).toBe(SyncStatus.CONFLICT)
+    })
+
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
+    )
+
+    await act(async () => {
+      await result.current.handleImport([BackupFileType.DATA])
+    })
+
+    expect(result.current.feedbackMessage).toBe(
+      "Backup was created with a newer version of Finanze. Please update the app.",
+    )
+    expect(result.current.isOutdatedApp).toBe(true)
   })
 })

@@ -1,6 +1,9 @@
 import logging
 
 from application.ports.connectable_integration import ConnectableIntegration
+from application.ports.device_connectable_integration import (
+    DeviceConnectableIntegration,
+)
 from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.oauth_connectable_integration import (
     OAuthConnectableIntegration,
@@ -55,6 +58,10 @@ class ConnectExternalIntegrationImpl(ConnectExternalIntegration):
                 )
 
         try:
+            if isinstance(integration, DeviceConnectableIntegration):
+                device = await integration.start_device_authorization(payload)
+                return ExternalIntegrationConnectionResult(device=device)
+
             if isinstance(integration, OAuthConnectableIntegration):
                 link = await integration.start_authorization(
                     payload, request.completion_url

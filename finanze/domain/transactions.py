@@ -46,6 +46,21 @@ ACCOUNT_INCOMING_TYPES = {TxType.INFLOW, TxType.INTEREST}
 ACCOUNT_OUTGOING_TYPES = {TxType.OUTFLOW, TxType.FEE}
 ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS = 730
 MAX_IBAN_LENGTH = 34
+MAX_COUNTERPARTY_LENGTH = 200
+
+NET_OUTGOING_TX_TYPES = {
+    TxType.BUY,
+    TxType.INVESTMENT,
+    TxType.SUBSCRIPTION,
+    TxType.FEE,
+    TxType.RIGHT_ISSUE,
+    TxType.TRANSFER_OUT,
+    TxType.SWITCH_FROM,
+    TxType.SWAP_FROM,
+    TxType.OUTFLOW,
+}
+
+TxRefKey = tuple[UUID, ProductType, str]
 
 
 def normalize_iban(value: Optional[str]) -> Optional[str]:
@@ -209,6 +224,26 @@ class Transactions:
         return Transactions(investment=investment, account=account)
 
 
+def compute_net_amount(tx: BaseTx) -> Dezimal:
+    fees = getattr(tx, "fees", None) or Dezimal(0)
+    retentions = getattr(tx, "retentions", None) or Dezimal(0)
+    if tx.type in NET_OUTGOING_TX_TYPES:
+        return tx.amount + fees + retentions
+    return tx.amount - fees - retentions
+
+
+def account_balance_delta(tx: AccountTx) -> Dezimal:
+    if tx.type == TxType.FEE:
+        return -tx.amount
+    if tx.type in ACCOUNT_INCOMING_TYPES:
+        return compute_net_amount(tx)
+    if tx.type == TxType.OUTFLOW:
+        return -compute_net_amount(tx)
+    raise ValueError(
+        f"Unsupported account transaction type for balance update: {tx.type}"
+    )
+
+
 @dataclass
 class TransactionsResult:
     transactions: list[BaseTx]
@@ -273,6 +308,7 @@ class AddManualTransactionRequest:
     txs: list[BaseTx]
     historic_entry_id: Optional[UUID] = None
     external_labeling: Optional[bool] = None
+    balance_account_id: Optional[UUID] = None
 
 
 @dataclass

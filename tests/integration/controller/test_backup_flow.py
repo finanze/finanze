@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
@@ -19,8 +20,19 @@ from domain.backup import (
     BackupTransferPiece,
     SyncStatus,
 )
-from domain.cloud_auth import CloudAuthData, CloudAuthToken, CloudUserRole
-from domain.exception.exceptions import BackupTransferFailed
+from domain.cloud_auth import (
+    CloudAuthData,
+    CloudAuthToken,
+    CloudAuthTokenData,
+    CloudUserRole,
+)
+from domain.data_init import MigrationAheadOfTime
+from domain.exception.exceptions import (
+    BackupTransferFailed,
+    UnsupportedBackupProtocol,
+    UnsupportedBackupVersion,
+)
+from domain.exception.reporting import is_reportable
 from domain.user import User
 from infrastructure.cloud import cloud_data_register
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
@@ -65,6 +77,8 @@ def _backup_info(
     dt=None,
     bkg_id=None,
     size=100,
+    schema_revision=None,
+    schema_hash=None,
 ):
     return BackupInfo(
         id=bkg_id or uuid.uuid4(),
@@ -72,6 +86,8 @@ def _backup_info(
         date=dt or datetime.now(timezone.utc),
         type=bkg_type,
         size=size,
+        schema_revision=schema_revision,
+        schema_hash=schema_hash,
     )
 
 
@@ -951,3 +967,353 @@ class TestBackupTransferFailed:
         assert response.status_code == 502
         body = await response.get_json()
         assert body["code"] == "BACKUP_TRANSFER_FAILED"
+
+
+class TestBackupSchemaRevisionFlow:
+    @pytest.mark.asyncio
+    async def test_cloud_data_register_persists_schema_revision_and_ignores_legacy_version(
+        self, cloud_auth_storage
+    ):
+        _, register, user, _ = cloud_auth_storage
+        dt = datetime.now().astimezone()
+        versioned = _backup_info(dt=dt, schema_revision=95, schema_hash="hash_95")
+        await register.insert([versioned])
+
+        raw = json.loads((user.path / "cloud.json").read_text())
+        assert raw["backup"]["backups"]["DATA"]["schema_revision"] == 95
+        assert raw["backup"]["backups"]["DATA"]["schema_hash"] == "hash_95"
+
+        await register.disconnect()
+        await register.connect(user)
+
+        loaded = await register.get_info()
+        assert loaded.pieces[BackupFileType.DATA] == versioned
+        assert loaded.pieces[BackupFileType.DATA].schema_revision == 95
+        assert loaded.pieces[BackupFileType.DATA].schema_hash == "hash_95"
+
+        legacy = _backup_info(dt=dt, schema_revision=None)
+        await register.insert([legacy])
+
+        raw_legacy = json.loads((user.path / "cloud.json").read_text())
+        assert "schema_revision" not in raw_legacy["backup"]["backups"]["DATA"]
+        assert "schema_hash" not in raw_legacy["backup"]["backups"]["DATA"]
+        raw_legacy["backup"]["backups"]["DATA"]["version"] = 120005
+        (user.path / "cloud.json").write_text(json.dumps(raw_legacy))
+
+        await register.disconnect()
+        await register.connect(user)
+        loaded_legacy = await register.get_info()
+        assert loaded_legacy.pieces[BackupFileType.DATA].schema_revision is None
+
+    @pytest.mark.asyncio
+    async def test_get_backups_serializes_version_and_outdated_app_status(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(BackupFileType.DATA, dt=dt, schema_revision=95)
+        remote_info = _backup_info(BackupFileType.DATA, dt=dt, schema_revision=96)
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=dt - timedelta(minutes=5)
+        )
+
+        response = await client.get(GET_BACKUPS_URL)
+        assert response.status_code == 200
+        body = await response.get_json()
+        data_piece = body["pieces"]["DATA"]
+        assert data_piece["local"]["schema_revision"] == 95
+        assert data_piece["remote"]["schema_revision"] == 96
+        assert data_piece["status"] == SyncStatus.OUTDATED_APP.value
+
+        cloud_register.decode_token = AsyncMock(
+            return_value=CloudAuthTokenData(
+                role=CloudUserRole.PLUS,
+                email="test@example.com",
+                permissions=ALL_PERMISSIONS,
+            )
+        )
+        token_response = await client.get(
+            GET_BACKUPS_URL,
+            headers={"Cloud-Authorization": "Bearer onboarding-token"},
+        )
+        assert token_response.status_code == 200
+        token_body = await token_response.get_json()
+        assert token_body["pieces"]["DATA"]["remote"]["schema_revision"] == 96
+        assert token_body["pieces"]["DATA"]["status"] == SyncStatus.OUTDATED_APP.value
+
+    @pytest.mark.asyncio
+    async def test_upload_serializes_version_in_response(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backup_processor,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        backup_local_registry.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        backup_repository.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        dt = datetime.now(timezone.utc)
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=dt
+        )
+        backupable_ports[BackupFileType.DATA].export = AsyncMock(
+            return_value=b"database-bytes"
+        )
+        backup_processor.compile = AsyncMock(
+            return_value=BackupProcessResult(payload=b"encrypted", size=9)
+        )
+        backup_repository.upload = AsyncMock(side_effect=lambda params: params.pieces)
+
+        response = await client.post(UPLOAD_URL, json={"types": ["DATA"]})
+        assert response.status_code == 200
+        body = await response.get_json()
+        data_piece = body["pieces"]["DATA"]
+        assert data_piece["local"]["schema_revision"] == 95
+        assert data_piece["local"]["schema_hash"] == "hash_95"
+        assert data_piece["remote"]["schema_revision"] == 95
+        assert data_piece["remote"]["schema_hash"] == "hash_95"
+
+    @pytest.mark.asyncio
+    async def test_import_serializes_version_in_response(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backup_processor,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        local_dt = datetime.now(timezone.utc) - timedelta(hours=3)
+        remote_dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(BackupFileType.DATA, dt=local_dt, schema_revision=90)
+        remote_info = _backup_info(
+            BackupFileType.DATA, dt=remote_dt, schema_revision=95
+        )
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=local_dt - timedelta(minutes=10)
+        )
+        downloaded_piece = BackupTransferPiece(
+            id=remote_info.id,
+            protocol=1,
+            date=remote_dt,
+            type=BackupFileType.DATA,
+            payload=b"encrypted",
+            size=9,
+            schema_revision=95,
+        )
+        backup_repository.download = AsyncMock(
+            return_value=BackupPieces(pieces=[downloaded_piece])
+        )
+        backup_processor.decompile = AsyncMock(
+            return_value=BackupProcessResult(payload=b"decrypted", size=9)
+        )
+        backupable_ports[BackupFileType.DATA].import_data = AsyncMock()
+
+        response = await client.post(IMPORT_URL, json={"types": ["DATA"]})
+        assert response.status_code == 200
+        body = await response.get_json()
+        data_piece = body["pieces"]["DATA"]
+        assert data_piece["local"]["schema_revision"] == 95
+        assert data_piece["remote"]["schema_revision"] == 95
+
+    @pytest.mark.asyncio
+    async def test_import_returns_409_with_details_when_remote_version_ahead(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        local_dt = datetime.now(timezone.utc) - timedelta(hours=3)
+        remote_dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(BackupFileType.DATA, dt=local_dt, schema_revision=95)
+        remote_info = _backup_info(
+            BackupFileType.DATA, dt=remote_dt, schema_revision=96
+        )
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backup_repository.download.reset_mock()
+
+        response = await client.post(
+            IMPORT_URL, json={"types": ["DATA"], "force": True}
+        )
+        assert response.status_code == 409
+        body = await response.get_json()
+        assert body["code"] == "UNSUPPORTED_BACKUP_VERSION"
+        assert body["details"] == {
+            "remote_schema_revision": 96,
+        }
+        backup_repository.download.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_import_returns_409_when_equal_revision_has_different_schema_hash(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        local_dt = datetime.now(timezone.utc) - timedelta(hours=3)
+        remote_dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(
+            BackupFileType.DATA, dt=local_dt, schema_revision=95, schema_hash="hash_95"
+        )
+        remote_info = _backup_info(
+            BackupFileType.DATA,
+            dt=remote_dt,
+            schema_revision=95,
+            schema_hash="hash_hotfix",
+        )
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backup_repository.download.reset_mock()
+
+        response = await client.post(
+            IMPORT_URL, json={"types": ["DATA"], "force": True}
+        )
+        assert response.status_code == 409
+        body = await response.get_json()
+        assert body["code"] == "UNSUPPORTED_BACKUP_VERSION"
+        assert body["details"] == {
+            "remote_schema_revision": 95,
+            "remote_schema_hash": "hash_hotfix",
+        }
+        backup_repository.download.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_import_returns_503_when_backupable_raises_migration_ahead_of_time(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backup_processor,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        local_dt = datetime.now(timezone.utc) - timedelta(hours=3)
+        remote_dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(BackupFileType.DATA, dt=local_dt)
+        remote_info = _backup_info(BackupFileType.DATA, dt=remote_dt)
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=local_dt - timedelta(minutes=10)
+        )
+        downloaded_piece = BackupTransferPiece(
+            id=remote_info.id,
+            protocol=1,
+            date=remote_dt,
+            type=BackupFileType.DATA,
+            payload=b"encrypted",
+            size=9,
+        )
+        backup_repository.download = AsyncMock(
+            return_value=BackupPieces(pieces=[downloaded_piece])
+        )
+        backup_processor.decompile = AsyncMock(
+            return_value=BackupProcessResult(payload=b"decrypted", size=9)
+        )
+        backupable_ports[BackupFileType.DATA].import_data = AsyncMock(
+            side_effect=MigrationAheadOfTime(
+                "Database has migrations not present in this version: v99.0.0:0_future"
+            )
+        )
+
+        response = await client.post(IMPORT_URL, json={"types": ["DATA"]})
+        assert response.status_code == 503
+        body = await response.get_json()
+        assert body["code"] == "UNSUPPORTED_BACKUP_VERSION"
+        assert "v99.0.0:0_future" in body["message"]
+
+    @pytest.mark.asyncio
+    async def test_import_returns_409_when_decompile_raises_unsupported_protocol(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backup_processor,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        local_dt = datetime.now(timezone.utc) - timedelta(hours=3)
+        remote_dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(BackupFileType.DATA, dt=local_dt)
+        remote_info = _backup_info(BackupFileType.DATA, dt=remote_dt)
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=local_dt - timedelta(minutes=10)
+        )
+        downloaded_piece = BackupTransferPiece(
+            id=remote_info.id,
+            protocol=99,
+            date=remote_dt,
+            type=BackupFileType.DATA,
+            payload=b"encrypted",
+            size=9,
+        )
+        backup_repository.download = AsyncMock(
+            return_value=BackupPieces(pieces=[downloaded_piece])
+        )
+        backup_processor.decompile = AsyncMock(
+            side_effect=UnsupportedBackupProtocol(99)
+        )
+
+        response = await client.post(IMPORT_URL, json={"types": ["DATA"]})
+        assert response.status_code == 409
+        body = await response.get_json()
+        assert body["code"] == "UNSUPPORTED_BACKUP_PROTOCOL"
+
+
+class TestBackupExceptionReporting:
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            UnsupportedBackupVersion(remote_schema_revision=96),
+            MigrationAheadOfTime("v99.0.0:0_future"),
+            UnsupportedBackupProtocol(99),
+        ],
+    )
+    def test_backup_version_and_protocol_exceptions_are_not_reportable(self, exc):
+        assert is_reportable(exc) is False

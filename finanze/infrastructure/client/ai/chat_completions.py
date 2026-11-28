@@ -8,6 +8,7 @@ from domain.ai import (
     AIJsonSchema,
     AIUsage,
 )
+from infrastructure.client.ai.attachments import chat_content
 from infrastructure.client.ai.http_ai_client import to_dezimal
 
 
@@ -16,7 +17,7 @@ def chat_messages(request: AIGenerationRequest) -> list[dict]:
     if request.instructions:
         messages.append({"role": "system", "content": request.instructions})
     messages += [
-        {"role": message.role.value.lower(), "content": message.content}
+        {"role": message.role.value.lower(), "content": chat_content(message)}
         for message in request.messages
     ]
     return messages

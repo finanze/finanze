@@ -2,12 +2,7 @@
     "name": "finanze-mobile-e2e",
     "private": true,
     "type": "module",
-    "packageManager": "pnpm@10.32.1",
-    "pnpm": {
-        "overrides": {
-            "bplist-parser": "0.3.2"
-        }
-    },
+    "packageManager": "pnpm@12.21.0",
     "scripts": {
         "test:ios": "wdio run wdio.ios.conf.ts",
         "test:android": "wdio run wdio.android.conf.ts",
@@ -17,16 +12,16 @@
     },
     "devDependencies": {
         "@types/mocha": "^10.0.10",
-        "@types/node": "^26.6.5",
-        "@wdio/appium-service": "^9.32.0",
-        "@wdio/cli": "^9.32.0",
-        "@wdio/globals": "^9.31.3",
-        "@wdio/local-runner": "^9.32.0",
-        "@wdio/mocha-framework": "^9.32.0",
-        "@wdio/spec-reporter": "^9.32.0",
-        "@wdio/types": "^9.32.0",
-        "appium": "^3.8.0",
-        "appium-uiautomator2-driver": "^8.7.0",
+        "@types/node": "^26.6.6",
+        "@wdio/appium-service": "^9.33.1",
+        "@wdio/cli": "^9.33.1",
+        "@wdio/globals": "^9.33.1",
+        "@wdio/local-runner": "^9.33.1",
+        "@wdio/mocha-framework": "^9.33.1",
+        "@wdio/spec-reporter": "^9.33.1",
+        "@wdio/types": "^9.33.1",
+        "appium": "^3.9.1",
+        "appium-uiautomator2-driver": "^8.7.3",
         "appium-xcuitest-driver": "^11.17.7",
         "ts-node": "^10.9.2",
         "typescript": "^7.0.2"

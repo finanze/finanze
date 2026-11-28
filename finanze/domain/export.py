@@ -1,3 +1,4 @@
+from datetime import date
 from enum import Enum
 from typing import Optional
 
@@ -34,6 +35,11 @@ class FileFormat(str, Enum):
     CSV = "CSV"
     TSV = "TSV"
     XLSX = "XLSX"
+    HTML = "HTML"
+    PDF = "PDF"
+
+
+EXPORT_FILE_FORMATS = frozenset({FileFormat.CSV, FileFormat.TSV, FileFormat.XLSX})
 
 
 @dataclass
@@ -44,6 +50,8 @@ class FileExportRequest:
     data: list[ProductType] | None = None
     datetime_format: str | None = None
     date_format: str | None = None
+    from_date: date | None = None
+    to_date: date | None = None
     template: TemplateConfig | None = None
 
 

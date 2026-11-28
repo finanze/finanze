@@ -11,16 +11,19 @@ concurrency:
 jobs:
   test:
     name: Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
 
       - name: Install dependencies
         run: |
@@ -33,16 +36,19 @@ jobs:
 
   format-check:
     name: Format Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
 
       - name: Install Python linting dependencies
         run: |
@@ -61,9 +67,11 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
+          cache: 'pnpm'
+          cache-dependency-path: 'frontend/app/pnpm-lock.yaml'
 
       - name: Install frontend dependencies
         working-directory: frontend/app
@@ -78,17 +86,44 @@ jobs:
         run: pnpm exec prettier --check .
 
   e2e:
-    name: E2E Tests
-    runs-on: ubuntu-24.04
+    name: E2E Tests (${{ matrix.label }})
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ubuntu-latest (1/2)
+            os: ubuntu-latest
+            shard: '1/2'
+            artifact: ubuntu-latest-1
+          - label: ubuntu-latest (2/2)
+            os: ubuntu-latest
+            shard: '2/2'
+            artifact: ubuntu-latest-2
+          - label: macos-latest
+            os: macos-latest
+            artifact: macos-latest
+          - label: windows-latest
+            os: windows-latest
+            artifact: windows-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Configure Windows Defender exclusions for E2E temp directories
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: Add-MpPreference -ExclusionPath $env:TEMP, $env:GITHUB_WORKSPACE
+
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
 
       - name: Install Python dependencies
         run: |
@@ -101,9 +136,13 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
+          cache: 'pnpm'
+          cache-dependency-path: |
+            frontend/app/pnpm-lock.yaml
+            e2e/standard/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: frontend/app
@@ -115,9 +154,12 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
-          path: ~/.cache/ms-playwright
+          path: |
+            ~/.cache/ms-playwright
+            ~/Library/Caches/ms-playwright
+            ~/AppData/Local/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('e2e/standard/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
@@ -129,28 +171,55 @@ jobs:
         run: pnpm exec playwright install chromium
 
       - name: Install Playwright system dependencies
+        if: runner.os == 'Linux'
         working-directory: e2e/standard
         run: pnpm exec playwright install-deps chromium
 
-      - name: Run E2E tests
+      - name: Run full E2E suite (Linux)
+        if: runner.os == 'Linux'
         working-directory: e2e/standard
-        run: pnpm test
+        run: pnpm exec playwright test --shard=${{ matrix.shard }}
+
+      - name: Run multiplatform E2E tests (macOS & Windows)
+        if: runner.os != 'Linux'
+        working-directory: e2e/standard
+        env:
+          E2E_CLOUD_ONLY: '1'
+        run: pnpm exec playwright test --project=cloud-backup --project=cloud-restore
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.artifact }}
           path: e2e/standard/test-results/
+          if-no-files-found: ignore
           retention-days: 7
+
+  e2e-gate:
+    name: E2E Tests
+    timeout-minutes: 5
+    needs: [e2e]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check E2E matrix result
+        run: |
+          if [ "${{ needs.e2e.result }}" != "success" ]; then
+            echo "E2E matrix failed or was cancelled (result: ${{ needs.e2e.result }})"
+            exit 1
+          fi
+          echo "All E2E matrix jobs succeeded"
 
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -158,9 +227,11 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
+          cache: 'pnpm'
+          cache-dependency-path: 'frontend/app/pnpm-lock.yaml'
 
       - name: Install frontend dependencies
         working-directory: frontend/app

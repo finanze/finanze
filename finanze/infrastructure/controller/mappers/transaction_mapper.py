@@ -8,6 +8,7 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.transactions import (
+    MAX_COUNTERPARTY_LENGTH,
     AccountTx,
     AddManualTransactionRequest,
     BaseTx,
@@ -25,8 +26,6 @@ from domain.transactions import (
     is_valid_iban_format,
     normalize_iban,
 )
-
-MAX_COUNTERPARTY_LENGTH = 200
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -330,6 +329,15 @@ def _external_labeling_from_item(item: dict) -> Optional[bool]:
     return value
 
 
+def _balance_account_id_from_item(item: dict) -> Optional[UUID]:
+    raw_account_id = item.get("balance_account_id")
+    if raw_account_id in (None, ""):
+        return None
+    if not isinstance(raw_account_id, str):
+        raise ValueError("balance_account_id must be a UUID string")
+    return UUID(raw_account_id)
+
+
 def map_update_manual_transaction(
     body: dict, tx_id: UUID
 ) -> UpdateManualTransactionRequest:
@@ -360,10 +368,19 @@ def map_add_manual_transaction(body) -> AddManualTransactionRequest:
             ),
             None,
         )
+        balance_account_id = next(
+            (
+                _balance_account_id_from_item(item)
+                for item in body
+                if isinstance(item, dict) and item.get("balance_account_id")
+            ),
+            None,
+        )
         return AddManualTransactionRequest(
             txs=txs,
             historic_entry_id=historic_entry_id,
             external_labeling=external_labeling,
+            balance_account_id=balance_account_id,
         )
 
     if isinstance(body, dict):
@@ -371,6 +388,7 @@ def map_add_manual_transaction(body) -> AddManualTransactionRequest:
             txs=[map_manual_transaction(body)],
             historic_entry_id=_historic_entry_id_from_item(body),
             external_labeling=_external_labeling_from_item(body),
+            balance_account_id=_balance_account_id_from_item(body),
         )
 
     raise ValueError("Body must be a JSON object or array")

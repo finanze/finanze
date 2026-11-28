@@ -106,6 +106,8 @@ class ExternalEntityLinkCompletion:
 @dataclass
 class ExternalFetchRequest:
     external_entity_id: UUID
+    features: Optional[list[Feature]] = None
+    deep: bool = False
 
 
 @dataclass

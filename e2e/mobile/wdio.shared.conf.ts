@@ -2,6 +2,7 @@ import type { Options } from '@wdio/types'
 
 export const sharedConfig: Partial<Options.Testrunner> = {
     runner: 'local',
+    autoXvfb: false,
     specs: ['./test/specs/**/*.spec.ts'],
     maxInstances: 1,
     logLevel: 'info',

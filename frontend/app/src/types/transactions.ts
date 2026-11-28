@@ -196,6 +196,7 @@ export interface ManualAccountTransactionPayload extends ManualTransactionBasePa
   iban?: string
   labels?: string[]
   external_labeling?: boolean
+  balance_account_id?: string
 }
 
 export interface ManualStockTransactionPayload extends ManualTransactionBasePayload {

@@ -12,6 +12,7 @@ from domain.ai import (
     AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
+    AIInputModality,
     AIModel,
     AIModelCapability,
 )
@@ -81,6 +82,8 @@ class LocalModelsAIClient(AIClient):
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
             AIClientFeature.MODEL_LISTING,
+            AIClientFeature.ATTACHMENTS,
+            AIClientFeature.OPTIONAL_FIELDS,
         }
 
     async def setup(self, payload: ExternalIntegrationPayload):
@@ -92,7 +95,7 @@ class LocalModelsAIClient(AIClient):
                 SETUP_ERROR_CODES.get(e.code, IntegrationSetupErrorCode.UNREACHABLE)
             ) from e
 
-    async def teardown(self):
+    async def teardown(self, payload: Optional[ExternalIntegrationPayload] = None):
         await self._runtime.stop()
 
     async def list_models(
@@ -100,13 +103,15 @@ class LocalModelsAIClient(AIClient):
     ) -> list[AIModel]:
         connection = await self._connection(credentials)
         models = [
-            self._to_ai_model(model)
+            self._to_ai_model(model, connection.context_length)
             for model in await self._models(connection)
             if model.state in USABLE_LOCAL_MODEL_STATES
         ]
         return sorted(models, key=lambda model: model.name.casefold())
 
-    def _to_ai_model(self, model: LocalRouterModel) -> AIModel:
+    def _to_ai_model(
+        self, model: LocalRouterModel, context_length: Optional[int]
+    ) -> AIModel:
         entry = self._catalog.find(model.id)
         if entry is not None:
             name = entry.name
@@ -121,6 +126,12 @@ class LocalModelsAIClient(AIClient):
             size=model.size or (entry.size if entry else None),
             loaded=model.state == LocalModelState.LOADED,
             load_failed=model.state == LocalModelState.FAILED,
+            input_modalities=(
+                {AIInputModality.TEXT, AIInputModality.IMAGE}
+                if model.vision
+                else {AIInputModality.TEXT}
+            ),
+            context_length=context_length,
         )
 
     async def get_model(

@@ -15,6 +15,7 @@ import type { BudgetSummary } from "@/types/cashflow"
 import en from "@/i18n/locales/en.json"
 
 let privateMode = false
+let locale = "en-US"
 const label = {
   id: "food",
   name: "Food",
@@ -22,7 +23,7 @@ const label = {
   color: "#22c55e",
 }
 
-vi.mock("@/i18n", () => ({ useI18n: () => ({ t: en, locale: "en-US" }) }))
+vi.mock("@/i18n", () => ({ useI18n: () => ({ t: en, locale }) }))
 vi.mock("@/context/LabelsContext", () => ({
   useLabels: () => ({ getLabel: () => label, getLabelName: () => label.name }),
 }))
@@ -57,6 +58,7 @@ const budget = (overrides: Partial<BudgetSummary> = {}): BudgetSummary => ({
 beforeEach(() => {
   cleanup()
   privateMode = false
+  locale = "en-US"
 })
 
 const renderBudget = (value = budget(), loading = false, expand = true) => {
@@ -79,6 +81,18 @@ const renderBudget = (value = budget(), loading = false, expand = true) => {
 }
 
 describe("BudgetPerformance", () => {
+  it("uses abbreviated Portuguese months in budget ranges", () => {
+    locale = "pt-PT"
+    renderBudget(
+      budget({ from_month: "2025-02-01", to_month: "2025-03-01" }),
+      false,
+      false,
+    )
+    expect(screen.getByTestId("budget-target-months")).toHaveTextContent(
+      "fev. 2025 - mar. 2025",
+    )
+  })
+
   it("starts collapsed with only the heading, months, and help available", () => {
     renderBudget(budget(), false, false)
     expect(screen.getByTestId("budget-details-toggle")).toHaveAttribute(

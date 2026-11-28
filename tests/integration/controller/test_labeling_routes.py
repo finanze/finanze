@@ -828,7 +828,7 @@ async def test_rules_labels_filters_and_relabel_flow(ctx):
     transfer = _tx("Traspaso", "500", TxType.OUTFLOW, day)
     await ctx.save(first, second, salary, transfer)
 
-    conditions = {"text": {"value": "mercadona", "operator": "CONTAINS"}}
+    conditions = [{"text": {"values": ["mercadona"], "operator": "CONTAINS"}}]
     response = await ctx.http.post(
         "/api/v1/labeling/rules/preview", json={"conditions": conditions}
     )
@@ -918,14 +918,14 @@ async def test_rules_labels_filters_and_relabel_flow(ctx):
 async def test_invalid_rule_and_unknown_tx(ctx):
     response = await ctx.http.post(
         "/api/v1/labeling/rules",
-        json={"conditions": {"text": {"value": "x"}}, "labels": []},
+        json={"conditions": [{"text": {"values": ["x"]}}], "labels": []},
     )
     assert response.status_code == 400
     assert (await response.get_json())["code"] == "INVALID_LABELING_RULE"
 
     response = await ctx.http.post(
         "/api/v1/labeling/rules/preview",
-        json={"conditions": {"text": {"value": "(", "operator": "REGEX"}}},
+        json={"conditions": [{"text": {"values": ["("], "operator": "REGEX"}}]},
     )
     assert response.status_code == 400
 
@@ -943,7 +943,7 @@ async def test_transfer_rule_crud(ctx):
         "/api/v1/labeling/rules",
         json={
             "kind": "TRANSFER",
-            "conditions": {"max_days": 2, "min_amount": "100"},
+            "conditions": [{"max_days": 2, "min_amount": "100"}],
             "labels": [transfer_label],
             "apply_to_existing": True,
         },
@@ -951,14 +951,14 @@ async def test_transfer_rule_crud(ctx):
     assert response.status_code == 201
     saved = await response.get_json()
     assert saved["rule"]["kind"] == "TRANSFER"
-    assert saved["rule"]["conditions"]["max_days"] == 2
+    assert saved["rule"]["conditions"][0]["max_days"] == 2
     rule_id = saved["rule"]["id"]
 
     response = await ctx.http.put(
         f"/api/v1/labeling/rules/{rule_id}",
         json={
             "kind": "MATCH",
-            "conditions": {"max_days": 5},
+            "conditions": [{"max_days": 5}],
             "labels": [transfer_label],
         },
     )
@@ -966,13 +966,23 @@ async def test_transfer_rule_crud(ctx):
     rules = (await (await ctx.http.get("/api/v1/labeling/rules")).get_json())["rules"]
     updated = next(rule for rule in rules if rule["id"] == rule_id)
     assert updated["kind"] == "TRANSFER"
-    assert updated["conditions"]["max_days"] == 5
+    assert updated["conditions"][0]["max_days"] == 5
 
     response = await ctx.http.post(
         "/api/v1/labeling/rules",
         json={
             "kind": "TRANSFER",
-            "conditions": {"text": {"value": "x"}},
+            "conditions": [{"text": {"values": ["x"]}}],
+            "labels": [transfer_label],
+        },
+    )
+    assert response.status_code == 400
+    assert (await response.get_json())["code"] == "INVALID_LABELING_RULE"
+
+    response = await ctx.http.put(
+        f"/api/v1/labeling/rules/{rule_id}",
+        json={
+            "conditions": [{"max_days": 1}, {"max_days": 2}],
             "labels": [transfer_label],
         },
     )
@@ -992,20 +1002,91 @@ async def test_rule_iban_condition_is_normalized_and_validated(ctx):
     response = await ctx.http.post(
         "/api/v1/labeling/rules",
         json={
-            "conditions": {"ibans": ["es76 0000 0000 0000 01", "ES7600000000000001"]},
+            "conditions": [{"ibans": ["es76 0000 0000 0000 01", "ES7600000000000001"]}],
             "labels": [groceries],
         },
     )
     assert response.status_code == 201
     saved = await response.get_json()
-    assert saved["rule"]["conditions"]["ibans"] == ["ES7600000000000001"]
+    assert saved["rule"]["conditions"][0]["ibans"] == ["ES7600000000000001"]
 
     response = await ctx.http.post(
         "/api/v1/labeling/rules",
-        json={"conditions": {"ibans": ["ES76-0001"]}, "labels": [groceries]},
+        json={"conditions": [{"ibans": ["ES76-0001"]}], "labels": [groceries]},
     )
     assert response.status_code == 400
     assert (await response.get_json())["code"] == "INVALID_LABELING_RULE"
+
+
+@pytest.mark.asyncio
+async def test_rule_alternatives_and_multiple_text_values(ctx):
+    day = date(2026, 3, 10)
+    groceries = await ctx.label_id("groceries")
+    mercadona = _tx("MERCADONA VALENCIA", "45.20", TxType.OUTFLOW, day)
+    lidl = _tx("Compra", "12.00", TxType.OUTFLOW, day, counterparty="Lidl SA")
+    salary = _tx("NOMINA MARZO", "2000", TxType.INFLOW, day, counterparty="ACME")
+    small_salary = _tx("NOMINA EXTRA", "20", TxType.INFLOW, day)
+    await ctx.save(mercadona, lidl, salary, small_salary)
+
+    conditions = [
+        {"text": {"values": ["  Mercadona ", "mercadona", "LIDL"]}},
+        {"text": {"values": ["nomina"]}, "types": ["INFLOW"], "min_amount": "100"},
+    ]
+    response = await ctx.http.post(
+        "/api/v1/labeling/rules/preview", json={"conditions": conditions}
+    )
+    assert response.status_code == 200
+    assert (await response.get_json())["count"] == 3
+
+    response = await ctx.http.post(
+        "/api/v1/labeling/rules",
+        json={
+            "conditions": conditions,
+            "labels": [groceries],
+            "apply_to_existing": True,
+        },
+    )
+    assert response.status_code == 201
+    saved = await response.get_json()
+    assert saved["applied"] == 3
+    assert len(saved["rule"]["conditions"]) == 2
+    assert saved["rule"]["conditions"][0]["text"]["values"] == ["Mercadona", "LIDL"]
+
+    response = await ctx.http.get(f"/api/v1/transactions?label={groceries}")
+    assert _tx_names(await response.get_json()) == [
+        "Compra",
+        "MERCADONA VALENCIA",
+        "NOMINA MARZO",
+    ]
+
+    invalid_requests = [
+        {"text": {"values": ["x"]}},
+        [],
+        [{"text": {"value": "x"}}],
+        [{"text": {"values": "x"}}],
+        ["x"],
+    ]
+    for invalid in invalid_requests:
+        response = await ctx.http.post(
+            "/api/v1/labeling/rules",
+            json={"conditions": invalid, "labels": [groceries]},
+        )
+        assert response.status_code == 400
+        assert (await response.get_json())["code"] == "INVALID_REQUEST"
+
+    invalid_rules = [
+        [{"text": {"values": [f"v{i}"]}} for i in range(6)],
+        [{"text": {"values": [f"v{i}" for i in range(21)]}}],
+        [{"text": {"values": ["ok"]}}, {}],
+        [{"text": {"values": ["ok", "("], "operator": "REGEX"}}],
+    ]
+    for invalid in invalid_rules:
+        response = await ctx.http.post(
+            "/api/v1/labeling/rules",
+            json={"conditions": invalid, "labels": [groceries]},
+        )
+        assert response.status_code == 400
+        assert (await response.get_json())["code"] == "INVALID_LABELING_RULE"
 
 
 @pytest.mark.asyncio

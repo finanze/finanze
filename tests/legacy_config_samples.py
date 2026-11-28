@@ -8,6 +8,8 @@ from typing import Any, Callable, Optional
 import strictyaml
 
 from domain.settings import (
+    AIConfig,
+    AIProviderEntry,
     AutoRefresh,
     AutoRefreshEntityEntry,
     AutoRefreshMaxOutdatedTime,
@@ -35,9 +37,10 @@ from infrastructure.config.config_migrator import ConfigMigrator
 
 SAMPLES_DIR = Path(__file__).parent / "resources" / "legacy_config"
 
-SECTION_KEYS = ("general", "data", "export", "importing", "assets", "labeling")
+LEGACY_SECTION_KEYS = ("general", "data", "export", "importing", "assets", "labeling")
+SECTION_KEYS = (*LEGACY_SECTION_KEYS, "ai")
 V8_SECTIONS = frozenset({"general", "data", "assets", "labeling"})
-ALL_SECTIONS = frozenset(SECTION_KEYS)
+ALL_SECTIONS = frozenset(LEGACY_SECTION_KEYS)
 
 V8_LAST_UPDATE = datetime.fromisoformat("2026-03-01T10:00:00+01:00")
 
@@ -124,9 +127,13 @@ def labeling_settings() -> Settings:
     settings.labeling = LabelingConfig(
         external=ExternalLabelingConfig(
             enabled=True,
-            provider="OPENROUTER",
-            model="openai/gpt-5-mini",
-            upstreamProvider="openai",
+            providers=[
+                AIProviderEntry(
+                    provider="OPENROUTER",
+                    model="openai/gpt-5-mini",
+                    upstreamProvider="openai",
+                )
+            ],
             autoRun=False,
             minConfidence=85,
             maxPerRun=150,
@@ -415,12 +422,30 @@ BROKEN_MOBILE_SAMPLES = ["mobile_invalid.json", "mobile_list.json"]
 
 def old_app_settings(raw: dict) -> Settings:
     migrated, _ = ConfigMigrator().migrate(deepcopy(raw))
-    return Settings(**migrated)
+    settings = Settings(**migrated)
+    external = migrated.get("labeling", {}).get("external", {})
+    if external.get("provider") and external.get("model"):
+        settings.labeling.external.providers = [
+            AIProviderEntry(
+                provider=external["provider"],
+                model=external["model"],
+                upstreamProvider=external.get("upstreamProvider"),
+            )
+        ]
+    return settings
 
 
 def assert_same_settings(actual: Settings, expected: Settings):
     for key in SECTION_KEYS:
         assert getattr(actual, key) == getattr(expected, key), key
+
+
+def with_shared_ai_providers(settings: Settings) -> Settings:
+    migrated = deepcopy(settings)
+    if migrated.labeling.external.providers and not migrated.ai.providers:
+        migrated.ai = AIConfig(providers=list(migrated.labeling.external.providers))
+        migrated.labeling.external.providers = []
+    return migrated
 
 
 def assert_last_update(

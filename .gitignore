@@ -7,6 +7,7 @@ __pycache__
 /backend
 /build
 /dist
+/frontend/app/finanze-build.json
 .coverage
 **/node_modules
 

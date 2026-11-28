@@ -56,3 +56,4 @@ class GlobalStatus:
     user: Optional[User] = None
     last_logged: Optional[str] = None
     pending_register: bool = False
+    api_session: bool = False

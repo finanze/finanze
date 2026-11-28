@@ -18,9 +18,12 @@ llama_lock_file = cwd / "resources" / "llama-server.lock.json"
 llama_cache_dir = cwd / "build" / "llama"
 
 
-def move_to_dist(file: Path):
+def move_to_dist(file: Path, overwrite: bool = False):
     dist_directory.mkdir(exist_ok=True)
-    shutil.move(src=file, dst=dist_directory)
+    if overwrite:
+        file.replace(dist_directory / file.name)
+    else:
+        shutil.move(src=file, dst=dist_directory)
 
 
 # --- Argument Parsing ---
@@ -51,13 +54,25 @@ parser.add_argument(
     default=False,
     help="Disable code signing to speed up packaging (dev only)",
 )
+parser.add_argument(
+    "--noconfirm",
+    action="store_true",
+    help="Replace existing build output without confirmation",
+)
+parser.add_argument(
+    "--no-publish",
+    action="store_true",
+    help="Do not publish Electron packages from the build command",
+)
 args = parser.parse_args()
 
 # --- Backend Packaging ---
 if args.target in ["backend", "full"]:
     logger.info("Starting backend packaging...")
+    noconfirm = " --noconfirm" if args.noconfirm else ""
     package_server = subprocess.call(
-        f"pyinstaller --clean --distpath {backend_dir} finanze.spec", shell=True
+        f"pyinstaller --clean{noconfirm} --distpath {backend_dir} finanze.spec",
+        shell=True,
     )
     if package_server != 0:
         logger.error("Backend packaging failed")
@@ -117,6 +132,9 @@ if args.target in ["frontend", "full"]:
         eb_cmd += " --config.mac.identity=null --config.mac.notarize=false"
         pnpm_dist_cmd = eb_cmd
 
+    if args.no_publish:
+        pnpm_dist_cmd += " --publish never"
+
     logger.info(f"Running: {pnpm_dist_cmd}")
     if "VITE_SUPABASE_URL" in env:
         logger.info("VITE_SUPABASE_URL is set")
@@ -155,9 +173,9 @@ if args.target in ["frontend", "full"]:
                 renamed_path = path.parent / "latest-mac.yml"
                 path.rename(renamed_path)
                 logger.info(f"Renamed {name} to latest-mac.yml")
-                move_to_dist(renamed_path)
+                move_to_dist(renamed_path, overwrite=args.noconfirm)
             else:
-                move_to_dist(path)
+                move_to_dist(path, overwrite=args.noconfirm)
 
     logger.info("Frontend release files moved.")
 

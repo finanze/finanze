@@ -18,7 +18,11 @@ from application.ports.transaction_label_port import TransactionLabelPort
 from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
-from domain.exception.exceptions import ExternalLabelingUnavailable
+from domain.exception.exceptions import (
+    AI_PROVIDER_FALLBACK_ERRORS,
+    AIProviderErrorCode,
+    ExternalLabelingUnavailable,
+)
 from domain.external_integration import ExternalIntegrationId
 from domain.external_labeling import (
     MAX_LABELING_INSTRUCTIONS_LENGTH,
@@ -33,10 +37,17 @@ from domain.labeling import (
     LabelingRule,
     LabelingRuleKind,
     LabelingTrigger,
-    conditions_match,
+    candidate_selection,
+    groups_match,
     matching_rules,
+    transfer_conditions,
 )
-from domain.settings import SettingsSection
+from domain.settings import (
+    AIProviderEntry,
+    PartialSettings,
+    SettingsSection,
+    effective_ai_providers,
+)
 from domain.settlement import SETTLEMENT_MAX_DAYS, match_settlements
 from domain.transactions import (
     ACCOUNT_MOVEMENT_TYPES,
@@ -78,6 +89,11 @@ def _rule_labels(rule: LabelingRule) -> list[TxLabel]:
         TxLabel(label_id=label_id, origin=LabelOrigin.RULE, rule_id=rule.id)
         for label_id in rule.label_ids
     ]
+
+
+def _labeling_entries(settings: PartialSettings) -> list[AIProviderEntry]:
+    default = settings.ai.providers if settings.ai else []
+    return effective_ai_providers(default, settings.labeling.external.providers)
 
 
 class TransactionLabelerAdapter(TransactionLabeler):
@@ -158,23 +174,13 @@ class TransactionLabelerAdapter(TransactionLabeler):
         if not rule.enabled or not rule.label_ids:
             return 0
 
-        conditions = rule.conditions
-        types = [t for t in (conditions.types or LABELABLE_TX_TYPES)]
-        txs = await self._transaction_port.get_account_txs(
-            AccountTxSelection(
-                from_date=conditions.from_date,
-                to_date=conditions.to_date,
-                entities=conditions.entities,
-                types=types,
-                include_locked=False,
-                include_linked=False,
-            )
-        )
+        groups = rule.conditions
+        txs = await self._transaction_port.get_account_txs(candidate_selection(groups))
 
         applied = 0
         async with self._transaction_handler_port.start():
             for tx in txs:
-                if not conditions_match(conditions, tx):
+                if not groups_match(groups, tx):
                     continue
                 if any(
                     label.origin == LabelOrigin.EXTERNAL for label in tx.labels or []
@@ -194,6 +200,48 @@ class TransactionLabelerAdapter(TransactionLabeler):
                 applied += 1
         return applied
 
+    async def external_availability_error(self) -> Optional[LabelingResult]:
+        settings = await self._load_settings()
+        config = settings.labeling.external
+        entries = _labeling_entries(settings)
+        if not config.enabled or not entries:
+            return None
+        candidates = await self._candidates(entries)
+        if not candidates:
+            return LabelingResult(
+                external_error=ExternalLabelingUnavailable.__name__,
+                external_error_code=AIProviderErrorCode.UNAVAILABLE.value,
+                external_error_details="No configured labeling provider is connected and available here",
+            )
+        for entry, provider, credentials in candidates:
+            if await provider.is_model_available(entry.model, credentials) is not False:
+                return None
+        return LabelingResult(
+            external_error=ExternalLabelingUnavailable.__name__,
+            external_error_code=AIProviderErrorCode.MODEL_NOT_FOUND.value,
+            external_error_details="The configured models are no longer available",
+        )
+
+    async def _load_settings(self) -> PartialSettings:
+        return await self._config_port.load_sections(
+            {SettingsSection.LABELING, SettingsSection.AI}
+        )
+
+    async def _candidates(self, entries: list[AIProviderEntry]):
+        candidates = []
+        for entry in entries:
+            try:
+                provider_id = ExternalIntegrationId(entry.provider)
+            except ValueError:
+                continue
+            provider = self._providers.get(provider_id)
+            if provider is None:
+                continue
+            credentials = await self._external_integration_port.get_payload(provider_id)
+            if credentials is not None:
+                candidates.append((entry, provider, credentials))
+        return candidates
+
     async def classify_external(
         self,
         selection: AccountTxSelection,
@@ -202,23 +250,21 @@ class TransactionLabelerAdapter(TransactionLabeler):
     ) -> LabelingResult:
         result = LabelingResult()
         try:
-            settings = await self._config_port.load_sections({SettingsSection.LABELING})
+            settings = await self._load_settings()
             config = settings.labeling.external
-            if not config.enabled or not config.provider or not config.model:
+            entries = _labeling_entries(settings)
+            if not config.enabled or not entries:
                 return result
             if trigger == LabelingTrigger.AUTO and not config.autoRun:
                 return result
 
-            try:
-                provider_id = ExternalIntegrationId(config.provider)
-            except ValueError:
-                return result
-            provider = self._providers.get(provider_id)
-            if provider is None:
-                return result
-
-            credentials = await self._external_integration_port.get_payload(provider_id)
-            if credentials is None:
+            provider_candidates = await self._candidates(entries)
+            if not provider_candidates:
+                result.external_error = ExternalLabelingUnavailable.__name__
+                result.external_error_code = AIProviderErrorCode.UNAVAILABLE.value
+                result.external_error_details = (
+                    "No configured labeling provider is connected and available here"
+                )
                 return result
 
             txs = await self._transaction_port.get_account_txs(
@@ -275,37 +321,61 @@ class TransactionLabelerAdapter(TransactionLabeler):
             instructions = (config.instructions or "").strip()[
                 :MAX_LABELING_INSTRUCTIONS_LENGTH
             ] or None
-            provider_name = f"{provider_id.value}:{config.model}"
             budget = (
                 AUTO_TIME_BUDGET_SECONDS
                 if trigger == LabelingTrigger.AUTO
                 else MANUAL_TIME_BUDGET_SECONDS
             )
             started = time.monotonic()
+            candidate_index = 0
 
             for index in range(0, len(txs), EXTERNAL_BATCH_SIZE):
                 if time.monotonic() - started > budget:
                     break
                 batch = txs[index : index + EXTERNAL_BATCH_SIZE]
-                suggestions = await provider.label(
-                    ExternalLabelingRequest(
-                        model=config.model,
-                        txs=[_to_external_tx(tx) for tx in batch],
-                        labels=candidates,
-                        examples=examples,
-                        instructions=instructions,
-                        upstream_provider=(config.upstreamProvider or "").strip()
-                        or None,
-                    ),
-                    credentials,
-                )
+                while True:
+                    entry, provider, credentials = provider_candidates[candidate_index]
+                    if time.monotonic() - started > budget:
+                        return result
+                    try:
+                        suggestions = await provider.label(
+                            ExternalLabelingRequest(
+                                model=entry.model,
+                                txs=[_to_external_tx(tx) for tx in batch],
+                                labels=candidates,
+                                examples=examples,
+                                instructions=instructions,
+                                upstream_provider=entry.upstreamProvider or None,
+                            ),
+                            credentials,
+                        )
+                        break
+                    except ExternalLabelingUnavailable as error:
+                        if (
+                            error.code not in AI_PROVIDER_FALLBACK_ERRORS
+                            or candidate_index + 1 >= len(provider_candidates)
+                        ):
+                            raise
+                        self._log.warning(
+                            "Labeling provider %s failed (%s), trying the next priority",
+                            entry.provider,
+                            error.code,
+                        )
+                        candidate_index += 1
+                result.external_provider = entry.provider
+                result.external_model = entry.model
                 result.external_labeled += await self._store_external(
-                    batch, suggestions, known_label_ids, min_confidence, provider_name
+                    batch,
+                    suggestions,
+                    known_label_ids,
+                    min_confidence,
+                    f"{entry.provider}:{entry.model}",
                 )
         except ExternalLabelingUnavailable as e:
             self._log.warning(f"External transaction labeling unavailable: {e.details}")
             result.external_error = type(e).__name__
             result.external_error_details = e.details or None
+            result.external_error_code = e.code
         except Exception as e:
             self._log.exception("External transaction labeling failed")
             result.external_error = type(e).__name__
@@ -443,7 +513,9 @@ class TransactionLabelerAdapter(TransactionLabeler):
         candidates = [tx for tx in txs if is_pairable(tx)]
         paired = 0
         if candidates:
-            gap = timedelta(days=max(transfer_max_days(r.conditions) for r in rules))
+            gap = timedelta(
+                days=max(transfer_max_days(transfer_conditions(r)) for r in rules)
+            )
             pool = await self._transaction_port.get_account_txs(
                 AccountTxSelection(
                     from_date=min(tx.date.date() for tx in candidates) - gap,
@@ -458,7 +530,7 @@ class TransactionLabelerAdapter(TransactionLabeler):
             taken: set[UUID] = set()
 
             for rule in rules:
-                pairs = match_transfers(candidates, pool, rule.conditions)
+                pairs = match_transfers(candidates, pool, transfer_conditions(rule))
                 if not pairs:
                     continue
                 labels = _rule_labels(rule)
@@ -495,16 +567,17 @@ class TransactionLabelerAdapter(TransactionLabeler):
                 )
                 return 0
 
+            conditions = transfer_conditions(rule)
             txs = await self._transaction_port.get_account_txs(
                 AccountTxSelection(
-                    entities=rule.conditions.entities,
+                    entities=conditions.entities,
                     types=list(TRANSFER_TX_TYPES),
                     include_locked=False,
                     include_linked=False,
                 )
             )
             pairable = [tx for tx in txs if is_pairable(tx)]
-            for outflow, inflow in match_transfers(pairable, pairable, rule.conditions):
+            for outflow, inflow in match_transfers(pairable, pairable, conditions):
                 await self._transaction_label_port.add_transfer_pair(
                     outflow.id, inflow.id, rule.id
                 )

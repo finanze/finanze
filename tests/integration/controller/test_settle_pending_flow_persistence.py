@@ -7,12 +7,15 @@ products to be duplicated as manual ones when settling.
 """
 
 from datetime import datetime
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from dateutil.tz import tzlocal
 
+from application.use_cases.add_manual_transaction import AddManualTransactionImpl
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
@@ -24,7 +27,7 @@ from domain.earnings_expenses import (
     PendingFlow,
     SettlePendingFlowRequest,
 )
-from domain.entity import Entity, EntityOrigin, EntityType
+from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.exception.exceptions import FlowNotFound, ManualAccountNotFound
 from domain.fetch_record import DataSource
 from domain.global_position import (
@@ -38,12 +41,24 @@ from domain.global_position import (
     PositionQueryRequest,
     ProductType,
 )
+from domain.transactions import (
+    AccountTx,
+    AddManualTransactionRequest,
+    TransactionQueryRequest,
+    TxType,
+)
+from domain.virtual_data import VirtualDataSource
 from infrastructure.calculations.loan_calculator import LoanCalculator
+from infrastructure.repository import HistoricRepository, TransactionRepository
 from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.repository.earnings_expenses.pending_flow_repository import (
     PendingFlowRepository,
 )
 from infrastructure.repository.entity.entity_repository import EntitySQLRepository
+from infrastructure.repository.labeling.label_repository import LabelRepository
+from infrastructure.repository.labeling.transaction_label_repository import (
+    TransactionLabelRepository,
+)
 from infrastructure.repository.position.manual_position_data_repository import (
     ManualPositionDataSQLRepository,
 )
@@ -146,6 +161,10 @@ class _RealStack:
         self.real_estate_repo = RealEstateRepository(client=db_client)
         self.pending_repo = PendingFlowRepository(client=db_client)
         self.entity_repo = EntitySQLRepository(client=db_client)
+        self.tx_repo = TransactionRepository(client=db_client)
+        self.historic_repo = HistoricRepository(client=db_client)
+        self.label_repo = LabelRepository(client=db_client)
+        self.tx_label_repo = TransactionLabelRepository(client=db_client)
         self.transaction_handler = TransactionHandler(client=db_client)
         self.snapshot_writer = ManualPositionSnapshotWriter(
             position_port=self.position_repo,
@@ -154,12 +173,26 @@ class _RealStack:
             real_estate_port=self.real_estate_repo,
             loan_calculator=LoanCalculator(),
         )
-        self.settle_uc = SettlePendingFlowImpl(
-            pending_flow_port=self.pending_repo,
+        self.balance_updater = ManualAccountBalanceUpdater(
             position_port=self.position_repo,
             snapshot_writer=self.snapshot_writer,
             exchange_rate_provider=None,
+        )
+        self.settle_uc = SettlePendingFlowImpl(
+            pending_flow_port=self.pending_repo,
+            balance_updater=self.balance_updater,
             transaction_handler_port=self.transaction_handler,
+        )
+        self.add_manual_tx_uc = AddManualTransactionImpl(
+            entity_port=self.entity_repo,
+            transaction_port=self.tx_repo,
+            virtual_import_registry=self.virtual_repo,
+            transaction_handler_port=self.transaction_handler,
+            historic_port=self.historic_repo,
+            label_port=self.label_repo,
+            transaction_label_port=self.tx_label_repo,
+            transaction_labeler=AsyncMock(),
+            balance_updater=self.balance_updater,
         )
 
 
@@ -345,3 +378,94 @@ class TestSettlePendingFlowPersistence:
             await s.settle_uc.execute(
                 SettlePendingFlowRequest(flow_id=flow.id, account_id=real_account_id)
             )
+
+
+class TestManualTransactionBalancePersistence:
+    @staticmethod
+    def _make_tx(
+        entity: Entity,
+        tx_type: TxType = TxType.INFLOW,
+        amount: str = "200",
+        fees: str = "5",
+    ) -> AccountTx:
+        return AccountTx(
+            id=None,
+            ref="TX-PERSIST-1",
+            name="Manual salary",
+            amount=Dezimal(amount),
+            currency="EUR",
+            type=tx_type,
+            date=datetime.now(tzlocal()),
+            entity=entity,
+            source=DataSource.MANUAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal(fees),
+            retentions=Dezimal(0),
+        )
+
+    @pytest.mark.asyncio
+    async def test_persists_tx_and_balance_in_same_virtual_batch(self, client, app):
+        await _signup(client)
+        db_client = app[1]
+        s = _RealStack(db_client)
+        entity = _make_entity()
+
+        await _seed(s, entity, manual_total=Dezimal(1000))
+        _, manual_account = await _manual_account(s, entity)
+
+        tx_id = await s.add_manual_tx_uc.execute(
+            AddManualTransactionRequest(
+                txs=[self._make_tx(entity, TxType.INFLOW, amount="200", fees="5")],
+                balance_account_id=manual_account.id,
+                external_labeling=False,
+            )
+        )
+
+        _, updated_account = await _manual_account(s, entity)
+        assert updated_account.total == Dezimal(1195)
+
+        stored_txs = await s.tx_repo.get_by_filters(
+            TransactionQueryRequest(entities=[entity.id], limit=10)
+        )
+        assert [tx.id for tx in stored_txs] == [tx_id]
+
+        records = await s.virtual_repo.get_last_import_records(
+            source=VirtualDataSource.MANUAL
+        )
+        entity_features = {r.feature for r in records if r.entity_id == entity.id}
+        assert entity_features == {Feature.POSITION, Feature.TRANSACTIONS}
+        assert len({r.import_id for r in records}) == 1
+
+    @pytest.mark.asyncio
+    async def test_cross_entity_account_is_rejected_and_rolls_back(self, client, app):
+        await _signup(client)
+        db_client = app[1]
+        s = _RealStack(db_client)
+        entity_a = _make_entity()
+        entity_b = _make_entity()
+        entity_b.name = "OtherBank"
+
+        await _seed(s, entity_a, manual_total=Dezimal(1000))
+        await s.entity_repo.insert(entity_b)
+        await s.snapshot_writer.write(
+            entity_b, _manual_position(entity_b, Dezimal(2000))
+        )
+        _, other_account = await _manual_account(s, entity_b)
+
+        with pytest.raises(ManualAccountNotFound):
+            await s.add_manual_tx_uc.execute(
+                AddManualTransactionRequest(
+                    txs=[
+                        self._make_tx(entity_a, TxType.OUTFLOW, amount="100", fees="0")
+                    ],
+                    balance_account_id=other_account.id,
+                    external_labeling=False,
+                )
+            )
+
+        _, unchanged_b = await _manual_account(s, entity_b)
+        assert unchanged_b.total == Dezimal(2000)
+        stored_txs = await s.tx_repo.get_by_filters(
+            TransactionQueryRequest(entities=[entity_a.id], limit=10)
+        )
+        assert stored_txs == []

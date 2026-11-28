@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 
 from domain.labeling import LabelingResult, LabelingRule, LabelingTrigger
 from domain.transactions import AccountTxSelection
@@ -24,4 +25,8 @@ class TransactionLabeler(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def apply_rule(self, rule: LabelingRule) -> int:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def external_availability_error(self) -> Optional[LabelingResult]:
         raise NotImplementedError

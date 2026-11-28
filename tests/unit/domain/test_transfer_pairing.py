@@ -145,18 +145,20 @@ def test_validate_transfer_rule():
     validate_rule(
         LabelingRule(
             id=None,
-            conditions=LabelingRuleConditions(),
+            conditions=[LabelingRuleConditions()],
             label_ids=label_ids,
             kind=LabelingRuleKind.TRANSFER,
         )
     )
 
     invalid = [
-        LabelingRuleConditions(text=TextCondition(value="x")),
-        LabelingRuleConditions(types=[TxType.INFLOW]),
-        LabelingRuleConditions(max_days=32),
-        LabelingRuleConditions(max_days=-1),
-        LabelingRuleConditions(min_amount=Dezimal(10), max_amount=Dezimal(5)),
+        [LabelingRuleConditions(text=TextCondition(values=["x"]))],
+        [LabelingRuleConditions(types=[TxType.INFLOW])],
+        [LabelingRuleConditions(max_days=32)],
+        [LabelingRuleConditions(max_days=-1)],
+        [LabelingRuleConditions(min_amount=Dezimal(10), max_amount=Dezimal(5))],
+        [],
+        [LabelingRuleConditions(), LabelingRuleConditions(max_days=2)],
     ]
     for conditions in invalid:
         with pytest.raises(InvalidLabelingRule):
@@ -173,9 +175,9 @@ def test_validate_transfer_rule():
         validate_rule(
             LabelingRule(
                 id=None,
-                conditions=LabelingRuleConditions(
-                    text=TextCondition(value="x"), max_days=2
-                ),
+                conditions=[
+                    LabelingRuleConditions(text=TextCondition(values=["x"]), max_days=2)
+                ],
                 label_ids=label_ids,
             )
         )
@@ -185,13 +187,13 @@ def test_matching_rules_ignores_transfer_rules():
     tx = _tx(BANK, TxType.OUTFLOW, "10", 10)
     transfer = LabelingRule(
         id=uuid4(),
-        conditions=LabelingRuleConditions(),
+        conditions=[LabelingRuleConditions()],
         label_ids=[uuid4()],
         kind=LabelingRuleKind.TRANSFER,
     )
     match = LabelingRule(
         id=uuid4(),
-        conditions=LabelingRuleConditions(types=[TxType.OUTFLOW]),
+        conditions=[LabelingRuleConditions(types=[TxType.OUTFLOW])],
         label_ids=[uuid4()],
     )
 
@@ -275,7 +277,7 @@ def test_iban_condition_requires_both_accounts():
 def test_match_rule_iban_condition():
     rule = LabelingRule(
         id=uuid4(),
-        conditions=LabelingRuleConditions(ibans=[SAVINGS]),
+        conditions=[LabelingRuleConditions(ibans=[SAVINGS])],
         label_ids=[uuid4()],
     )
     validate_rule(rule)
@@ -293,7 +295,7 @@ def test_match_rule_iban_condition():
             validate_rule(
                 LabelingRule(
                     id=None,
-                    conditions=LabelingRuleConditions(ibans=["ES76-0000"]),
+                    conditions=[LabelingRuleConditions(ibans=["ES76-0000"])],
                     label_ids=[uuid4()],
                     kind=kind,
                 )

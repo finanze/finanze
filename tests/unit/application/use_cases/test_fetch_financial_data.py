@@ -24,6 +24,13 @@ from domain.entity_login import (
 )
 from domain.fetch_pointer import FetchPointer, FetchPointerContext
 from domain.fetch_record import DataSource, FetchRecord
+from domain.settings import (
+    AccountAssetConfig,
+    AccountExclusion,
+    AssetConfig,
+    CryptoAssetConfig,
+    PartialSettings,
+)
 from domain.fetch_result import (
     FetchOptions,
     FetchRequest,
@@ -55,6 +62,130 @@ from domain.native_entities import (
 )
 from domain.public_keychain import PublicKeychain
 from domain.transactions import AccountTx, Transactions, TxType
+from infrastructure.config.base_config import BASE_CONFIG
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "features",
+    [
+        [Feature.POSITION],
+        [Feature.TRANSACTIONS],
+        [Feature.POSITION, Feature.TRANSACTIONS],
+    ],
+)
+@pytest.mark.parametrize("deep", [False, True])
+async def test_exclusions_filter_use_case_results_without_changing_fetcher_calls(
+    features, deep
+):
+    uc, position_port, *_ = _build_use_case()
+    uc._config_port.load_sections.return_value = PartialSettings(
+        assets=AssetConfig(
+            crypto=CryptoAssetConfig(),
+            accounts=AccountAssetConfig(
+                [AccountExclusion(type="IBAN", value="ES1234")]
+            ),
+        )
+    )
+    position_port.get_latest_real_position_id.return_value = None
+    uc._transaction_port.get_refs_by_entity_account.return_value = set()
+    uc._transaction_label_port.get_classifications_by_entity_account.return_value = {}
+    account_id = uuid4()
+    entity = _make_entity()
+    position = GlobalPosition(
+        id=uuid4(),
+        entity=entity,
+        products={
+            ProductType.ACCOUNT: Accounts([_make_account()]),
+        },
+    )
+    movement = AccountTx(
+        id=uuid4(),
+        ref="excluded",
+        name="Movement",
+        amount=Dezimal(10),
+        currency="EUR",
+        type=TxType.INFLOW,
+        date=datetime.now(tzlocal()),
+        entity=entity,
+        source=DataSource.REAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        iban=" es12 34 ",
+    )
+    fetcher = MagicMock()
+    fetcher.global_position = AsyncMock(return_value=position)
+    fetcher.transactions = AsyncMock(return_value=Transactions(account=[movement]))
+    fetcher.close = AsyncMock()
+    options = FetchOptions(deep=deep)
+    result = await uc.get_data(entity, features, fetcher, options, account_id)
+    assert result.code == FetchResultCode.COMPLETED
+    uc._config_port.load_sections.assert_awaited_once()
+    if Feature.POSITION in features:
+        fetcher.global_position.assert_awaited_once_with()
+        assert result.data.position.products[ProductType.ACCOUNT].entries == []
+        position_port.save.assert_awaited_once_with(position)
+    else:
+        fetcher.global_position.assert_not_called()
+    if Feature.TRANSACTIONS in features:
+        fetcher.transactions.assert_awaited_once_with({} if deep else set(), options)
+        assert result.data.transactions.account == []
+        uc._transaction_labeler.classify.assert_not_called()
+        if deep:
+            uc._transaction_port.delete_by_entity_account_id.assert_awaited_once_with(
+                account_id
+            )
+        else:
+            uc._transaction_port.delete_by_entity_account_id.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_old_transaction_continuation_filters_results_in_use_case():
+    uc, *_ = _build_use_case()
+    uc._config_port.load_sections.return_value = PartialSettings(
+        assets=AssetConfig(
+            crypto=CryptoAssetConfig(),
+            accounts=AccountAssetConfig(
+                [AccountExclusion(type="IBAN", value="ES1234")]
+            ),
+        )
+    )
+    uc._transaction_port.get_refs_by_entity_account.return_value = set()
+    fetcher = MagicMock()
+    fetcher.confirm_old_txs_code = AsyncMock(
+        return_value=EntityLoginResult(LoginResultCode.CREATED)
+    )
+    fetcher.request_old_txs_code = AsyncMock(return_value=None)
+    fetcher.transactions = AsyncMock(
+        return_value=Transactions(
+            account=[
+                AccountTx(
+                    id=uuid4(),
+                    ref="old",
+                    name="Old",
+                    amount=Dezimal(10),
+                    currency="EUR",
+                    type=TxType.INFLOW,
+                    date=datetime.now(tzlocal()),
+                    entity=MY_INVESTOR,
+                    source=DataSource.REAL,
+                    product_type=ProductType.ACCOUNT,
+                    fees=Dezimal(0),
+                    retentions=Dezimal(0),
+                    iban="ES1234",
+                )
+            ]
+        )
+    )
+    fetcher.close = AsyncMock()
+    uc._entity_fetchers[MY_INVESTOR] = fetcher
+    options = FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS)
+    result = await uc._fetch_two_factor_old_txs(
+        MY_INVESTOR, TwoFactor(code="1234"), options, uuid4()
+    )
+    assert result.data.transactions.account == []
+    uc._transaction_port.delete_by_entity_account_id.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +204,8 @@ def _build_use_case(error_reporter=None):
     tx_ctx.__aenter__ = AsyncMock(return_value=None)
     tx_ctx.__aexit__ = AsyncMock(return_value=None)
     transaction_handler_port.start = MagicMock(return_value=tx_ctx)
+    config_port = AsyncMock()
+    config_port.load_sections.return_value = BASE_CONFIG
 
     uc = FetchFinancialDataImpl(
         position_port=position_port,
@@ -80,7 +213,7 @@ def _build_use_case(error_reporter=None):
         transaction_port=AsyncMock(),
         historic_port=AsyncMock(),
         entity_fetchers={},
-        config_port=AsyncMock(),
+        config_port=config_port,
         credentials_port=AsyncMock(),
         sessions_port=AsyncMock(),
         last_fetches_port=AsyncMock(),

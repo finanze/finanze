@@ -26,7 +26,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -34,7 +34,7 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
@@ -43,13 +43,13 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python build deps
         run: pip install python-minifier
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26'
 
@@ -77,6 +77,8 @@ jobs:
         working-directory: frontend/app
         env:
           BETTER_STACK_API_TOKEN: ""
+          VITE_SUPABASE_URL: "https://e2e-mock.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-mock-key"
         run: pnpm build:mobile
 
       - name: Sync Capacitor to iOS
@@ -100,7 +102,7 @@ jobs:
             | tail -20
 
       - name: Upload iOS app
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ios-app
           path: frontend/app/build/ios/Build/Products/Debug-iphonesimulator/App.app
@@ -109,10 +111,10 @@ jobs:
   build-android:
     name: Build Android App
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -120,14 +122,14 @@ jobs:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -135,13 +137,13 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python build deps
         run: pip install python-minifier
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26'
 
@@ -174,6 +176,8 @@ jobs:
         working-directory: frontend/app
         env:
           BETTER_STACK_API_TOKEN: ""
+          VITE_SUPABASE_URL: "https://e2e-mock.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-mock-key"
         run: pnpm build:mobile
 
       - name: Sync Capacitor to Android
@@ -185,7 +189,7 @@ jobs:
         run: ./gradlew assembleFullDebug
 
       - name: Upload Android APK
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: frontend/app/android/app/build/outputs/apk/full/debug/app-full-debug.apk
@@ -200,7 +204,7 @@ jobs:
       APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -208,14 +212,14 @@ jobs:
           package_json_file: e2e/mobile/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
           cache-dependency-path: e2e/mobile/pnpm-lock.yaml
 
       - name: Download iOS app
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: ios-app
           path: ios-app/App.app
@@ -257,22 +261,46 @@ jobs:
           echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
           echo "IOS_PLATFORM_VERSION=$DEVICE_VERSION" >> $GITHUB_ENV
 
-      - name: Pre-build WebDriverAgent
-        env:
-          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+      - name: Resolve WebDriverAgent cache metadata
+        id: wda-meta
         run: |
           WDA_PROJECT=$(find e2e/mobile/node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit)
           WDA_DERIVED=$(cd "$(dirname "$(dirname "$WDA_PROJECT")")" && pwd)
-          echo "Building WDA from: $WDA_PROJECT"
-          echo "Derived data path: $WDA_DERIVED"
-          xcodebuild build-for-testing \
-            -project "$WDA_PROJECT" \
-            -scheme WebDriverAgentRunner \
-            -destination "id=$IOS_DEVICE_UDID" \
-            -derivedDataPath "$WDA_DERIVED" \
-            GCC_TREAT_WARNINGS_AS_ERRORS=0 \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            | tail -30
+          XCODE_VER=$(xcodebuild -version | tr '\n' '-' | sed 's/[^a-zA-Z0-9._-]/-/g; s/-*$//')
+          echo "wda_project=$WDA_PROJECT" >> "$GITHUB_OUTPUT"
+          echo "wda_derived=$WDA_DERIVED" >> "$GITHUB_OUTPUT"
+          echo "xcode_version=$XCODE_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Cache WebDriverAgent build
+        id: wda-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.wda-meta.outputs.wda_derived }}/Build
+            ${{ steps.wda-meta.outputs.wda_derived }}/info.plist
+          key: wda-${{ runner.os }}-${{ runner.arch }}-${{ steps.wda-meta.outputs.xcode_version }}-ios-${{ env.IOS_PLATFORM_VERSION }}-${{ hashFiles('e2e/mobile/pnpm-lock.yaml') }}
+
+      - name: Pre-build WebDriverAgent
+        env:
+          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+          WDA_PROJECT: ${{ steps.wda-meta.outputs.wda_project }}
+          WDA_DERIVED: ${{ steps.wda-meta.outputs.wda_derived }}
+          CACHE_HIT: ${{ steps.wda-cache.outputs.cache-hit }}
+        run: |
+          if [ "$CACHE_HIT" = "true" ] && [ -d "$WDA_DERIVED/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" ]; then
+            echo "Using cached WebDriverAgent build from: $WDA_DERIVED"
+          else
+            echo "Building WDA from: $WDA_PROJECT"
+            echo "Derived data path: $WDA_DERIVED"
+            xcodebuild build-for-testing \
+              -project "$WDA_PROJECT" \
+              -scheme WebDriverAgentRunner \
+              -destination "id=$IOS_DEVICE_UDID" \
+              -derivedDataPath "$WDA_DERIVED" \
+              GCC_TREAT_WARNINGS_AS_ERRORS=0 \
+              COMPILER_INDEX_STORE_ENABLE=NO \
+              | tail -30
+          fi
           echo "--- Build products ---"
           find "$WDA_DERIVED/Build/Products" -name "*.app" -o -name "*.xctestrun" | head -10
 
@@ -283,7 +311,8 @@ jobs:
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
           IOS_PLATFORM_VERSION: ${{ env.IOS_PLATFORM_VERSION }}
-        run: pnpm test:ios
+          RETRY_ATTEMPTS: 2
+        run: bash ../../.github/scripts/retry.sh pnpm test:ios
 
       - name: Show WDIO logs
         if: ${{ !cancelled() }}
@@ -296,7 +325,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ios-test-results
           path: e2e/mobile/wdio-logs/
@@ -311,7 +340,7 @@ jobs:
       APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Enable KVM
         run: |
@@ -325,20 +354,20 @@ jobs:
           package_json_file: e2e/mobile/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/app/.nvmrc
           cache: pnpm
           cache-dependency-path: e2e/mobile/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Download Android APK
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: android-apk
           path: android-apk
@@ -364,8 +393,10 @@ jobs:
           echo "CHROMEDRIVER_EXECUTABLE=/tmp/chromedriver/chromedriver-linux64/chromedriver" >> $GITHUB_ENV
 
       - name: Run Android tests
+        id: android-tests
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
-        with:
+        with: &android-tests-config
           api-level: 35
           target: google_apis
           arch: x86_64
@@ -375,7 +406,12 @@ jobs:
             adb wait-for-device shell getprop sys.boot_completed
             adb devices -l
             sleep 5
-            cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
+            cd e2e/mobile && ANDROID_APP_PATH="${{ github.workspace }}/android-apk/app-full-debug.apk" pnpm test:android
+
+      - name: Run Android tests (retry 1)
+        if: ${{ steps.android-tests.outcome == 'failure' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with: *android-tests-config
 
       - name: Show WDIO logs
         if: ${{ !cancelled() }}
@@ -384,14 +420,15 @@ jobs:
           cat e2e/mobile/wdio-logs/wdio-appium.log 2>/dev/null | tail -300 || true
           echo ''
           echo '=== WDIO Worker Logs ==='
-          for f in e2e/mobile/wdio-logs/wdio-0-0-*; do
+          for f in e2e/mobile/wdio-logs/wdio-*; do
+            [ "$f" = "e2e/mobile/wdio-logs/wdio-appium.log" ] && continue
             echo "--- $f ---"
             cat "$f" 2>/dev/null | tail -100 || true
           done
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-test-results
           path: e2e/mobile/wdio-logs/

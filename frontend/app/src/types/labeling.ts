@@ -1,3 +1,4 @@
+import type { AIProviderEntry } from "./ai"
 import type { AccountTx, LabelOrigin, TxType } from "./transactions"
 
 export enum LabelCategory {
@@ -53,10 +54,13 @@ export enum TextMatchField {
 }
 
 export interface TextCondition {
-  value: string
+  values: string[]
   operator: TextMatchOperator
   field: TextMatchField
 }
+
+export const MAX_CONDITION_GROUPS = 5
+export const MAX_TEXT_VALUES = 20
 
 export interface LabelingRuleConditions {
   types?: TxType[] | null
@@ -83,7 +87,7 @@ export interface LabelingRule {
   name?: string | null
   enabled: boolean
   kind: LabelingRuleKind
-  conditions: LabelingRuleConditions
+  conditions: LabelingRuleConditions[]
   label_ids: string[]
 }
 
@@ -95,7 +99,7 @@ export interface SaveLabelingRuleRequest {
   name?: string | null
   enabled: boolean
   kind?: LabelingRuleKind
-  conditions: LabelingRuleConditions
+  conditions: LabelingRuleConditions[]
   labels: string[]
   apply_to_existing: boolean
 }
@@ -140,6 +144,9 @@ export interface LabelingResult {
   skipped_linked: number
   external_error?: string | null
   external_error_details?: string | null
+  external_error_code?: string | null
+  external_provider?: string | null
+  external_model?: string | null
 }
 
 export interface RelabelResult {
@@ -148,38 +155,9 @@ export interface RelabelResult {
   external?: LabelingResult | null
 }
 
-export interface ExternalLabelingModel {
-  id: string
-  name: string
-  description?: string | null
-  probabilistic: boolean
-  size?: number | null
-  loaded?: boolean
-  load_failed?: boolean
-}
-
-export interface ExternalLabelingProviderDetails {
-  id: string
-  connected: boolean
-  recommended_models: ExternalLabelingModel[]
-  custom_models: boolean
-  upstream_providers: boolean
-  dynamic_models?: boolean
-}
-
-export interface ExternalLabelingProviders {
-  providers: ExternalLabelingProviderDetails[]
-}
-
-export interface ExternalLabelingModels {
-  models: ExternalLabelingModel[]
-}
-
 export interface ExternalLabelingSettings {
   enabled: boolean
-  provider?: string | null
-  model?: string | null
-  upstreamProvider?: string | null
+  providers: AIProviderEntry[]
   autoRun: boolean
   minConfidence: number
   maxPerRun: number

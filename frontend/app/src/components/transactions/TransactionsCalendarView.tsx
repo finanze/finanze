@@ -18,7 +18,7 @@ import {
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { DataSource } from "@/types"
-import { formatCurrency, formatIban } from "@/lib/formatters"
+import { formatCurrency, formatDate, formatIban } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -499,7 +499,7 @@ function DayDetailModal({
     day: "numeric",
   })
 
-  const shortFormattedDate = day.date.toLocaleDateString(locale, {
+  const shortFormattedDate = formatDate(day.date, locale, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -676,7 +676,7 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                {stockTx.shares.toLocaleString()}
+                {stockTx.shares.toLocaleString(locale)}
               </div>
             )}
             {Number(stockTx.price || 0) !== 0 && (
@@ -760,7 +760,7 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                {fundTx.shares.toLocaleString()}
+                {fundTx.shares.toLocaleString(locale)}
               </div>
             )}
             {Number(fundTx.price || 0) !== 0 && (
@@ -1010,7 +1010,7 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.currencyAmount}:
                 </span>{" "}
-                {cryptoTx.currency_amount.toLocaleString()}
+                {cryptoTx.currency_amount.toLocaleString(locale)}
               </div>
             )}
             {Number(cryptoTx.price || 0) !== 0 && (
@@ -1079,7 +1079,7 @@ function DayDetailModal({
                   <span className={detailLabelClass}>
                     {t.transactions.size}:
                   </span>{" "}
-                  {marketForecastTx.size.toLocaleString()}
+                  {marketForecastTx.size.toLocaleString(locale)}
                 </div>
               )}
             {Number(marketForecastTx.price || 0) !== 0 && (

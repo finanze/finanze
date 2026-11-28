@@ -11,6 +11,7 @@ from domain.data_init import (
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
+    MigrationAheadOfTime,
     MigrationError,
 )
 from domain.user import User
@@ -23,9 +24,21 @@ from infrastructure.repository.db.settings_snapshot import (
     restore_settings_rows_if_empty,
 )
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
-from infrastructure.repository.db.version_registry import versions
+from infrastructure.repository.db.version_registry import (
+    get_schema_hash,
+    get_schema_revision,
+    versions,
+)
 
-import js
+try:
+    import js  # type: ignore
+except Exception:  # pragma: no cover
+    js = None
+
+try:
+    from pyodide.ffi import to_js  # type: ignore
+except Exception:  # pragma: no cover
+    to_js = None
 
 DB_NAME = "data.db"
 DEFAULT_JS_TIMEOUT_SECONDS = 20
@@ -256,9 +269,52 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         if js is None:
             raise RuntimeError("Pyodide JS bridge is not available")
 
+        async with self._client.tx():
+            pass
+
         await self._client.wal_checkpoint()
         await js.jsBridge.sqlite.exportDatabaseToStaging("EXPORTED_DATA")
         return b""
+
+    @classmethod
+    def _extract_ahead_of_time_migrations(cls, error: Exception) -> Optional[str]:
+        msg = cls._stringify_error(error)
+        marker = "MIGRATION_AHEAD_OF_TIME:"
+        if marker not in msg:
+            return None
+        return msg.split(marker, 1)[1].split("\n", 1)[0].strip()
+
+    async def _import_from_staging(
+        self,
+        db_name: str,
+        password: str,
+        known_migrations,
+        delete_staging_file,
+        delete_on_error: bool = False,
+    ) -> None:
+        import_err: Exception | None = None
+        try:
+            await js.jsBridge.sqlite.importDatabaseFromStaging(
+                db_name, password, "DECOMPILED_DATA", known_migrations, delete_on_error
+            )
+        except Exception as e:
+            import_err = e
+            unknown_names = self._extract_ahead_of_time_migrations(e)
+            if unknown_names is not None:
+                raise MigrationAheadOfTime(
+                    f"Database has migrations not present in this version: {unknown_names}"
+                ) from e
+            raise
+        finally:
+            try:
+                await delete_staging_file("DECOMPILED_DATA")
+            except Exception:
+                if import_err is None:
+                    raise
+                self._log.warning(
+                    "Could not delete staging file DECOMPILED_DATA after import error",
+                    exc_info=True,
+                )
 
     async def import_data(
         self,
@@ -274,17 +330,36 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
             delete_staging_file,
         )
 
+        known_migrations = (
+            to_js([m.name for m in versions])
+            if to_js is not None
+            else [m.name for m in versions]
+        )
+
         if initialize:
             if user is None or password is None:
                 raise RuntimeError("user and password are required for initial import")
             db_name = self._db_name_for_user(user)
-            await js.jsBridge.sqlite.importDatabaseFromStaging(
-                db_name, password, "DECOMPILED_DATA"
+            await self._import_from_staging(
+                db_name,
+                password,
+                known_migrations,
+                delete_staging_file,
+                delete_on_error=True,
             )
-            await delete_staging_file("DECOMPILED_DATA")
-            await self._initialize(
-                DatasourceInitParams.build(user=user, password=password)
-            )
+            try:
+                await self._initialize(
+                    DatasourceInitParams.build(user=user, password=password)
+                )
+            except Exception:
+                try:
+                    await js.jsBridge.sqlite.deleteDatabase(db_name, password, True)
+                except Exception:
+                    self._log.warning(
+                        "Could not delete broken initial database after upgrade failure",
+                        exc_info=True,
+                    )
+                raise
             return
 
         user = self._user
@@ -295,14 +370,44 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         db_name = self._db_name_for_user(user)
 
         settings_rows = await read_settings_rows(self._client)
+        await js.jsBridge.sqlite.exportDatabaseToStaging("ROLLBACK_DATA")
 
         await self.lock()
 
-        await js.jsBridge.sqlite.importDatabaseFromStaging(
-            db_name, passwd, "DECOMPILED_DATA"
-        )
-        await delete_staging_file("DECOMPILED_DATA")
-        await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
+        try:
+            await self._import_from_staging(
+                db_name, passwd, known_migrations, delete_staging_file
+            )
+            await self._initialize(
+                DatasourceInitParams.build(user=user, password=passwd)
+            )
+        except Exception as e:
+            main_untouched = isinstance(
+                e, MigrationAheadOfTime
+            ) or "CORRUPT_STAGING_DATABASE" in self._stringify_error(e)
+            try:
+                if not main_untouched:
+                    await self.lock()
+                    await js.jsBridge.sqlite.importDatabaseFromStaging(
+                        db_name, passwd, "ROLLBACK_DATA"
+                    )
+                await self._initialize(
+                    DatasourceInitParams.build(user=user, password=passwd)
+                )
+            except Exception as restore_err:
+                self._log.exception(
+                    "Could not restore database after failed import: %s",
+                    restore_err,
+                )
+            raise
+        finally:
+            try:
+                await delete_staging_file("ROLLBACK_DATA")
+            except Exception:
+                self._log.warning(
+                    "Could not delete staging file ROLLBACK_DATA",
+                    exc_info=True,
+                )
 
         try:
             await restore_settings_rows_if_empty(self._client, settings_rows)
@@ -325,6 +430,12 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
                 except Exception:
                     return datetime.min
             return datetime.min
+
+    def get_schema_revision(self) -> int:
+        return get_schema_revision()
+
+    def get_schema_hash(self) -> str:
+        return get_schema_hash()
 
     async def get_hashed_password(self) -> Optional[str]:
         if not self._unlocked:

@@ -67,6 +67,8 @@ function getStatusLabel(
       return t.settings.backup.statusConflict
     case SyncStatus.OUTDATED:
       return t.settings.backup.statusOutdated
+    case SyncStatus.OUTDATED_APP:
+      return t.settings.backup.statusOutdatedApp
     case SyncStatus.MISSING:
       return t.settings.backup.statusMissing
     default:
@@ -94,6 +96,8 @@ interface BackupStatusContentProps {
   isConflict: boolean
   conflictImportTypes: BackupFileType[]
   conflictUploadTypes: BackupFileType[]
+  isOutdatedApp?: boolean
+  outdatedAppUploadTypes?: BackupFileType[]
   hasCredentialsMismatch: boolean
   baseActionsDisabled: boolean
   overallStatus: SyncStatus | null
@@ -124,6 +128,8 @@ export function BackupStatusContent({
   isConflict,
   conflictImportTypes,
   conflictUploadTypes,
+  isOutdatedApp = false,
+  outdatedAppUploadTypes = [],
   hasCredentialsMismatch,
   baseActionsDisabled,
   overallStatus,
@@ -287,7 +293,43 @@ export function BackupStatusContent({
             </div>
           )}
 
-          {isConflict && !hasCredentialsMismatch && (
+          {isOutdatedApp && !hasCredentialsMismatch && (
+            <div className="flex flex-col gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3">
+              <p className="text-sm font-medium text-red-500">
+                {t.settings.backup.outdatedAppTitleGeneric}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t.settings.backup.outdatedAppDescriptionGeneric}
+              </p>
+              <div className="flex gap-2 mt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-xs"
+                  disabled={true}
+                >
+                  <ArrowDownToLine className="h-3 w-3 mr-1" />
+                  {t.settings.backup.useRemote}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-xs"
+                  disabled={baseActionsDisabled || !canCreateBackup}
+                  onClick={() => handleUpload(outdatedAppUploadTypes)}
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  ) : (
+                    <ArrowUpFromLine className="h-3 w-3 mr-1" />
+                  )}
+                  {t.settings.backup.useLocal}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isConflict && !isOutdatedApp && !hasCredentialsMismatch && (
             <div className="flex flex-col gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3">
               <p className="text-sm font-medium text-red-500">
                 {t.settings.backup.conflictDetected}
@@ -328,7 +370,7 @@ export function BackupStatusContent({
             </div>
           )}
 
-          {isManualMode && !isConflict && (
+          {isManualMode && !isConflict && !isOutdatedApp && (
             <Button
               variant="outline"
               size="sm"

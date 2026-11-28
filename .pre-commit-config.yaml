@@ -11,6 +11,6 @@ repos:
       - id: frontend-lint
         name: frontend lint check
         language: system
-        entry: sh -c "cd frontend/app && pnpm run lint-staged"
+        entry: sh -c "cd frontend/app && ./node_modules/.bin/lint-staged --no-stash"
         files: ^frontend/
         pass_filenames: false

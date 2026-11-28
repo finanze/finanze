@@ -217,6 +217,9 @@
     "assets": "assets",
     "entry": "entry",
     "byAsset": "Per asset",
+    "viewEvolution": "View evolution",
+    "showAllFunds": "Show all funds",
+    "showAllStocks": "Show all stocks",
     "byType": "Per type",
     "sortBy": "",
     "sortAmount": "Amount",
@@ -473,6 +476,7 @@
     "errorDetailsTitle": "Technical details",
     "syncPasswordHint": "Use the same encryption key across devices if sync is enabled",
     "enableBiometric": "Enable {type}",
+    "rememberSession": "Remember me",
     "biometricFaceId": "Face ID",
     "biometricFingerprint": "Fingerprint",
     "biometricAuth": "Biometric",
@@ -508,6 +512,8 @@
       "tooManyRequests": "Too many attempts. Wait a moment and try again.",
       "guestCreationFailed": "Failed to prepare account. Please try again.",
       "loginAfterRestoreFailed": "Data restored but login failed. Please try logging in manually.",
+      "unsupportedBackupVersion": "This backup was created with Finanze v{version}. Please update the app to restore it.",
+      "unsupportedBackupVersionGeneric": "This backup was created with a newer version of Finanze. Please update the app to restore it.",
       "backToSignup": "Back to sign up"
     },
     "regionRestricted": {
@@ -539,6 +545,7 @@
     "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
     "AUTHORIZATION_DENIED": "Access to {integration} was denied or the required permissions were not granted.",
     "AUTHORIZATION_EXPIRED": "The {integration} authorization expired or is no longer valid. Please try again.",
+    "AUTHORIZATION_RETRY_REQUIRED": "{integration} did not accept the sign-in. Please try again.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -556,8 +563,22 @@
     "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} did not allow fetching movements older than 3 months. Request them first in the {entity} app on your main device, approve the signature there and fetch again.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
-    "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
-    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
+    "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, XLS, XLSX, HTML or PDF file.",
+    "PDF_NO_TEXT_LAYER": "This PDF contains scanned images or vector outlines without selectable text. Export the statement as CSV, Excel, or a text-based PDF.",
+    "NO_TABLE_FOUND": "No data table could be found in this file.",
+    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one.",
+    "PREVIEW_EXPIRED": "This preview expired. Run the import again.",
+    "AI_UNAVAILABLE": "No AI model could process the file. Check your AI models in Integrations and try again.",
+    "AI_VISION_UNSUPPORTED": "None of your AI models can read images or scanned documents. Add a model with image support in Integrations.",
+    "AI_EXTRACTION_EMPTY": "AI didn't find any rows to import in this file.",
+    "AI_FILE_TOO_LARGE": "The file is too large to be processed with AI.",
+    "EXECUTION_CONFLICT": "Another import is already running. Wait for it to finish.",
+    "NOT_ENTITLED": "Your account does not have access to {integration}. Check that your plan is active and that your organization allows it.",
+    "RUNTIME_FAILED": "{integration} could not be started on this device. Check your connection and try again.",
+    "RUNTIME_NOT_FOUND": "The program required by {integration} was not found on this computer. Install it or enter the full path to its executable.",
+    "RUNTIME_OUTDATED": "The program required by {integration} is too old. Update it and try again.",
+    "RUNTIME_NOT_AUTHENTICATED": "The program required by {integration} is not signed in. Sign in to it on this computer and try again.",
+    "REAUTHENTICATION_REQUIRED": "Your {integration} sign-in expired. Sign in again in Integrations."
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -675,7 +696,7 @@
     "unselectAll": "Unselect all",
     "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
-    "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "deepScrapeDescription": "Replace fetched transaction history with the available history, applying exclusions. Older data outside the provider's available range may be lost. This may take a long time and provider limits still apply.",
     "twoFactorOldTxs": "Include older account transactions",
     "twoFactorOldTxsDescription": "Fetch account transactions beyond the usual 3-month limit. An extra verification code will be requested at the end.",
     "twoFactorOldTxsEntityDescription": {
@@ -732,7 +753,10 @@
     "applicationLanguageOptions": {
       "en-US": "English",
       "es-ES": "Spanish",
-      "it-IT": "Italian"
+      "it-IT": "Italian",
+      "de-DE": "German",
+      "pt-PT": "Portuguese",
+      "fr-FR": "French"
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
@@ -759,6 +783,24 @@
     "assets": {
       "title": "Assets",
       "description": "Specific asset related settings",
+      "accounts": {
+        "title": "Accounts",
+        "description": "Skip specific bank accounts when fetching",
+        "exclusionsLabel": "Excluded IBANs",
+        "exclusionsDescription": "Balances and transactions of these accounts, plus cards and portfolios linked to them, are skipped on every fetch.",
+        "dataUnchanged": "Already stored data stays until the next fetch. Use deep fetch to also clean past transactions.",
+        "rulesChanged": "Exclusions saved. They will apply on the next fetch.",
+        "emptyState": "No excluded accounts",
+        "ibanPlaceholder": "ES00 0000 0000 0000 0000 0000",
+        "ibanLabel": "IBAN",
+        "invalidIban": "Use letters and numbers only, up to 34 characters.",
+        "duplicateIban": "This IBAN is already excluded.",
+        "addIban": "Add",
+        "saveIban": "Save changes",
+        "cancelEdit": "Cancel edit",
+        "editIban": "Edit IBAN",
+        "removeIban": "Remove exclusion"
+      },
       "crypto": {
         "title": "Crypto",
         "description": "Cryptocurrency assets related settings",
@@ -1018,14 +1060,22 @@
         "PENDING": "Pending",
         "CONFLICT": "Conflict",
         "OUTDATED": "Outdated",
+        "OUTDATED_APP": "Update required",
         "MISSING": "Not backed up"
       },
       "statusSync": "Synced",
       "statusPending": "Pending",
       "statusConflict": "Conflict",
       "statusOutdated": "Outdated",
+      "statusOutdatedApp": "Update required",
       "statusMissing": "Missing",
       "statusUnknown": "Unknown",
+      "outdatedAppTitle": "Newer backup version (v{version})",
+      "outdatedAppTitleGeneric": "Newer backup version",
+      "outdatedAppDescription": "The cloud backup was created with Finanze v{version}. Update the app to sync it, or overwrite it with your local data.",
+      "outdatedAppDescriptionGeneric": "The cloud backup was created with a newer version of Finanze. Update the app to sync it, or overwrite it with your local data.",
+      "unsupportedVersionError": "Backup requires Finanze v{version} or newer.",
+      "unsupportedVersionGeneric": "Backup was created with a newer version of Finanze. Please update the app.",
       "upload": "Backup now",
       "download": "Download",
       "import": "Sync",
@@ -1129,6 +1179,7 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
+        "name": "Google Sheets",
         "description": "Configure your Google Sheets API to enable data import and export.",
         "help": "How to get the credentials",
         "hint": {
@@ -1266,6 +1317,7 @@
         }
       },
       "ENABLE_BANKING": {
+        "name": "Enable Banking",
         "description": "Connect bank accounts across Europe through Enable Banking's PSD2 access.",
         "help": "How to set up Enable Banking",
         "hint": {
@@ -1348,7 +1400,7 @@
         }
       },
       "OPENROUTER": {
-        "description": "Connect OpenRouter to get automatic label suggestions for your account movements using the model you choose.",
+        "description": "Connect to OpenRouter to access models from multiple providers through one API. Usage is billed by OpenRouter.",
         "help": "How to get an API key",
         "hint": {
           "title": "Get an OpenRouter API key",
@@ -1370,7 +1422,7 @@
         }
       },
       "OPENAI": {
-        "description": "Connect OpenAI to get automatic label suggestions for your account movements using GPT models.",
+        "description": "Connect to OpenAI to use GPT models through the OpenAI API. Usage is billed by OpenAI.",
         "help": "How to get an API key",
         "hint": {
           "title": "Get an OpenAI API key",
@@ -1392,7 +1444,8 @@
         }
       },
       "OPENAI_COMPATIBLE": {
-        "description": "Connect any OpenAI-compatible server, such as Ollama, LM Studio, vLLM or llama.cpp, to label your movements with models you host yourself.",
+        "name": "Custom AI",
+        "description": "Connect to an OpenAI-compatible API, such as Ollama, LM Studio, vLLM or llama.cpp, running locally or on a server you host.",
         "help": "How to connect",
         "hint": {
           "title": "Connect an OpenAI-compatible server",
@@ -1405,7 +1458,8 @@
         }
       },
       "LOCAL_MODELS": {
-        "description": "Run small AI models privately, on this device or on your own llama.cpp server. Download them from here and use them to label your movements.",
+        "name": "Local models",
+        "description": "Run AI models privately on this device or on your own llama.cpp server. Download supported models here.",
         "help": "How it works",
         "hint": {
           "title": "Local models",
@@ -1425,14 +1479,85 @@
             }
           ]
         }
+      },
+      "GITHUB_COPILOT": {
+        "description": "Use models included in your GitHub Copilot plan. GitHub bills usage in AI credits according to each model's token prices, and requests are processed by GitHub and the model provider. Desktop and self-hosted only."
+      },
+      "CLAUDE_AGENT": {
+        "name": "Claude Agent",
+        "description": "Use Claude through Claude Code installed and signed in on this computer. Usage counts toward your Claude plan limits, and requests are processed by Anthropic. Desktop and self-hosted only.",
+        "help": "How to set it up",
+        "hint": {
+          "title": "Set up Claude Agent",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Install "
+            },
+            {
+              "type": "link",
+              "label": "Claude Code",
+              "url": "https://code.claude.com/docs/en/setup"
+            },
+            {
+              "type": "text",
+              "value": " on this computer, run claude in a terminal and sign in with your Claude account. Finanze reuses that sign-in and never asks for your credentials or an API key. Fill in the path only if Claude Code is not found automatically."
+            }
+          ]
+        }
+      },
+      "CHATGPT": {
+        "description": "Sign in with your ChatGPT account to use the models included in your ChatGPT plan. Requires ChatGPT Plus or Pro, usage counts toward your plan limits, and requests are processed by OpenAI."
       }
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationAwaitingAuthorization": "Waiting for authorization in your browser...",
+    "integrationExpired": "Sign-in expired",
+    "integrationBeta": "Beta",
+    "aiProviderFamilies": {
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "OPENROUTER": "OpenRouter",
+      "GITHUB_COPILOT": "GitHub Copilot",
+      "LOCAL_MODELS": "Local Models",
+      "CUSTOM": "Custom AI"
+    },
+    "aiProviderMethods": {
+      "OPENAI": "API key",
+      "CHATGPT": "ChatGPT plan",
+      "CLAUDE_AGENT": "Claude CLI",
+      "OPENROUTER": "API key",
+      "GITHUB_COPILOT": "GitHub plan",
+      "LOCAL_MODELS": "Local runtime or server",
+      "OPENAI_COMPATIBLE": "Compatible API"
+    },
+    "aiPlatforms": {
+      "DESKTOP": "Desktop",
+      "SELF_HOSTED": "Self-hosted",
+      "MOBILE": "Mobile"
+    },
+    "aiPlatformsLabel": "Supported platforms:",
+    "aiConnectedMethods": "{count}/{total} connected",
+    "chatgpt": {
+      "continue": "Continue with ChatGPT",
+      "usingPlan": "Using your ChatGPT plan",
+      "manageUsage": "Manage usage",
+      "expired": "Your ChatGPT sign-in expired. Continue with ChatGPT to sign in again.",
+      "pasteLabel": "Didn't return to Finanze? Paste the address shown in your browser after signing in.",
+      "pastePlaceholder": "http://127.0.0.1:…/auth/callback?code=…",
+      "finish": "Finish",
+      "invalidAddress": "That address doesn't contain a sign-in response. Copy the full address from your browser."
+    },
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
     "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",
+    "deviceAuthorization": {
+      "intro": "You will get a one-time code to sign in with your {integration} account. You can revoke access at any time from your account settings.",
+      "instructions": "Enter this code at {site} to authorize Finanze:",
+      "copyAndOpen": "Copy code and open {site}",
+      "waiting": "Waiting for authorization, code expires in {time}"
+    },
     "localModels": {
       "builtInMode": "Built-in engine",
       "serverMode": "My llama.cpp server",
@@ -1458,7 +1583,7 @@
       "import": "Import GGUF",
       "importTitle": "Select a GGUF model file",
       "importSuccess": "{model} imported",
-      "importHint": "Imported files are used from where they are, they are not copied. You can also drop GGUF files in the models folder and press Refresh.",
+      "importHint": "Imported files are used from where they are, they are not copied. You can also drop GGUF files in the models folder and press Refresh. To read images, keep the model's mmproj file in the same folder.",
       "openFolder": "Open folder",
       "recommended": "Recommended",
       "params": "{params} parameters",
@@ -1473,6 +1598,12 @@
       "deleteMessage": "{model} will be removed. You can download it again later.",
       "deleteImportedMessage": "{model} will be removed from Finanze. The original file is kept.",
       "deleted": "{model} deleted",
+      "includeVision": "Include image support (+{size})",
+      "addVision": "Add image support (+{size})",
+      "removeVision": "Remove image support",
+      "removeVisionMessage": "The image support files of {model} will be deleted. It keeps working with text and you can add them again later.",
+      "visionRemoved": "Image support removed from {model}",
+      "remove": "Remove",
       "huggingFace": "More models from Hugging Face",
       "huggingFaceHint": "Enter a Hugging Face repository with GGUF files, for example unsloth/Qwen3.5-4B-GGUF. Small models (under 4B parameters) work best on most devices.",
       "repoPlaceholder": "owner/repository",
@@ -1491,7 +1622,8 @@
         "SLEEPING": "Idle",
         "DOWNLOADING": "Downloading",
         "FAILED": "Failed to start",
-        "MISSING": "File not found"
+        "MISSING": "File not found",
+        "INCOMPLETE": "Incomplete download"
       },
       "sources": {
         "CATALOG": "Recommended",
@@ -1557,6 +1689,31 @@
       "CRYPTO_MARKET_PROVIDER": "Crypto market data",
       "AI_PROVIDER": "AI providers",
       "DATA_SOURCE": "Data sources"
+    },
+    "aiModels": {
+      "title": "AI models",
+      "description": "Default priority list for every AI feature, such as labeling suggestions and file imports. Each feature skips the models that can't do what it needs.",
+      "priorityNotice": "Models are tried in order. Methods unavailable on this platform or requiring sign-in are skipped, and a failure moves the task to the next entry.",
+      "privacyNotice": "Each feature only sends the data it needs to the model that runs it.",
+      "customModelNotice": "Some models can be slow and expensive. Faster and cheaper models are recommended for most tasks.",
+      "empty": "Add the models your AI features should use.",
+      "settingsLink": "Choose which AI models features use, in Settings"
+    },
+    "aiTab": {
+      "title": "AI & MCP",
+      "titleNoMcp": "AI"
+    },
+    "aiTaskProviders": {
+      "customize": "Use custom models for this feature",
+      "defaultHint": "Using your default AI models in order. The ones that can't do this task are skipped.",
+      "customHint": "Starts from your default models without the ones that can't do this task. Changes only apply here.",
+      "noDefault": "You have no default AI models yet.",
+      "editDefault": "Edit default models"
+    },
+    "aiModalities": {
+      "IMAGE": "Images",
+      "DOCUMENT": "PDF",
+      "notEligible": "Not suitable for this task"
     }
   },
   "dashboard": {
@@ -1667,6 +1824,7 @@
     "stacked": "Stacked",
     "lines": "Lines",
     "showTotal": "Total",
+    "fitYAxis": "Fit Y axis",
     "selectAll": "Select all",
     "clearAll": "Clear all",
     "ranges": {
@@ -1747,39 +1905,80 @@
     },
     "file": {
       "cardTitle": "File export",
-      "cardDescription": "Download a file with your selected data.",
+      "cardDescription": "Download a snapshot of your positions, transactions, periodic contributions, or historic investments.",
       "singleRunBadge": "File-only",
-      "formatsLabel": "Available formats:",
+      "quickPickLabel": "Quick export",
+      "quickPresets": {
+        "accountMovements": "Account movements",
+        "fundAndStockOrders": "Fund & stock orders",
+        "stockOrders": "Stock & ETF orders",
+        "fundOrders": "Fund orders",
+        "cryptoMovements": "Crypto movements"
+      },
       "exportButton": "Export...",
       "dialogTitle": "Export data to file",
       "dialogDescription": "Pick what to include in this export and choose the desired file format.",
-      "featureLabel": "Feature",
+      "featureLabel": "What to export?",
       "featurePlaceholder": "Select what you want to export",
       "productsLabel": "Products",
       "productsHint": "Select at least one product.",
-      "productsPlaceholder": "Limit export to specific products",
       "productsInfo": "This feature is not product-specific. All related data will be included.",
+      "dateRange": {
+        "label": "Date range",
+        "fromPlaceholder": "From date",
+        "toPlaceholder": "To date",
+        "presets": {
+          "allTime": "All time",
+          "last30Days": "Last 30 days",
+          "last3Months": "Last 3 months",
+          "last6Months": "Last 6 months",
+          "thisYear": "This year",
+          "lastYear": "Last year"
+        }
+      },
       "templateLabel": "Template",
       "templatePlaceholder": "Use all available columns",
-      "templateFeatureHint": "Select a feature first to view its templates.",
+      "templateFeatureHint": "Select what to export first to view its templates.",
       "templateInfo": "Templates help you narrow the exported columns.",
       "formatLabel": "Format",
-      "formatHint": "Select the file format.",
       "numberFormatLabel": "Decimal format",
       "numberFormatHint": "Choose how thousands and decimals are separated.",
       "numberFormats": {
         "ENGLISH": "1,000.00",
         "EUROPEAN": "1.000,00"
       },
-      "datetimeHint": "If left empty, ISO formats (e.g. %Y-%m-%d and %Y-%m-%dT%H:%M:%S) will be used by default.",
+      "dateFormats": {
+        "customHint": "Use %Y, %m, %d (e.g. %Y-%m-%d). Leave empty for ISO.",
+        "presets": {
+          "iso": "ISO (YYYY-MM-DD)",
+          "dmySlash": "DD/MM/YYYY",
+          "mdySlash": "MM/DD/YYYY",
+          "dmyDash": "DD-MM-YYYY",
+          "custom": "Custom"
+        }
+      },
+      "datetimeFormats": {
+        "customHint": "Use %Y, %m, %d, %H, %M, %S (e.g. %Y-%m-%dT%H:%M:%S). Leave empty for ISO.",
+        "presets": {
+          "iso": "ISO 8601",
+          "ymdSpace": "YYYY-MM-DD HH:mm:ss",
+          "dmySlash": "DD/MM/YYYY HH:mm:ss",
+          "mdySlash": "MM/DD/YYYY HH:mm:ss",
+          "dmyDash": "DD-MM-YYYY HH:mm:ss",
+          "custom": "Custom"
+        }
+      },
       "exportAction": "Export",
       "formats": {
         "CSV": "CSV",
         "TSV": "TSV",
-        "XLSX": "Excel"
+        "XLSX": "Excel",
+        "HTML": "HTML",
+        "PDF": "PDF"
       },
       "errors": {
-        "featureRequired": "Select a feature to continue."
+        "featureRequired": "Select what to export to continue.",
+        "invalidDateRange": "The start date must not be after the end date."
       },
       "toast": {
         "success": "Export started. Your download should begin shortly.",
@@ -1788,38 +1987,86 @@
     },
     "fileImport": {
       "cardTitle": "File import",
-      "cardDescription": "Upload a CSV, TSV, or Excel file mapped with one of your templates.",
+      "cardDescription": "Import your bank statements, investment movements, or positions from a file.",
       "singleRunBadge": "Manual upload",
-      "formatsLabel": "Supported formats:",
+      "cardDropTitle": "Drop a file here or click to browse",
+      "cardDropActive": "Drop file to start importing",
+      "cardDropSubtitle": "Opens the import dialog with your file ready",
       "importButton": "Import...",
       "dialogTitle": "Import data from file",
-      "dialogDescription": "Upload a file, choose its template, and we'll process it immediately.",
+      "dialogDescription": "Upload a file to detect its columns automatically or choose one of your templates.",
       "additiveDisclaimer": "Imported data is appended to existing records. Previously saved data is never removed.",
-      "featureLabel": "Feature",
+      "featureLabel": "What to import?",
       "productsLabel": "Product",
       "productsHint": "Select the product type represented in the file.",
-      "productsPlaceholder": "Select a product",
       "productsInfo": "This feature is not limited to a specific product.",
       "templateLabel": "Template",
       "templatePlaceholder": "Select a template",
-      "templateFeatureHint": "Select a feature first to view its templates.",
+      "templateOptionalHint": "Optional — columns were detected automatically from the file.",
+      "templateFeatureHint": "Select what to import first to view its templates.",
       "templateInfo": "Templates define how we interpret each column.",
       "fileLabel": "File",
       "fileButton": "Choose file",
       "fileButtonChange": "Change file",
       "filePlaceholder": "No file selected. Drop a file here or click to browse.",
-      "fileHint": "Accepted formats: CSV, TSV, or XLSX.",
+      "fileHint": "Accepted formats: CSV, TSV, XLS, XLSX, HTML or PDF.",
       "fileHintSelected": "Ready to upload. Select another file if needed.",
       "numberFormatLabel": "Decimal format",
-      "numberFormatHint": "Match the separators used in your file.",
+      "numberFormatHint": "Used for columns whose separators can't be detected automatically.",
       "numberFormats": {
         "ENGLISH": "1,000.00",
         "EUROPEAN": "1.000,00"
       },
-      "datetimeHint": "Use the same date and datetime formatting found in your file. Both are required.",
+      "datetimeHint": "Date formats are optional. Leave them empty to detect them automatically, or enter the formats used in your file.",
+      "analysis": {
+        "analyzing": "Analyzing file...",
+        "matched": "Matches template “{template}”.",
+        "mismatch": "“{template}” doesn't match the columns of this file.",
+        "autoReady": "Ready to import",
+        "noMatch": "No template fits this file yet.",
+        "recognized": "{count} of {total} columns recognized automatically.",
+        "missingRequired": "Missing required fields: {fields}.",
+        "useTemplate": "Use “{template}”",
+        "useAutoDetect": "Import automatically",
+        "createFromFile": "Create template from file",
+        "currencyLabel": "Currency",
+        "currencyDetectedHint": "Detected from file",
+        "currencyDefaultHint": "Default currency (no currency column in file)",
+        "error": "We couldn't analyze the file. You can still pick a template."
+      },
+      "formatOptions": {
+        "title": "Format options",
+        "dates": "Dates",
+        "decimals": "Decimals",
+        "automatic": "Auto",
+        "detected": "Detected from the file"
+      },
       "importAction": "Preview",
+      "ai": {
+        "toggle": "Extract with AI",
+        "hint": "Use your AI models to read statements, receipts, screenshots or scanned documents.",
+        "disclosure": "The file content will be sent to your configured AI models.",
+        "instructionsLabel": "Notes for the AI (optional)",
+        "instructionsPlaceholder": "E.g. ignore card holds, amounts are in USD",
+        "suggest": "This file can't be read automatically. Try extracting it with AI.",
+        "extractedBy": "Extracted with {model}",
+        "settings": {
+          "title": "AI extraction",
+          "description": "Choose which AI models read your files when you import them with AI, and add notes that apply to every AI import.",
+          "priorityNotice": "Models are tried in order. Images and scanned PDFs skip the models that can't read them, and a failure moves the import to the next entry.",
+          "privacyNotice": "The content of the imported file is sent to the model. Nothing else from your data is shared.",
+          "instructionsLabel": "Notes for every AI import (optional)",
+          "instructionsHint": "Combined with the notes you write when importing a specific file."
+        }
+      },
+      "background": {
+        "continue": "Continue in background",
+        "running": "Importing...",
+        "ready": "Your file import is ready to review.",
+        "review": "Review"
+      },
       "errors": {
-        "featureRequired": "Select a feature to continue.",
+        "featureRequired": "Select what to import to continue.",
         "productRequired": "Select a product to continue.",
         "fileRequired": "Choose a file to import.",
         "dateFormatRequired": "Enter the date format used in the file.",
@@ -1859,10 +2106,6 @@
       "cardTitle": {
         "EXPORT": "Export templates",
         "IMPORT": "Import templates"
-      },
-      "cardDescription": {
-        "EXPORT": "Create templates for exporting your data in a consistent format.",
-        "IMPORT": "Create templates for importing external data quickly and easily."
       },
       "cardEmpty": "No templates yet.",
       "cardCountLabel": "{count} templates",
@@ -1933,6 +2176,17 @@
       "orGroupBadgeHint": "Alternative fields: {group}",
       "orGroupBadgeExplanation": "You must keep at least one of these fields selected.",
       "orGroupBlockedToggle": "Cannot exclude. Keep one: {group}",
+      "detectFromFile": {
+        "button": "Detect from file",
+        "detecting": "Analyzing file...",
+        "hint": "Upload or drop a sample file to map its columns automatically.",
+        "drop": "Drop the file to analyze it",
+        "summary": "{count} columns matched from {file}.",
+        "unmatched": "Columns not mapped: {columns}",
+        "missingRequired": "Required fields without a column: {fields}. Set a default value or a custom label.",
+        "noMatches": "No columns could be matched. Set the custom labels manually.",
+        "error": "We couldn't analyze the file. Try again."
+      },
       "defaultValueBadge": "Default value",
       "defaultValueHint": "Default value when omitted",
       "defaultValueExplanation": "If you don't provide this field in your import data, this default value will be used:",
@@ -1956,6 +2210,8 @@
         "active": "Active",
         "alias": "Alias",
         "amount": "Amount",
+        "amount_in": "Inflow amount",
+        "amount_out": "Outflow amount",
         "asset_type": "Asset type",
         "average_balance": "Average balance",
         "average_buy_price": "Average buy price",
@@ -2033,7 +2289,8 @@
         "iban": "IBAN",
         "symbol": "Symbol",
         "currency_amount": "Currency amount",
-        "contract_address": "Contract address"
+        "contract_address": "Contract address",
+        "counterparty": "Counterparty"
       },
       "enumValuesTitle": "Values",
       "errors": {
@@ -2306,7 +2563,12 @@
       "textField": "Field",
       "textOperator": "Condition",
       "textValue": "Text",
-      "textValuePlaceholder": "e.g. netflix",
+      "textValuePlaceholder": "e.g. netflix, spotify",
+      "textValuesHint": "Press Enter or comma to add more values, any of them matches",
+      "textValuesHintRegex": "Press Enter to add more patterns, any of them matches",
+      "removeValue": "Remove {value}",
+      "maxTextValues": "Up to {max} values",
+      "moreValues": "+{count}",
       "fields": {
         "ANY": "All",
         "NAME": "Name",
@@ -2337,6 +2599,13 @@
       "preview": "Preview",
       "previewCount": "{count} movements match",
       "conditionRequired": "Add at least one condition",
+      "alternativeConditionRequired": "Alternative conditions {index} are empty, add at least one condition",
+      "addAlternative": "Add alternative conditions",
+      "alternative": "Alternative conditions {index}",
+      "removeAlternative": "Remove alternative conditions {index}",
+      "or": "or",
+      "maxAlternatives": "Up to {max} alternative conditions per rule",
+      "alternativesHint": "Labels movements matching any of the alternative conditions.",
       "labelRequired": "Choose at least one label",
       "invalidRule": "The rule is not valid, review the conditions",
       "saved": "Rule saved",
@@ -2390,7 +2659,11 @@
       "matched": "{count} movements selected",
       "summary": "{rules} labeled by rules · {external} labeled by suggestions",
       "done": "Movements relabeled",
-      "externalFailed": "Movements relabeled, but suggestions could not be retrieved"
+      "externalFailed": "Movements relabeled, but suggestions could not be retrieved",
+      "providerUsed": "Provider used: {provider} ({model})",
+      "fallbackUsed": "Fallback used: {provider} ({model})",
+      "externalModelUnavailable": "the selected model is no longer available, your existing suggestions were kept. Choose another model in the suggestions settings.",
+      "externalReauthRequired": "the sign-in to the suggestions provider expired. Sign in again in Integrations."
     },
     "automation": {
       "rulesTitle": "Rules",
@@ -2409,7 +2682,7 @@
       "connected": "Connected",
       "notConnected": "Not connected",
       "unavailableHere": "Not available on this device",
-      "providerUnavailable": "{provider} is not available on this device, so suggestions are skipped here. They keep working on devices that support it. Choose another provider to also get suggestions here.",
+      "providerUnavailable": "{provider} is unavailable on this platform and this entry will be skipped. Other ready priorities can still run. Its settings are kept for supported platforms.",
       "connectProvider": "Configure it in integrations",
       "connectRequired": "Connect the provider or turn off external suggestions to save.",
       "model": "Model",
@@ -2428,7 +2701,24 @@
       "modelInvalid": "Model not found or not supported",
       "upstreamProvider": "Provider",
       "upstreamProviderPlaceholder": "Provider (optional)",
-      "upstreamProviderHint": "Optionally route requests to a specific provider, e.g. openai/flex. Requests will only go to that provider, without fallbacks.",
+      "upstreamProviderHint": "Pins this entry to one upstream provider. The next labeling priority can still be used if this entry fails.",
+      "priorityTitle": "Provider priority",
+      "platformPriorityNotice": "Providers are tried in order. Methods unavailable on this platform or requiring sign-in are skipped. A provider failure can also move labeling to the next entry.",
+      "addProvider": "Add provider",
+      "editProvider": "Edit {provider}",
+      "removeProvider": "Remove {provider}",
+      "reorderProvider": "Reorder {provider}",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "preferredHere": "Preferred here",
+      "priorityStates": {
+        "connected": "Ready as fallback",
+        "notConnected": "Not connected",
+        "expired": "Sign-in expired",
+        "unavailableHere": "Unavailable here"
+      },
+      "noEligibleProvider": "No configured provider is ready on this platform. Your priority list is preserved.",
+      "duplicateProvider": "Each provider, model and upstream combination must be unique.",
       "minConfidence": "Minimum confidence (%)",
       "minConfidenceHint": "Suggestions below this confidence are discarded.",
       "minConfidenceNotApplicable": "This model does not report confidence, so every suggestion is applied.",
@@ -2451,6 +2741,8 @@
       "noModelsMatch": "No models match your search.",
       "modelsError": "Could not load the models from the provider.",
       "modelUnavailable": "The selected model ({model}) is no longer available. Choose another one.",
+      "tokenPrice": "{input} / {output} per 1M",
+      "tokenPriceHint": "Price per 1M input / output tokens",
       "manageModels": "Manage models",
       "modelLoaded": "Loaded",
       "modelFailed": "Failed to start",
@@ -2852,12 +3144,14 @@
     "validationError": "Validation Error",
     "unexpectedColumn": "Unexpected Column",
     "unknownError": "Unknown Error",
+    "duplicated": "Duplicated Transaction",
     "sheetNotFoundMessage": "Sheet {entry} was not found",
     "missingFieldMessage": "Missing required fields in {entry}:",
     "validationErrorMessage": "Validation errors in {entry}:",
     "unexpectedColumnMessage": "Ignored columns in {entry}:",
     "validationErrorRow": "Row: {row}",
     "fieldError": "Field {field}: invalid value {value}",
+    "duplicatedMessage": "Skipped in {entry}: reference {ref} is already used by another transaction of this entity.",
     "unknownErrorMessage": "Unknown error in {entry}"
   },
   "countries": {
@@ -3073,10 +3367,6 @@
     "markCompleted": "Mark as completed",
     "markCompletedTitle": "Complete {type}",
     "markCompletedConfirm": "Mark this {type} as completed? It will no longer be counted in your pending totals.",
-    "applyToAccountBalance": "Apply to account balance",
-    "applyToAccountBalanceHint": "The settled amount will be added to or subtracted from the selected account.",
-    "selectAccount": "Select an account",
-    "noManualAccounts": "There are no manually entered accounts to apply this change to. Create one to enable this option.",
     "markActive": "Reactivate",
     "statusFilter": "Status",
     "filters": "Filters",
@@ -4207,5 +4497,25 @@
     "resetConfirmMessage": "Are you sure you want to reset all advanced settings to their defaults?",
     "resetConfirmWarning": "The app will restart after resetting.",
     "availableAfterLoading": "Available after loading"
+  },
+  "manualAccountBalance": {
+    "accountLabel": "Account",
+    "optionalAccountPlaceholder": "Select an account (optional)",
+    "enterIbanManually": "Enter IBAN manually",
+    "selectFromAccounts": "Select from accounts",
+    "clearAccount": "Clear selected account",
+    "apply": "Apply to account balance",
+    "settleHint": "The settled amount will be added to or subtracted from the selected account.",
+    "transactionHint": "Adds or subtracts the net transaction amount from this manual account.",
+    "selectAccount": "Select an account",
+    "selectAccountAboveHint": "Select a manual account above to update its balance.",
+    "selectAccountError": "Select a manual account to update",
+    "noManualAccounts": "There are no manually entered accounts to apply this change to. Create one to enable this option.",
+    "noManualAccountsForEntity": "The selected entity has no manually entered accounts. Create one in Banking to enable this option.",
+    "syncedAccountHint": "Synced accounts update their balance automatically when fetched. Select a manual account to adjust its balance.",
+    "customIbanHint": "This IBAN does not match any manual account of the selected entity.",
+    "syncedBadge": "Synced",
+    "manualBadge": "Manual",
+    "previewLabel": "New balance"
   }
 }

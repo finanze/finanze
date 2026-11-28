@@ -1,11 +1,15 @@
+import asyncio
+import gc
 import hashlib
 import logging
+import os
 import shutil
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Optional
+from typing import Callable, Optional, TypeVar
 from asyncio import Lock
 
 from sqlcipher3 import dbapi2 as sqlcipher
@@ -26,9 +30,14 @@ from infrastructure.repository.db.settings_snapshot import (
     restore_settings_rows_if_empty,
 )
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
-from infrastructure.repository.db.version_registry import versions
+from infrastructure.repository.db.version_registry import (
+    get_schema_hash,
+    get_schema_revision,
+    versions,
+)
 
 DB_NAME = "data.db"
+_T = TypeVar("_T")
 
 
 class DBManager(DatasourceInitiator, Backupable):
@@ -118,6 +127,32 @@ class DBManager(DatasourceInitiator, Backupable):
         return password.replace(r"'", r"''")
 
     @staticmethod
+    def _sanitize_sql_path(path: Path) -> str:
+        return str(path.absolute()).replace("'", "''")
+
+    @staticmethod
+    def _retry_fs_op(
+        op: Callable[[], _T], retries: int = 5, base_delay: float = 0.02
+    ) -> _T:
+        for attempt in range(retries):
+            try:
+                return op()
+            except PermissionError:
+                if attempt == retries - 1:
+                    raise
+                gc.collect()
+                time.sleep(base_delay * (2**attempt))
+        return op()
+
+    @classmethod
+    def _unlink_path(cls, path: Path) -> None:
+        cls._retry_fs_op(lambda: path.unlink(missing_ok=True))
+
+    @classmethod
+    def _replace_file(cls, src: Path, dst: Path) -> None:
+        cls._retry_fs_op(lambda: os.replace(src, dst))
+
+    @staticmethod
     def _unlock_and_setup(connection: UnderlyingConnection, password: str):
         sanitized_pass = DBManager._sanitize_password(password)
         connection.execute(f"PRAGMA key='{sanitized_pass}';")
@@ -181,9 +216,9 @@ class DBManager(DatasourceInitiator, Backupable):
                 # Update last update timestamp before exporting
                 pass
 
-            await self._client.wal_checkpoint()
+            await self._client.wal_checkpoint("TRUNCATE")
 
-            tmp_path_str = str(tmp_path.absolute())
+            tmp_path_str = self._sanitize_sql_path(tmp_path)
 
             async with self._client.tx(skip_last_update=True) as cursor:
                 await cursor.execute_script(f"""
@@ -198,10 +233,31 @@ class DBManager(DatasourceInitiator, Backupable):
             return data
         finally:
             try:
-                if tmp_path.exists():
-                    tmp_path.unlink()
+                self._unlink_path(tmp_path)
             except (OSError, NameError):
                 pass
+
+    @classmethod
+    def _unlink_db_files(cls, db_path: Path) -> None:
+        cls._unlink_path(db_path)
+        cls._unlink_path(Path(f"{db_path}-wal"))
+        cls._unlink_path(Path(f"{db_path}-shm"))
+
+    async def _validate_unencrypted_backup_migrations(
+        self, temp_client: DBClient
+    ) -> None:
+        async with temp_client.read() as cursor:
+            await cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'"
+            )
+            if await cursor.fetchone() is None:
+                return
+
+            await cursor.execute("SELECT name FROM migrations")
+            rows = await cursor.fetchall()
+
+        applied_names = {row[0] for row in rows}
+        DatabaseUpgrader.validate_known_migrations(applied_names, versions)
 
     async def import_data(
         self,
@@ -219,66 +275,96 @@ class DBManager(DatasourceInitiator, Backupable):
                 tmp_bkg_db_path = Path(tmpdir) / "tmp_backup.db"
                 tmp_bkg_db_path.write_bytes(data)
 
-                connection = self._base_connect(tmp_bkg_db_path)
-                temp_client = DBClient(connection)
+                temp_client = DBClient(self._base_connect(tmp_bkg_db_path))
+                try:
+                    await self._validate_unencrypted_backup_migrations(temp_client)
 
-                db_path_str = str(db_path.absolute())
-                sanitized_passwd = self._sanitize_password(password)
+                    self._unlink_db_files(db_path)
+                    db_path_str = self._sanitize_sql_path(db_path)
+                    sanitized_passwd = self._sanitize_password(password)
 
-                async with temp_client.tx(skip_last_update=True) as cursor:
-                    await cursor.execute_script(f"""
-                    ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
-                    SELECT sqlcipher_export('new_db');
-                    DETACH DATABASE new_db;
-                    """)
-                connection.close()
+                    async with temp_client.tx(skip_last_update=True) as cursor:
+                        await cursor.execute_script(f"""
+                        ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
+                        SELECT sqlcipher_export('new_db');
+                        DETACH DATABASE new_db;
+                        """)
+                finally:
+                    await temp_client.silent_close()
 
-            await self._initialize(
-                DatasourceInitParams.build(user=user, password=password)
-            )
+            try:
+                await self._initialize(
+                    DatasourceInitParams.build(user=user, password=password)
+                )
+            except Exception:
+                self._unlink_db_files(db_path)
+                raise
             return
-
-        await self._client.wal_checkpoint()
-
-        settings_rows = await read_settings_rows(self._client)
-
-        user = self._user
-        user_path = user.path
-        passwd = self._pass
-        db_path = user_path / DB_NAME
-        await self.lock()
-
-        temp_old_db_path = user_path / (DB_NAME + ".tmp")
-        shutil.copy2(db_path, temp_old_db_path)
-
-        db_path.unlink()
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             tmp_bkg_db_path = Path(tmpdir) / "tmp_backup.db"
             tmp_bkg_db_path.write_bytes(data)
 
-            connection = self._base_connect(tmp_bkg_db_path)
-            temp_client = DBClient(connection)
+            temp_client = DBClient(self._base_connect(tmp_bkg_db_path))
+            try:
+                await self._validate_unencrypted_backup_migrations(temp_client)
+            finally:
+                await temp_client.silent_close()
 
-            db_path_str = str(db_path.absolute())
-            sanitized_passwd = self._sanitize_password(passwd)
+            settings_rows = await read_settings_rows(self._client)
 
-            async with temp_client.tx(skip_last_update=True) as cursor:
-                await cursor.execute_script(f"""
-                ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
-                SELECT sqlcipher_export('new_db');
-                DETACH DATABASE new_db;
-                """)
-            connection.close()
+            await self._client.wal_checkpoint("TRUNCATE")
 
-        await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
+            user = self._user
+            user_path = user.path
+            passwd = self._pass
+            db_path = user_path / DB_NAME
+            await self.lock()
+
+            temp_old_db_path = user_path / (DB_NAME + ".tmp")
+            self._unlink_path(temp_old_db_path)
+            shutil.copy2(db_path, temp_old_db_path)
+
+            try:
+                self._unlink_db_files(db_path)
+
+                temp_client = DBClient(self._base_connect(tmp_bkg_db_path))
+                try:
+                    db_path_str = self._sanitize_sql_path(db_path)
+                    sanitized_passwd = self._sanitize_password(passwd)
+
+                    async with temp_client.tx(skip_last_update=True) as cursor:
+                        await cursor.execute_script(f"""
+                        ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
+                        SELECT sqlcipher_export('new_db');
+                        DETACH DATABASE new_db;
+                        """)
+                finally:
+                    await temp_client.silent_close()
+
+                await self._initialize(
+                    DatasourceInitParams.build(user=user, password=passwd)
+                )
+            except Exception:
+                if temp_old_db_path.exists():
+                    self._unlink_db_files(db_path)
+                    self._replace_file(temp_old_db_path, db_path)
+                    try:
+                        await self._initialize(
+                            DatasourceInitParams.build(user=user, password=passwd)
+                        )
+                    except Exception as restore_err:
+                        self._log.exception(
+                            f"Could not re-initialize restored database after import error: {restore_err}"
+                        )
+                raise
 
         try:
             await restore_settings_rows_if_empty(self._client, settings_rows)
         except Exception as e:
             self._log.exception(f"Could not restore settings after import: {e}")
 
-        temp_old_db_path.unlink()
+        self._unlink_path(temp_old_db_path)
 
     async def get_last_updated(self) -> datetime:
         async with self._client.read() as cursor:
@@ -292,11 +378,39 @@ class DBManager(DatasourceInitiator, Backupable):
             row = await cursor.fetchone()
             return datetime.fromisoformat(row["value"])
 
+    def get_schema_revision(self) -> int:
+        return get_schema_revision()
+
+    def get_schema_hash(self) -> str:
+        return get_schema_hash()
+
     async def get_hashed_password(self) -> Optional[str]:
         if not self._unlocked:
             return None
 
         return hashlib.sha3_256(self._pass.encode("utf-8")).hexdigest()
+
+    async def verify_password(self, password: str) -> bool:
+        user = self._user
+        if not self._unlocked or user is None or not password:
+            return False
+
+        return await asyncio.to_thread(
+            self._check_password, user.path / DB_NAME, password
+        )
+
+    @staticmethod
+    def _check_password(user_db_path: Path, password: str) -> bool:
+        connection = DBManager._base_connect(user_db_path)
+        try:
+            sanitized_pass = DBManager._sanitize_password(password)
+            connection.execute(f"PRAGMA key='{sanitized_pass}';")
+            connection.execute("SELECT count(*) FROM sqlite_master;")
+            return True
+        except DatabaseError:
+            return False
+        finally:
+            connection.close()
 
     def get_user(self) -> Optional[User]:
         return self._user

@@ -41,13 +41,21 @@ def _make_auth(permissions=None):
     )
 
 
-def _make_backup_info(backup_type=BackupFileType.DATA, date=None, backup_id=None):
+def _make_backup_info(
+    backup_type=BackupFileType.DATA,
+    date=None,
+    backup_id=None,
+    schema_revision=None,
+    schema_hash=None,
+):
     return BackupInfo(
         id=backup_id or uuid4(),
         protocol=1,
         date=date or NOW,
         type=backup_type,
         size=100,
+        schema_revision=schema_revision,
+        schema_hash=schema_hash,
     )
 
 
@@ -176,6 +184,8 @@ class TestExecuteOnlyLocal:
         backup_repo.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case = GetBackupsImpl(
             backupable_ports={BackupFileType.DATA: backupable},
@@ -205,6 +215,8 @@ class TestExecuteOnlyLocal:
         backup_repo.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case = GetBackupsImpl(
             backupable_ports={BackupFileType.DATA: backupable},
@@ -233,6 +245,8 @@ class TestExecuteRemote:
         backup_repo.get_info = AsyncMock(return_value=remote_info)
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case = GetBackupsImpl(
             backupable_ports={BackupFileType.DATA: backupable},
@@ -302,6 +316,8 @@ class TestExecuteSkipsMissingPorts:
         backup_repo.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case = GetBackupsImpl(
             backupable_ports={BackupFileType.DATA: backupable},
@@ -362,6 +378,8 @@ class TestExecuteWithCloudToken:
         backup_repo.get_info = AsyncMock(return_value=remote_info)
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case = GetBackupsImpl(
             backupable_ports={BackupFileType.DATA: backupable},
@@ -432,6 +450,8 @@ def _build_use_case(
     if backupable_ports is None:
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
         backupable_ports = {BackupFileType.DATA: backupable}
 
     use_case = GetBackupsImpl(
@@ -538,6 +558,8 @@ class TestInfoCooldown:
         )
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case = GetBackupsImpl(
             backupable_ports={BackupFileType.DATA: backupable},
@@ -553,3 +575,162 @@ class TestInfoCooldown:
 
         backup_repo.get_info.assert_called_once()
         assert BackupFileType.DATA in result.pieces
+
+
+class TestVersionAwareness:
+    def test_calculate_sync_status_outdated_app_without_local_changes(self):
+        shared_id = uuid4()
+        local = _make_backup_info(date=NOW, backup_id=shared_id, schema_revision=95)
+        remote = _make_backup_info(date=LATER, schema_revision=96)
+
+        status, has_changes = GetBackupsImpl._calculate_sync_status(
+            local, remote, EARLIER, local_schema_revision=95
+        )
+
+        assert status == SyncStatus.OUTDATED_APP
+        assert has_changes is False
+
+    def test_calculate_sync_status_outdated_app_with_local_changes(self):
+        local = _make_backup_info(date=EARLIER, schema_revision=95)
+        remote = _make_backup_info(date=NOW, schema_revision=96)
+
+        status, has_changes = GetBackupsImpl._calculate_sync_status(
+            local, remote, LATER, local_schema_revision=95
+        )
+
+        assert status == SyncStatus.OUTDATED_APP
+        assert has_changes is True
+
+    @pytest.mark.parametrize("remote_schema_revision", [None, 90, 95])
+    def test_calculate_sync_status_legacy_or_compatible_version_behaves_normally(
+        self, remote_schema_revision
+    ):
+        shared_id = uuid4()
+        local = _make_backup_info(date=NOW, backup_id=shared_id, schema_revision=95)
+        remote_synced = _make_backup_info(
+            date=NOW, backup_id=shared_id, schema_revision=remote_schema_revision
+        )
+        remote_newer = _make_backup_info(
+            date=LATER, schema_revision=remote_schema_revision
+        )
+
+        assert GetBackupsImpl._calculate_sync_status(
+            local, remote_synced, EARLIER, local_schema_revision=95
+        ) == (SyncStatus.SYNC, False)
+        assert GetBackupsImpl._calculate_sync_status(
+            local, remote_newer, EARLIER, local_schema_revision=95
+        ) == (SyncStatus.OUTDATED, False)
+        assert GetBackupsImpl._calculate_sync_status(
+            local, remote_newer, LATER, local_schema_revision=95
+        ) == (SyncStatus.CONFLICT, True)
+
+    @pytest.mark.parametrize(
+        "last_updated,expected_changes",
+        [
+            (EARLIER, False),
+            (LATER, True),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_execute_returns_outdated_app_when_remote_version_ahead(
+        self, last_updated, expected_changes
+    ):
+        local_backup = _make_backup_info(date=NOW, schema_revision=95)
+        remote_backup = _make_backup_info(date=NOW, schema_revision=96)
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=last_updated)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, *_ = _build_use_case(
+            local_info=BackupsInfo(pieces={BackupFileType.DATA: local_backup}),
+            remote_info=BackupsInfo(pieces={BackupFileType.DATA: remote_backup}),
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        result = await use_case.execute(BackupsInfoRequest(only_local=False))
+
+        piece = result.pieces[BackupFileType.DATA]
+        assert piece.status == SyncStatus.OUTDATED_APP
+        assert piece.has_local_changes is expected_changes
+
+    @pytest.mark.parametrize(
+        "remote_schema_revision,expected_status",
+        [
+            (96, SyncStatus.OUTDATED_APP),
+            (95, None),
+            (None, None),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_execute_with_cloud_token_sets_outdated_app_only_when_ahead(
+        self, remote_schema_revision, expected_status
+    ):
+        cloud_token = CloudAuthToken(
+            access_token="onboarding_token",
+            refresh_token="",
+            token_type="Bearer",
+            expires_at=0,
+        )
+        token_data = CloudAuthTokenData(
+            role=CloudUserRole.PLUS,
+            email="test@test.com",
+            permissions=["backup.info"],
+        )
+        cloud_register = MagicMock()
+        cloud_register.get_auth = AsyncMock(return_value=None)
+        cloud_register.decode_token = AsyncMock(return_value=token_data)
+        local_registry = MagicMock()
+        local_registry.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        remote_backup = _make_backup_info(
+            BackupFileType.DATA, date=NOW, schema_revision=remote_schema_revision
+        )
+        backup_repo = MagicMock()
+        backup_repo.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        )
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=NOW)
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case = GetBackupsImpl(
+            backupable_ports={BackupFileType.DATA: backupable},
+            backup_repository=backup_repo,
+            backup_local_registry=local_registry,
+            cloud_register=cloud_register,
+        )
+
+        result = await use_case.execute(
+            BackupsInfoRequest(only_local=False), cloud_token=cloud_token
+        )
+
+        piece = result.pieces[BackupFileType.DATA]
+        assert piece.status == expected_status
+        assert piece.has_local_changes is False
+
+    def test_calculate_sync_status_equal_revision_different_hash_is_outdated_app(self):
+        local = _make_backup_info(
+            date=EARLIER, schema_revision=95, schema_hash="hash_95"
+        )
+        remote_divergent = _make_backup_info(
+            date=NOW, schema_revision=95, schema_hash="hash_hotfix"
+        )
+        remote_smaller_diff_hash = _make_backup_info(
+            date=NOW, schema_revision=90, schema_hash="hash_90"
+        )
+
+        assert GetBackupsImpl._calculate_sync_status(
+            local,
+            remote_divergent,
+            EARLIER,
+            local_schema_revision=95,
+            local_schema_hash="hash_95",
+        ) == (SyncStatus.OUTDATED_APP, False)
+        assert GetBackupsImpl._calculate_sync_status(
+            local,
+            remote_smaller_diff_hash,
+            EARLIER,
+            local_schema_revision=95,
+            local_schema_hash="hash_95",
+        ) == (SyncStatus.OUTDATED, False)

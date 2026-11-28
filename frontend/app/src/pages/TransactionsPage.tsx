@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
+import { useFinancialData } from "@/context/FinancialDataContext"
 import {
   getTransactions,
   createManualTransaction,
@@ -263,6 +264,7 @@ export default function TransactionsPage() {
     exchangeRates,
     updateEntityVirtualFeatures,
   } = useAppContext()
+  const { refreshData } = useFinancialData()
   const location = useLocation()
   const navigateRouter = useNavigate()
   const returnTo = readReturnTo(location.state)
@@ -845,10 +847,20 @@ export default function TransactionsPage() {
         const payloads = Array.isArray(result.payload)
           ? result.payload
           : [result.payload]
+        const hasBalanceUpdate = payloads.some(
+          item =>
+            "balance_account_id" in item && Boolean(item.balance_account_id),
+        )
         const entityIds = [...new Set(payloads.map(item => item.entity_id))]
         entityIds.forEach(entityId =>
-          updateEntityVirtualFeatures(entityId, ["TRANSACTIONS"]),
+          updateEntityVirtualFeatures(
+            entityId,
+            hasBalanceUpdate ? ["TRANSACTIONS", "POSITION"] : ["TRANSACTIONS"],
+          ),
         )
+        if (hasBalanceUpdate) {
+          void refreshData()
+        }
       }
 
       setIsDialogOpen(false)
@@ -1033,7 +1045,7 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                <Sensitive>{stockTx.shares.toLocaleString()}</Sensitive>
+                <Sensitive>{stockTx.shares.toLocaleString(locale)}</Sensitive>
               </div>
             )}
             {Number(stockTx.price || 0) !== 0 && (
@@ -1111,7 +1123,7 @@ export default function TransactionsPage() {
                   {t.transactions.currencyAmount}:
                 </span>{" "}
                 <Sensitive>
-                  {cryptoTx.currency_amount.toLocaleString()}
+                  {cryptoTx.currency_amount.toLocaleString(locale)}
                 </Sensitive>
               </div>
             )}
@@ -1179,7 +1191,9 @@ export default function TransactionsPage() {
             {marketForecastTx.size !== undefined && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.size}:</span>{" "}
-                <Sensitive>{marketForecastTx.size.toLocaleString()}</Sensitive>
+                <Sensitive>
+                  {marketForecastTx.size.toLocaleString(locale)}
+                </Sensitive>
               </div>
             )}
             {Number(marketForecastTx.price || 0) !== 0 && (
@@ -1244,7 +1258,7 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                <Sensitive>{fundTx.shares.toLocaleString()}</Sensitive>
+                <Sensitive>{fundTx.shares.toLocaleString(locale)}</Sensitive>
               </div>
             )}
             {Number(fundTx.price || 0) !== 0 && (

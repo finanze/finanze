@@ -14,6 +14,8 @@ def _serialize_backup_info(backup_info):
         "date": backup_info.date.isoformat(),
         "type": backup_info.type.value,
         "size": backup_info.size,
+        "schema_revision": backup_info.schema_revision,
+        "schema_hash": backup_info.schema_hash,
     }
 
 

@@ -28,6 +28,8 @@ class BackupInfo:
     date: datetime
     type: BackupFileType
     size: int
+    schema_revision: Optional[int] = None
+    schema_hash: Optional[str] = None
 
 
 @dataclass
@@ -44,6 +46,7 @@ class SyncStatus(str, Enum):
     SYNC = "SYNC"
     PENDING = "PENDING"
     OUTDATED = "OUTDATED"
+    OUTDATED_APP = "OUTDATED_APP"
     MISSING = "MISSING"
     CONFLICT = "CONFLICT"
 
@@ -84,6 +87,8 @@ class BackupTransferPiece:
     type: BackupFileType
     payload: bytes
     size: int
+    schema_revision: Optional[int] = None
+    schema_hash: Optional[str] = None
 
 
 @dataclass
@@ -130,3 +135,23 @@ class BackupSyncResult:
 @dataclass
 class BackupSettings:
     mode: BackupMode
+
+
+def is_remote_schema_incompatible(
+    remote_revision: Optional[int],
+    remote_hash: Optional[str],
+    local_revision: Optional[int],
+    local_hash: Optional[str] = None,
+) -> bool:
+    if remote_revision is None or local_revision is None:
+        return False
+    if remote_revision > local_revision:
+        return True
+    if (
+        remote_revision == local_revision
+        and remote_hash is not None
+        and local_hash is not None
+        and remote_hash != local_hash
+    ):
+        return True
+    return False

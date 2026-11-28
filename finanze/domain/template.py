@@ -8,6 +8,7 @@ from domain.exception.exceptions import InvalidTemplateDefaultValue
 from domain.global_position import ProductType
 from domain.template_fields import (
     TEMPLATE_FIELD_MATRIX,
+    TemplateField,
     TemplateFieldType,
 )
 from domain.template_type import TemplateType
@@ -29,6 +30,7 @@ class EffectiveTemplatedField:
     required: bool
     values: Optional[list[str]] = None
     default_value: Optional[Any] = None
+    or_requires: Optional[tuple[str, ...]] = None
 
 
 @dataclass
@@ -98,6 +100,10 @@ def get_effective_field(
         (f.default_value for f in fields if f.default_value is not None), None
     )
     required = any(f.required for f in fields)
+    or_requires_fields = [
+        req.field for f in fields if f.or_requires for req in f.or_requires
+    ]
+    or_requires = tuple(dict.fromkeys(or_requires_fields)) or None
     return EffectiveTemplatedField(
         field=field_name,
         type=effective_type,
@@ -105,7 +111,36 @@ def get_effective_field(
         name=custom_name,
         default_value=default_value,
         required=required,
+        or_requires=or_requires,
     )
+
+
+def missing_required_template_fields(
+    product_fields: list[TemplateField], available_fields: set[str]
+) -> list[str]:
+    missing: list[str] = []
+    seen_groups: set[frozenset[str]] = set()
+    fields_by_name = {f.field: f for f in product_fields}
+    for field in product_fields:
+        if field.required:
+            if field.field not in available_fields and field.default_value is None:
+                missing.append(field.field)
+        elif field.or_requires:
+            group = frozenset([field.field, *(req.field for req in field.or_requires)])
+            if group in seen_groups:
+                continue
+            seen_groups.add(group)
+            satisfied = any(
+                name in available_fields
+                or (
+                    name in fields_by_name
+                    and fields_by_name[name].default_value is not None
+                )
+                for name in group
+            )
+            if not satisfied:
+                missing.append(field.field)
+    return missing
 
 
 def validate_template_default_values(template: Template):

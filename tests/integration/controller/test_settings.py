@@ -79,6 +79,72 @@ class TestGetSettings:
 
 class TestUpdateSettings:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "providers",
+        [
+            [{"provider": "OPENAI", "model": f"model-{index}"} for index in range(6)],
+            [{"provider": "OPENAI", "model": "same"}] * 2,
+            [{"provider": "OPENAI", "model": "   "}],
+            [{"provider": "", "model": "valid"}],
+        ],
+    )
+    async def test_invalid_priorities_do_not_save_any_sections(self, client, providers):
+        await _signup_and_stay_logged_in(client)
+        response = await client.post(
+            SETTINGS_URL,
+            json={
+                "general": {"defaultCurrency": "USD"},
+                "labeling": {"external": {"enabled": True, "providers": providers}},
+            },
+        )
+        assert response.status_code == 400
+        body = await (await client.get(SETTINGS_URL)).get_json()
+        assert body["general"]["defaultCurrency"] == "EUR"
+        assert body["labeling"]["external"]["providers"] == []
+
+    @pytest.mark.asyncio
+    async def test_priority_order_is_preserved(self, client):
+        await _signup_and_stay_logged_in(client)
+        providers = [
+            {"provider": "CLAUDE_AGENT", "model": "claude", "upstreamProvider": None},
+            {
+                "provider": "OPENROUTER",
+                "model": "router",
+                "upstreamProvider": "openai/flex",
+            },
+            {"provider": "CHATGPT", "model": "chat", "upstreamProvider": None},
+        ]
+        response = await client.post(
+            SETTINGS_URL,
+            json={"labeling": {"external": {"enabled": True, "providers": providers}}},
+        )
+        assert response.status_code == 204
+        body = await (await client.get(SETTINGS_URL)).get_json()
+        assert body["labeling"]["external"]["providers"] == providers
+
+    @pytest.mark.asyncio
+    async def test_shared_ai_providers_are_saved_separately(self, client):
+        await _signup_and_stay_logged_in(client)
+        shared = [
+            {"provider": "OPENAI", "model": "gpt-6-luna", "upstreamProvider": None}
+        ]
+        override = [
+            {"provider": "OPENROUTER", "model": "x/y", "upstreamProvider": None}
+        ]
+        response = await client.post(
+            SETTINGS_URL,
+            json={
+                "ai": {"providers": shared},
+                "importing": {"ai": {"providers": override, "instructions": "x"}},
+            },
+        )
+        assert response.status_code == 204
+        body = await (await client.get(SETTINGS_URL)).get_json()
+        assert body["ai"]["providers"] == shared
+        assert body["importing"]["ai"] == {"providers": override, "instructions": "x"}
+        assert body["labeling"]["external"]["providers"] == []
+
+    @pytest.mark.asyncio
     async def test_update_and_get_reflects_changes(self, client):
         await _signup_and_stay_logged_in(client)
         new_settings = _build_settings(currency="USD")
@@ -191,14 +257,14 @@ class TestSettingsLifecycle:
         assert body["general"]["defaultCurrency"] == "JPY"
 
 
-ALL_SECTIONS = {"general", "data", "export", "importing", "assets", "labeling"}
+ALL_SECTIONS = {"general", "data", "export", "importing", "assets", "labeling", "ai"}
 
 LABELING = {
     "external": {
         "enabled": True,
-        "provider": "OPENROUTER",
-        "model": "m/x",
-        "upstreamProvider": None,
+        "providers": [
+            {"provider": "OPENROUTER", "model": "m/x", "upstreamProvider": None}
+        ],
         "autoRun": False,
         "minConfidence": 85,
         "maxPerRun": 150,

@@ -44,6 +44,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 ENV FINANZE_DISTRIBUTION=docker
+ENV FINANZE_HOST=0.0.0.0
 
 # Copy application code
 COPY finanze /finanze

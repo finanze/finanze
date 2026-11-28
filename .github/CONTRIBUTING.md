@@ -27,15 +27,19 @@ By contributing to Finanze, you agree that your contributions will be licensed u
 
 1. **Branching:** Fork the repository and create a descriptive branch from `develop` (e.g., `feature/super-cool` or `bugfix/sync-error`).
 2. **Code Style & Formatting:**
-   - **Backend:** Run `ruff format` and `ruff check`.
-   - **Frontend / Mobile:** Run `pnpm format` and `pnpm lint`.
-   - More on this in [README.md](../README.md).
+    - **Backend:** Run `ruff format` and `ruff check`.
+    - **Frontend / Mobile:** Run `pnpm format` and `pnpm lint`.
+    - More on this in [README.md](../README.md).
 3. **Testing:**
-   - Add unit tests or integration tests for new features and infrastructure adapters in `tests/` and `e2e/` if possible.
-   - Ensure all tests pass: `pytest` (backend) and `pnpm test` (frontend).
-   - More on this in [README.md](../README.md).
+    - Add unit tests or integration tests for new features and infrastructure adapters in `tests/` and `e2e/` if possible.
+    - Ensure all tests pass: `pytest` (backend) and `pnpm test` (frontend).
+    - More on this in [README.md](../README.md).
 4. **Sign the CLA:** Ensure you have accepted the CLA via the automated PR bot.
 5. **Submit:** Open the Pull Request against the `develop` branch with a clear title and description of your changes.
+
+### Database migrations
+
+Append migrations to the [registry](../finanze/infrastructure/repository/db/version_registry.py) and give each one a unique, permanent name. New names do not need an app version prefix. Never rename or remove published migrations, or reorder them within a release line. Cloud backups carry `schema_revision` (the number of registered migrations, not the SQLite migration row ID) and `schema_hash` (SHA-256 over the sorted migration names).
 
 ---
 

@@ -144,6 +144,7 @@ export function getOverallStatus(
 
   const statuses = Object.values(backups.pieces).map(piece => piece.status)
 
+  if (statuses.includes(SyncStatus.OUTDATED_APP)) return SyncStatus.OUTDATED_APP
   if (statuses.includes(SyncStatus.CONFLICT)) return SyncStatus.CONFLICT
   if (statuses.includes(SyncStatus.PENDING)) return SyncStatus.PENDING
   if (statuses.includes(SyncStatus.OUTDATED)) return SyncStatus.OUTDATED
@@ -177,6 +178,7 @@ export function getStatusColor(status: SyncStatus): string {
     case SyncStatus.PENDING:
       return "text-foreground"
     case SyncStatus.CONFLICT:
+    case SyncStatus.OUTDATED_APP:
       return "text-red-500"
     case SyncStatus.OUTDATED:
       return "text-amber-500"
@@ -311,6 +313,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const backupsRef = useRef<FullBackupsInfo | null>(null)
   const lastBootstrappedModeRef = useRef<BackupMode | null>(null)
   const isConflictRef = useRef(false)
+  const isOutdatedAppRef = useRef(false)
   const isSyncingRef = useRef(false)
   const isUploadingRef = useRef(false)
   const isImportingRef = useRef(false)
@@ -403,6 +406,9 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         }
         const data = await fetchPromise
         registerNetworkSuccess()
+        if (!data) {
+          return
+        }
 
         if (onlyLocal) {
           setBackups(prev => {
@@ -552,9 +558,36 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
 
   const isConflict = conflictTypes.length > 0
 
+  const outdatedAppTypes = backups
+    ? (Object.entries(backups.pieces)
+        .filter(([, piece]) => piece.status === SyncStatus.OUTDATED_APP)
+        .map(([type]) => type as BackupFileType) as BackupFileType[])
+    : ([] as BackupFileType[])
+
+  const isOutdatedApp = outdatedAppTypes.length > 0
+
+  const outdatedAppUploadTypes =
+    backups && isOutdatedApp
+      ? (Object.entries(backups.pieces)
+          .filter(
+            ([, piece]) =>
+              piece.status === SyncStatus.OUTDATED_APP ||
+              piece.status === SyncStatus.CONFLICT ||
+              piece.status === SyncStatus.PENDING ||
+              piece.status === SyncStatus.MISSING,
+          )
+          .map(([type]) => type as BackupFileType) as BackupFileType[])
+      : ([] as BackupFileType[])
+
+  const unsupportedVersionMessage = t.settings.backup.unsupportedVersionGeneric
+
   useEffect(() => {
     isConflictRef.current = isConflict
   }, [isConflict])
+
+  useEffect(() => {
+    isOutdatedAppRef.current = isOutdatedApp
+  }, [isOutdatedApp])
 
   useEffect(() => {
     isSyncingRef.current = isSyncing
@@ -610,28 +643,40 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       registerNetworkSuccess()
     } catch (error) {
       console.error("Failed to upload backup:", error)
-      registerNetworkFailure()
       const errorCode = getErrorCode(error)
-      if (errorCode === "TOO_MANY_REQUESTS") {
-        setStatusMessage(t.settings.backup.tooManyRequests)
-        if (role !== CloudRole.PLUS) {
-          const msg = formatPlusToast(
-            t.settings.backup.plusRequiredForMoreBackups,
-            featureFlags.PLUS,
-            t.settings.backup.plusJoinMessage,
-            t.settings.backup.plusJoinEmailSubject,
-            t.settings.backup.plusJoinEmailBody,
-          )
-          if (msg) showToast(msg, "info")
-        }
-      } else if (errorCode === "CONFLICT") {
-        setStatusMessage(t.settings.backup.conflictRetry)
-      } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
-        setHasCredentialsMismatch(true)
-      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
-        setStatusMessage(t.settings.backup.transferFailed)
+      if (
+        errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
+        errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
+      ) {
+        const msg = unsupportedVersionMessage
+        await fetchBackups(false)
+        setStatusMessage(msg)
       } else {
-        setStatusMessage(t.common.unexpectedError)
+        registerNetworkFailure()
+        if (errorCode === "TOO_MANY_REQUESTS") {
+          setStatusMessage(t.settings.backup.tooManyRequests)
+          if (role !== CloudRole.PLUS) {
+            const msg = formatPlusToast(
+              t.settings.backup.plusRequiredForMoreBackups,
+              featureFlags.PLUS,
+              t.settings.backup.plusJoinMessage,
+              t.settings.backup.plusJoinEmailSubject,
+              t.settings.backup.plusJoinEmailBody,
+            )
+            if (msg) showToast(msg, "info")
+          }
+        } else if (
+          errorCode === "CONFLICT" ||
+          errorCode === "BACKUP_CONFLICT"
+        ) {
+          setStatusMessage(t.settings.backup.conflictRetry)
+        } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
+          setHasCredentialsMismatch(true)
+        } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+          setStatusMessage(t.settings.backup.transferFailed)
+        } else {
+          setStatusMessage(t.common.unexpectedError)
+        }
       }
     } finally {
       setIsUploading(false)
@@ -685,28 +730,40 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       registerNetworkSuccess()
     } catch (error) {
       console.error("Failed to import backup:", error)
-      registerNetworkFailure()
       const errorCode = getErrorCode(error)
-      if (errorCode === "TOO_MANY_REQUESTS") {
-        setStatusMessage(t.settings.backup.tooManyRequests)
-        if (role !== CloudRole.PLUS) {
-          const msg = formatPlusToast(
-            t.settings.backup.plusRequiredForMoreBackups,
-            featureFlags.PLUS,
-            t.settings.backup.plusJoinMessage,
-            t.settings.backup.plusJoinEmailSubject,
-            t.settings.backup.plusJoinEmailBody,
-          )
-          if (msg) showToast(msg, "info")
-        }
-      } else if (errorCode === "CONFLICT") {
-        setStatusMessage(t.settings.backup.conflictRetry)
-      } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
-        setHasCredentialsMismatch(true)
-      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
-        setStatusMessage(t.settings.backup.transferFailed)
+      if (
+        errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
+        errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
+      ) {
+        const msg = unsupportedVersionMessage
+        await fetchBackups(false)
+        setStatusMessage(msg)
       } else {
-        setStatusMessage(t.common.unexpectedError)
+        registerNetworkFailure()
+        if (errorCode === "TOO_MANY_REQUESTS") {
+          setStatusMessage(t.settings.backup.tooManyRequests)
+          if (role !== CloudRole.PLUS) {
+            const msg = formatPlusToast(
+              t.settings.backup.plusRequiredForMoreBackups,
+              featureFlags.PLUS,
+              t.settings.backup.plusJoinMessage,
+              t.settings.backup.plusJoinEmailSubject,
+              t.settings.backup.plusJoinEmailBody,
+            )
+            if (msg) showToast(msg, "info")
+          }
+        } else if (
+          errorCode === "CONFLICT" ||
+          errorCode === "BACKUP_CONFLICT"
+        ) {
+          setStatusMessage(t.settings.backup.conflictRetry)
+        } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
+          setHasCredentialsMismatch(true)
+        } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+          setStatusMessage(t.settings.backup.transferFailed)
+        } else {
+          setStatusMessage(t.common.unexpectedError)
+        }
       }
     } finally {
       setIsImporting(false)
@@ -731,10 +788,12 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       setPersistedLastFetchAt(now)
       globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
 
-      const hasConflict = Object.values(info.pieces).some(
-        piece => piece.status === SyncStatus.CONFLICT,
+      const hasBlockingStatus = Object.values(info.pieces).some(
+        piece =>
+          piece.status === SyncStatus.CONFLICT ||
+          piece.status === SyncStatus.OUTDATED_APP,
       )
-      if (hasConflict) return
+      if (hasBlockingStatus) return
 
       const toUpload: BackupFileType[] = []
       const toImport: BackupFileType[] = []
@@ -771,26 +830,38 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       }
     } catch (error) {
       console.error("Failed to sync backups:", error)
-      registerNetworkFailure()
       const errorCode = getErrorCode(error)
-      if (errorCode === "TOO_MANY_REQUESTS") {
-        setStatusMessage(t.settings.backup.tooManyRequests)
-        if (role !== CloudRole.PLUS) {
-          const msg = formatPlusToast(
-            t.settings.backup.plusRequiredForMoreBackups,
-            featureFlags.PLUS,
-            t.settings.backup.plusJoinMessage,
-            t.settings.backup.plusJoinEmailSubject,
-            t.settings.backup.plusJoinEmailBody,
-          )
-          if (msg) showToast(msg, "info")
+      if (
+        errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
+        errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
+      ) {
+        const msg = unsupportedVersionMessage
+        await fetchBackups(false)
+        setStatusMessage(msg)
+      } else {
+        registerNetworkFailure()
+        if (errorCode === "TOO_MANY_REQUESTS") {
+          setStatusMessage(t.settings.backup.tooManyRequests)
+          if (role !== CloudRole.PLUS) {
+            const msg = formatPlusToast(
+              t.settings.backup.plusRequiredForMoreBackups,
+              featureFlags.PLUS,
+              t.settings.backup.plusJoinMessage,
+              t.settings.backup.plusJoinEmailSubject,
+              t.settings.backup.plusJoinEmailBody,
+            )
+            if (msg) showToast(msg, "info")
+          }
+        } else if (
+          errorCode === "CONFLICT" ||
+          errorCode === "BACKUP_CONFLICT"
+        ) {
+          setStatusMessage(t.settings.backup.conflictRetry)
+        } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
+          setHasCredentialsMismatch(true)
+        } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+          setStatusMessage(t.settings.backup.transferFailed)
         }
-      } else if (errorCode === "CONFLICT") {
-        setStatusMessage(t.settings.backup.conflictRetry)
-      } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
-        setHasCredentialsMismatch(true)
-      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
-        setStatusMessage(t.settings.backup.transferFailed)
       }
     } finally {
       setIsSyncing(false)
@@ -800,8 +871,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     canCreateBackup,
     canImportBackup,
     applySyncResult,
+    fetchBackups,
     fetchEntities,
     fetchSettings,
+    unsupportedVersionMessage,
     refreshData,
     refreshRealEstate,
     refreshFlows,
@@ -812,6 +885,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     t.settings.backup.conflictRetry,
     t.settings.backup.tooManyRequests,
     t.settings.backup.plusRequiredForMoreBackups,
+    t.settings.backup.transferFailed,
   ])
 
   const runAutoSync = useCallback(async () => {
@@ -823,7 +897,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       )
       return
     }
-    if (isConflictRef.current) {
+    if (isConflictRef.current || isOutdatedAppRef.current) {
       window.dispatchEvent(
         new CustomEvent("backup-auto-sync-complete", {
           detail: { hadTransfer: false, conflict: true },
@@ -854,10 +928,12 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       setPersistedLastFetchAt(now)
       globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
 
-      const hasConflict = Object.values(info.pieces).some(
-        piece => piece.status === SyncStatus.CONFLICT,
+      const hasBlockingStatus = Object.values(info.pieces).some(
+        piece =>
+          piece.status === SyncStatus.CONFLICT ||
+          piece.status === SyncStatus.OUTDATED_APP,
       )
-      if (hasConflict) {
+      if (hasBlockingStatus) {
         window.dispatchEvent(
           new CustomEvent("backup-auto-sync-complete", {
             detail: { hadTransfer: false, conflict: true },
@@ -913,14 +989,29 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       )
     } catch (error) {
       console.error("Auto sync failed:", error)
-      registerNetworkFailure()
       const errorCode = getErrorCode(error)
-      if (errorCode === "TOO_MANY_REQUESTS") {
-        // errorBackoff handles retry throttling
-      } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
-        setHasCredentialsMismatch(true)
-      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
-        setStatusMessage(t.settings.backup.transferFailed)
+      if (
+        errorCode === "UNSUPPORTED_BACKUP_VERSION" ||
+        errorCode === "UNSUPPORTED_BACKUP_PROTOCOL"
+      ) {
+        const msg = unsupportedVersionMessage
+        globalAutoSyncInFlight = false
+        await fetchBackups(false)
+        setStatusMessage(msg)
+      } else {
+        registerNetworkFailure()
+        if (errorCode === "TOO_MANY_REQUESTS") {
+          // errorBackoff handles retry throttling
+        } else if (
+          errorCode === "CONFLICT" ||
+          errorCode === "BACKUP_CONFLICT"
+        ) {
+          setStatusMessage(t.settings.backup.conflictRetry)
+        } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
+          setHasCredentialsMismatch(true)
+        } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+          setStatusMessage(t.settings.backup.transferFailed)
+        }
       }
       window.dispatchEvent(
         new CustomEvent("backup-auto-sync-complete", {
@@ -936,13 +1027,16 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     canCreateBackup,
     canImportBackup,
     applySyncResult,
+    fetchBackups,
     fetchEntities,
     fetchSettings,
+    unsupportedVersionMessage,
     refreshData,
     refreshRealEstate,
     refreshFlows,
     registerNetworkFailure,
     registerNetworkSuccess,
+    t.settings.backup.conflictRetry,
     t.settings.backup.transferFailed,
   ])
 
@@ -1001,7 +1095,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
 
     if (isAutoMode) {
       const autoSyncInterval = window.setInterval(() => {
-        if (isConflictRef.current) return
+        if (isConflictRef.current || isOutdatedAppRef.current) return
         runAutoSync()
       }, AUTO_SYNC_INTERVAL_MS)
 
@@ -1010,7 +1104,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       }
     } else {
       const fastCheckInterval = window.setInterval(() => {
-        if (isConflictRef.current) return
+        if (isConflictRef.current || isOutdatedAppRef.current) return
         const now = Date.now()
         if (now >= globalSkipFastCheckUntil) {
           const remoteStale =
@@ -1050,7 +1144,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       window.setTimeout(async () => {
         try {
           if (globalAutoSyncInFlight || globalManualSyncInFlight) return
-          if (isConflictRef.current) return
+          if (isConflictRef.current || isOutdatedAppRef.current) return
 
           const info = normalizeBackupsInfo(await getBackupsInfo())
           setBackups(info)
@@ -1059,6 +1153,13 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
           setLastBackupsFetchAt(now)
           setPersistedLastFetchAt(now)
           globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+
+          const hasBlockingStatus = Object.values(info.pieces).some(
+            p =>
+              p.status === SyncStatus.CONFLICT ||
+              p.status === SyncStatus.OUTDATED_APP,
+          )
+          if (hasBlockingStatus) return
 
           const toUpload = (
             Object.entries(info.pieces) as Array<
@@ -1125,6 +1226,9 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     conflictTypes,
     conflictImportTypes,
     conflictUploadTypes,
+    isOutdatedApp,
+    outdatedAppTypes,
+    outdatedAppUploadTypes,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,

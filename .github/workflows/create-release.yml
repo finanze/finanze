@@ -22,11 +22,11 @@ jobs:
   create-release:
     name: Create Release
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
@@ -45,7 +45,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14.5
+          python-version: '3.14.10'
 
       - name: Install Python dependencies
         run: pip3 install -r requirements-cd.txt
@@ -111,7 +111,7 @@ jobs:
           git push --set-upstream origin ${{ steps.create_branch.outputs.release_branch_name }}
 
       - name: Create Pull Request
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

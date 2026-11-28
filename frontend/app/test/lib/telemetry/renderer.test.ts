@@ -257,4 +257,27 @@ describe("renderer error reporter", () => {
       ],
     })
   })
+
+  it("preserves both the header and trailing exception message when truncating long tracebacks", async () => {
+    const { reportError } = await setup(true)
+
+    const longMessage = [
+      'Traceback (most recent call last):\n  File "/python/init.py", line 5, in initialize_deferred',
+      "    A.repo=b(client=B);".repeat(130),
+      "httpx.NetworkError: CapacitorHttp error: timeout",
+    ].join("\n")
+
+    const error = new Error(longMessage)
+    error.name = "PythonError"
+    reportError(error)
+
+    const [, event] = sendEvent.mock.calls[0]
+    const reportedValue: string = event.exception.values[0].value
+    expect(reportedValue.length).toBe(2000)
+    expect(reportedValue).toContain("Traceback (most recent call last):")
+    expect(reportedValue).toContain("\n…\n")
+    expect(reportedValue).toContain(
+      "httpx.NetworkError: CapacitorHttp error: timeout",
+    )
+  })
 })

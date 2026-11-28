@@ -7,8 +7,10 @@ class MyViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(FileTransferPlugin())
         bridge?.registerPluginInstance(NativeCookiesPlugin())
         bridge?.registerPluginInstance(ImageProcessorPlugin())
+        bridge?.registerPluginInstance(PdfRendererPlugin())
         bridge?.registerPluginInstance(DeviceCountryPlugin())
         bridge?.registerPluginInstance(LightHapticsPlugin())
+        bridge?.registerPluginInstance(LoopbackCallbackPlugin())
         #if CONNECTIONS
         bridge?.registerPluginInstance(LoginWebViewPlugin())
         bridge?.registerPluginInstance(TlsHttpPlugin())

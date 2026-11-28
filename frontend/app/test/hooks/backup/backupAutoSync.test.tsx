@@ -179,6 +179,44 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     unmount()
   })
 
+  it("skips upload/import and dispatches conflict event when OUTDATED_APP is detected", async () => {
+    setPermissions(ALL_PLUS_PERMISSIONS)
+    setBackupMode(BackupMode.AUTO)
+    setRole(CloudRole.PLUS)
+
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
+    )
+
+    const events: Array<{ hadTransfer: boolean; conflict?: boolean }> = []
+    const handleComplete = (event: Event) => {
+      events.push(
+        (
+          event as CustomEvent<{
+            hadTransfer: boolean
+            conflict?: boolean
+          }>
+        ).detail,
+      )
+    }
+    window.addEventListener("backup-auto-sync-complete", handleComplete)
+
+    try {
+      const { unmount } = renderBackupUI()
+
+      await waitFor(() => {
+        expect(events).toContainEqual({ hadTransfer: false, conflict: true })
+      })
+
+      expect(mockUploadBackup).not.toHaveBeenCalled()
+      expect(mockImportBackup).not.toHaveBeenCalled()
+
+      unmount()
+    } finally {
+      window.removeEventListener("backup-auto-sync-complete", handleComplete)
+    }
+  })
+
   it("does not upload/import when all pieces are SYNC", async () => {
     setPermissions(ALL_PLUS_PERMISSIONS)
     setBackupMode(BackupMode.AUTO)
@@ -440,6 +478,59 @@ describe("post-scrape auto-upload", () => {
       expect(mockGetBackupsInfo).toHaveBeenCalled()
     })
 
+    expect(mockUploadBackup).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it("does not auto-upload over an OUTDATED_APP remote backup after scrapes-complete", async () => {
+    setPermissions(ALL_PLUS_PERMISSIONS)
+    setBackupMode(BackupMode.AUTO)
+    setRole(CloudRole.PLUS)
+
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    const { unmount } = renderBackupUI()
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    mockGetBackupsInfo.mockClear()
+    mockUploadBackup.mockClear()
+
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, {
+        hasLocalChanges: true,
+        remoteSchemaRevision: 96,
+      }),
+    )
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("auto-refresh-scrapes-complete"))
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000 + 100)
+    })
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    expect(mockUploadBackup).not.toHaveBeenCalled()
+
+    mockGetBackupsInfo.mockClear()
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("auto-refresh-scrapes-complete"))
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000 + 100)
+    })
+
+    expect(mockGetBackupsInfo).not.toHaveBeenCalled()
     expect(mockUploadBackup).not.toHaveBeenCalled()
 
     unmount()

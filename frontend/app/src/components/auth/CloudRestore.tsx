@@ -30,7 +30,7 @@ import {
   isLightTheme,
 } from "@/components/auth/authStyles"
 import { ErrorReportingToggle } from "@/components/telemetry/ErrorReportingToggle"
-import type { FullBackupsInfo, BackupFileType } from "@/types"
+import { SyncStatus, type FullBackupsInfo, type BackupFileType } from "@/types"
 
 type RestoreStep = "login" | "checking" | "credentials" | "importing" | "error"
 
@@ -145,6 +145,16 @@ export function CloudRestore({
           setError(t.login.cloudRestore.noBackupsFound)
           setStep("login")
           setLoadingMethod(null)
+          return
+        }
+
+        if (
+          Object.values(backupsInfo.pieces).some(
+            piece => piece.status === SyncStatus.OUTDATED_APP,
+          )
+        ) {
+          setError(t.login.cloudRestore.unsupportedBackupVersionGeneric)
+          setStep("login")
           return
         }
 
@@ -394,7 +404,12 @@ export function CloudRestore({
           ? (err as { code?: string }).code
           : null
 
-      if (maybeCode === "INVALID_BACKUP_CREDENTIALS") {
+      if (
+        maybeCode === "UNSUPPORTED_BACKUP_VERSION" ||
+        maybeCode === "UNSUPPORTED_BACKUP_PROTOCOL"
+      ) {
+        setError(t.login.cloudRestore.unsupportedBackupVersionGeneric)
+      } else if (maybeCode === "INVALID_BACKUP_CREDENTIALS") {
         setError(t.login.cloudRestore.invalidEncryptionKey)
       } else if (maybeCode === "TOO_MANY_REQUESTS") {
         setError(t.login.cloudRestore.tooManyRequests)

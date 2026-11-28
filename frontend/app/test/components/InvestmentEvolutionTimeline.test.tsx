@@ -503,4 +503,53 @@ describe("InvestmentEvolutionTimeline", () => {
       "true",
     )
   })
+
+  it("places the title addon inside the title on desktop", async () => {
+    setDesktop(true)
+    api.getGainsTimeline.mockResolvedValue(timeline())
+
+    render(
+      <InvestmentEvolutionTimeline
+        query={query}
+        currency="EUR"
+        titleAddon={<span data-testid="addon">Fund</span>}
+      />,
+    )
+
+    expect(screen.getByTestId("addon").closest("h3")).not.toBeNull()
+    await waitFor(() => expect(api.getGainsTimeline).toHaveBeenCalledTimes(1))
+  })
+
+  it("places the title addon below the title on narrow screens", () => {
+    render(
+      <InvestmentEvolutionTimeline
+        query={query}
+        currency="EUR"
+        titleAddon={<span data-testid="addon">Fund</span>}
+      />,
+    )
+
+    expect(screen.getAllByTestId("addon")).toHaveLength(1)
+    expect(screen.getByTestId("addon").closest("h3")).toBeNull()
+  })
+
+  it("renders expanded on narrow screens when controlled", async () => {
+    api.getGainsTimeline.mockResolvedValue(timeline())
+    const onExpandedChange = vi.fn()
+
+    render(
+      <InvestmentEvolutionTimeline
+        query={query}
+        currency="EUR"
+        expanded
+        onExpandedChange={onExpandedChange}
+      />,
+    )
+
+    expect(await screen.findByTestId("evolution-timeline-chart")).toBeVisible()
+    fireEvent.click(screen.getByTestId("evolution-timeline-toggle"))
+
+    expect(onExpandedChange).toHaveBeenCalledWith(false)
+    expect(screen.getByTestId("evolution-timeline-periods")).toBeVisible()
+  })
 })

@@ -1,4 +1,5 @@
 import hashlib
+import sqlite3
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -17,7 +18,12 @@ from domain.backup import (
     ImportBackupRequest,
 )
 from domain.cloud_auth import CloudAuthData, CloudAuthToken, CloudUserRole
-from domain.data_init import DatasourceInitContext, DatasourceInitParams
+from domain.data_init import (
+    DatasourceInitContext,
+    DatasourceInitParams,
+    MigrationAheadOfTime,
+    MigrationError,
+)
 from domain.user import User
 from domain.user_login import ChangePasswordRequest
 from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
@@ -27,6 +33,7 @@ from infrastructure.config.legacy_config_backup_importer import (
 from infrastructure.repository.db import manager as manager_module
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
+from infrastructure.repository.db.upgrader import DBVersionMigration
 from infrastructure.repository.db.version_registry import versions
 from infrastructure.repository.settings.settings_mapper import legacy_to_sections
 from infrastructure.repository.settings.settings_repository import SettingsRepository
@@ -41,6 +48,7 @@ from tests.legacy_config_samples import (
     pre07_integrations_settings,
     read_sample,
     v6_settings,
+    with_shared_ai_providers,
 )
 
 SETTINGS_MIGRATION = "v0.11.0:4_settings"
@@ -132,7 +140,9 @@ class TestLoginUpgrade:
         manager, repository, client = await _login(user)
 
         assert SETTINGS_MIGRATION in await _applied_migrations(client)
-        assert_same_settings(await repository.load(), sample.expected())
+        assert_same_settings(
+            await repository.load(), with_shared_ai_providers(sample.expected())
+        )
         assert (user.path / "config.yml").read_text() == content
         await manager.lock()
 
@@ -165,6 +175,39 @@ class TestLoginUpgrade:
         assert_same_settings(await repository.load(), default_settings())
         assert not (user.path / "config.yml").exists()
         await manager.lock()
+
+    @pytest.mark.asyncio
+    async def test_upgrade_preserves_last_update_without_legacy_config_and_bumps_with_it(
+        self, tmp_path, monkeypatch
+    ):
+        sentinel = "2026-01-01T10:00:00+00:00"
+
+        user_without = _user(tmp_path / "without_config")
+        await _create_legacy_db(
+            monkeypatch,
+            user_without,
+            statements=(
+                f"INSERT OR REPLACE INTO sys_config (key, value) VALUES ('last_update', '{sentinel}')",
+            ),
+        )
+        manager_without, _, _ = await _login(user_without)
+        assert await manager_without.get_last_updated() == datetime.fromisoformat(
+            sentinel
+        )
+        await manager_without.lock()
+
+        user_with = _user(tmp_path / "with_config")
+        await _create_legacy_db(
+            monkeypatch,
+            user_with,
+            statements=(
+                f"INSERT OR REPLACE INTO sys_config (key, value) VALUES ('last_update', '{sentinel}')",
+            ),
+        )
+        (user_with.path / "config.yml").write_text(read_sample("desktop_v8_custom.yml"))
+        manager_with, _, _ = await _login(user_with)
+        assert await manager_with.get_last_updated() > datetime.fromisoformat(sentinel)
+        await manager_with.lock()
 
     @pytest.mark.asyncio
     async def test_failing_config_port_does_not_block_login(
@@ -517,10 +560,122 @@ class TestBackupImportUpgrade:
             )
         )
 
+        assert not manager.unlocked
+        assert manager.get_user() == user
+
+        await manager.initialize(
+            DatasourceInitParams(
+                user=user,
+                password=PASSWORD,
+                context=DatasourceInitContext(config=repository),
+            )
+        )
         assert manager.unlocked
         assert (
             await manager.get_hashed_password()
             == hashlib.sha3_256(PASSWORD.encode()).hexdigest()
         )
+        assert_same_settings(await repository.load(), custom_settings())
+        await manager.lock()
+
+
+def _with_future_migration(tmp_path, payload: bytes, future_name: str) -> bytes:
+    future_db_path = tmp_path / "future_payload.db"
+    future_db_path.write_bytes(payload)
+    conn = sqlite3.connect(str(future_db_path))
+    try:
+        max_ver = conn.execute(
+            "SELECT COALESCE(MAX(version), 0) FROM migrations"
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
+            (max_ver + 1, "2026-06-01T00:00:00+00:00", future_name),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return future_db_path.read_bytes()
+
+
+class _FailingPendingMigration(DBVersionMigration):
+    def __init__(self, migration_name: str):
+        self._name = migration_name
+
+    @property
+    def name(self):
+        return self._name
+
+    async def upgrade(self, cursor, context):
+        raise RuntimeError("simulated pending migration failure")
+
+
+class TestBackupImportSafetyAndRollback:
+    @pytest.mark.asyncio
+    async def test_import_future_migration_payload_preserves_existing_db(
+        self, tmp_path
+    ):
+        source_user = _user(tmp_path / "source")
+        source_manager, source_repository, _ = await _login(source_user)
+        await source_repository.save(labeling_settings())
+        exported = await source_manager.export()
+        await source_manager.lock()
+        future_backup = _with_future_migration(tmp_path, exported, "v99.0.0:0_future")
+
+        user = _user(tmp_path / "user")
+        manager, repository, _ = await _login(user)
+        await repository.save(custom_settings())
+
+        with pytest.raises(MigrationAheadOfTime, match="v99.0.0:0_future"):
+            await manager.import_data(future_backup, initialize=False)
+
+        assert manager.unlocked is True
+        assert not (user.path / "data.db.tmp").exists()
+        assert_same_settings(await repository.load(), custom_settings())
+        await manager.lock()
+
+    @pytest.mark.asyncio
+    async def test_initial_import_future_migration_leaves_no_db_file(self, tmp_path):
+        source_user = _user(tmp_path / "source")
+        source_manager, _, _ = await _login(source_user)
+        exported = await source_manager.export()
+        await source_manager.lock()
+        future_backup = _with_future_migration(tmp_path, exported, "v99.0.0:0_future")
+
+        fresh_user = _user(tmp_path / "fresh")
+        manager = DBManager(DBClient())
+
+        with pytest.raises(MigrationAheadOfTime, match="v99.0.0:0_future"):
+            await manager.import_data(
+                future_backup,
+                initialize=True,
+                user=fresh_user,
+                password=PASSWORD,
+            )
+
+        assert manager.unlocked is False
+        assert not (fresh_user.path / "data.db").exists()
+
+    @pytest.mark.asyncio
+    async def test_mid_import_migration_failure_rolls_back_to_original_db(
+        self, tmp_path, monkeypatch
+    ):
+        old_backup = await _export_legacy_db(monkeypatch, _user(tmp_path / "old"))
+        user = _user(tmp_path / "user")
+        manager, repository, _ = await _login(user)
+        await repository.save(custom_settings())
+
+        last_migration_name = versions[-1].name
+        patched_versions = [
+            *versions[:-1],
+            _FailingPendingMigration(last_migration_name),
+        ]
+        monkeypatch.setattr(manager_module, "versions", patched_versions)
+
+        with pytest.raises(MigrationError, match=last_migration_name):
+            await manager.import_data(old_backup, initialize=False)
+
+        assert manager.unlocked is True
+        assert (user.path / "data.db").exists()
+        assert not (user.path / "data.db.tmp").exists()
         assert_same_settings(await repository.load(), custom_settings())
         await manager.lock()

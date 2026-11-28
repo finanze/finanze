@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test'
 import { test } from '../../fixtures/backend'
-import { TEST_USER, TEST_PASSWORD, BACKEND_URL } from '../../helpers/constants'
+import { TEST_USER, TEST_PASSWORD } from '../../helpers/constants'
+import { lockBackend } from '../../helpers/session'
 
 test.describe('Initial Setup - Signup', () => {
     test('first visit shows signup form when no user exists', async ({
@@ -24,9 +25,7 @@ test.describe('Initial Setup - Signup', () => {
         backend,
     }) => {
         // Logout in case a previous test left backend unlocked
-        await fetch(`${backend.backendUrl}/api/v1/logout`, {
-            method: 'POST',
-        }).catch(() => {})
+        await lockBackend(backend.backendUrl)
 
         await page.goto('/')
         await page.locator('#username').waitFor({ timeout: 20_000 })
@@ -47,9 +46,7 @@ test.describe('Initial Setup - Signup', () => {
         page,
         backend,
     }) => {
-        await fetch(`${backend.backendUrl}/api/v1/logout`, {
-            method: 'POST',
-        }).catch(() => {})
+        await lockBackend(backend.backendUrl)
 
         await page.goto('/')
         await page.locator('#username').waitFor({ timeout: 20_000 })
@@ -68,9 +65,7 @@ test.describe('Initial Setup - Signup', () => {
         page,
         backend,
     }) => {
-        await fetch(`${backend.backendUrl}/api/v1/logout`, {
-            method: 'POST',
-        }).catch(() => {})
+        await lockBackend(backend.backendUrl)
 
         await page.goto('/')
         await page.locator('#username').waitFor({ timeout: 20_000 })
@@ -90,9 +85,7 @@ test.describe('Initial Setup - Signup', () => {
         backend,
     }) => {
         // Logout in case a previous test left backend unlocked
-        await fetch(`${backend.backendUrl}/api/v1/logout`, {
-            method: 'POST',
-        }).catch(() => {})
+        await lockBackend(backend.backendUrl)
 
         await page.goto('/')
         await page.locator('#username').waitFor({ timeout: 20_000 })
@@ -120,6 +113,6 @@ test.describe('Initial Setup - Signup', () => {
         ).toBeVisible({ timeout: 10_000 })
 
         // Lock the backend for subsequent tests
-        await fetch(`${backend.backendUrl}/api/v1/logout`, { method: 'POST' })
+        await lockBackend(backend.backendUrl)
     })
 })

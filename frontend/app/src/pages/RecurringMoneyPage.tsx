@@ -68,7 +68,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { cn, getColorForName, getCurrencySymbol } from "@/lib/utils"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency, formatDate, lowercaseLabel } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
@@ -1248,10 +1248,10 @@ export default function RecurringMoneyPage() {
                   ? (() => {
                       const d = new Date(flow.next_date)
                       if (Number.isNaN(d.getTime())) return null
-                      return new Intl.DateTimeFormat(locale, {
+                      return formatDate(d, locale, {
                         month: "short",
                         day: "numeric",
-                      }).format(d)
+                      })
                     })()
                   : null
 
@@ -2922,10 +2922,12 @@ export default function RecurringMoneyPage() {
                             ? (t.management as any).linkedToLoan
                             : (t.management as any).editLinkedWarning.replace(
                                 "{type}",
-                                (editingFlow?.flow_type === FlowType.EARNING
-                                  ? t.management.flowType.EARNING
-                                  : t.management.flowType.EXPENSE
-                                ).toLowerCase(),
+                                lowercaseLabel(
+                                  editingFlow?.flow_type === FlowType.EARNING
+                                    ? t.management.flowType.EARNING
+                                    : t.management.flowType.EXPENSE,
+                                  locale,
+                                ),
                               )}
                         </PopoverContent>
                       </Popover>
@@ -3209,22 +3211,22 @@ export default function RecurringMoneyPage() {
         title={t.management.deleteConfirmTitle.replace(
           "{type}",
           deletingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         message={t.management.deleteConfirm.replace(
           "{type}",
           deletingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
+            ? lowercaseLabel(t.management.flowType.EARNING, locale)
+            : lowercaseLabel(t.management.flowType.EXPENSE, locale),
         )}
         warning={
           deletingFlow?.linked
             ? t.management.deleteLinkedWarning.replace(
                 "{type}",
                 deletingFlow?.flow_type === FlowType.EARNING
-                  ? t.management.flowType.EARNING.toLowerCase()
-                  : t.management.flowType.EXPENSE.toLowerCase(),
+                  ? lowercaseLabel(t.management.flowType.EARNING, locale)
+                  : lowercaseLabel(t.management.flowType.EXPENSE, locale),
               )
             : undefined
         }

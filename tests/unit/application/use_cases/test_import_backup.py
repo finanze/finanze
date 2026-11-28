@@ -26,6 +26,7 @@ from domain.exception.exceptions import (
     InvalidBackupCredentials,
     PermissionDenied,
     TooManyRequests,
+    UnsupportedBackupVersion,
 )
 
 NOW = datetime(2025, 6, 1, 12, 0, 0, tzinfo=tzlocal())
@@ -49,7 +50,12 @@ def _make_auth(permissions=None):
 
 
 def _make_backup_info(
-    backup_type=BackupFileType.DATA, date=None, backup_id=None, size=100
+    backup_type=BackupFileType.DATA,
+    date=None,
+    backup_id=None,
+    size=100,
+    schema_revision=None,
+    schema_hash=None,
 ):
     return BackupInfo(
         id=backup_id or uuid4(),
@@ -57,11 +63,18 @@ def _make_backup_info(
         date=date or NOW,
         type=backup_type,
         size=size,
+        schema_revision=schema_revision,
+        schema_hash=schema_hash,
     )
 
 
 def _make_transfer_piece(
-    backup_type=BackupFileType.DATA, date=None, piece_id=None, size=100
+    backup_type=BackupFileType.DATA,
+    date=None,
+    piece_id=None,
+    size=100,
+    schema_revision=None,
+    schema_hash=None,
 ):
     return BackupTransferPiece(
         id=piece_id or uuid4(),
@@ -70,6 +83,8 @@ def _make_transfer_piece(
         type=backup_type,
         payload=b"encrypted_data",
         size=size,
+        schema_revision=schema_revision,
+        schema_hash=schema_hash,
     )
 
 
@@ -100,6 +115,9 @@ def _build_use_case(
     )
 
     data_initiator = MagicMock()
+    data_initiator.unlocked = False
+    data_initiator.lock = AsyncMock()
+    data_initiator.set_user = MagicMock()
     data_initiator.get_hashed_password = AsyncMock(return_value=hashed_password)
 
     processor = MagicMock()
@@ -116,6 +134,8 @@ def _build_use_case(
         backupable.get_last_updated = AsyncMock(return_value=NOW)
         backupable.export = AsyncMock(return_value=b"data")
         backupable.import_data = AsyncMock()
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
         backupable_ports = {BackupFileType.DATA: backupable}
 
     use_case = ImportBackupImpl(
@@ -212,6 +232,8 @@ class TestImportCooldown:
         backupable.get_last_updated = AsyncMock(return_value=old_date)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
         use_case, *_ = _build_use_case(
             auth=auth,
             local_info=local_info,
@@ -247,6 +269,8 @@ class TestImportCooldown:
         backupable.get_last_updated = AsyncMock(return_value=old_date)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
         use_case, *_ = _build_use_case(
             local_info=local_info,
             remote_info=remote_info,
@@ -283,6 +307,8 @@ class TestImportSkips:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, local_registry, backup_repo, *_ = _build_use_case(
             local_info=local_info,
@@ -307,6 +333,8 @@ class TestImportSkips:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, local_registry, *_ = _build_use_case(
             local_info=local_info,
@@ -331,6 +359,8 @@ class TestImportSkips:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, local_registry, *_ = _build_use_case(
             local_info=local_info,
@@ -356,6 +386,8 @@ class TestImportConflict:
         backupable.get_last_updated = AsyncMock(return_value=NOW)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, *_ = _build_use_case(
             local_info=local_info,
@@ -383,6 +415,8 @@ class TestImportForce:
         backupable.get_last_updated = AsyncMock(return_value=NOW)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, local_registry, backup_repo, processor, _, ports = _build_use_case(
             local_info=local_info,
@@ -418,6 +452,8 @@ class TestImportSuccess:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, local_registry, backup_repo, processor, _, ports = _build_use_case(
             local_info=local_info,
@@ -456,6 +492,8 @@ class TestImportSuccess:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, _, _, processor, _, _ = _build_use_case(
             local_info=local_info,
@@ -484,6 +522,8 @@ class TestImportSuccess:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, _, _, _, processor, _, _ = _build_use_case(
             local_info=local_info,
@@ -526,6 +566,8 @@ class TestImportInitialize:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, *_ = _build_use_case(
             remote_info=remote_info,
@@ -548,6 +590,45 @@ class TestImportInitialize:
         assert call_kwargs[1]["password"] == "mypass"
 
     @pytest.mark.asyncio
+    async def test_initialize_relocks_data_initiator_and_preserves_user(self):
+        piece_id = uuid4()
+        remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
+        remote_info = BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        transfer_piece = _make_transfer_piece(date=LATER, piece_id=piece_id)
+        download_result = BackupPieces(pieces=[transfer_piece])
+
+        guest_user = MagicMock(name="guest_user")
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, _, _, _, _, data_initiator, _ = _build_use_case(
+            remote_info=remote_info,
+            download_result=download_result,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+        data_initiator.get_user.return_value = guest_user
+
+        async def _unlock_on_import(*_args, **_kwargs):
+            data_initiator.unlocked = True
+
+        backupable.import_data = AsyncMock(side_effect=_unlock_on_import)
+
+        await use_case.execute(
+            ImportBackupRequest(
+                types=[BackupFileType.DATA],
+                password="mypass",
+                force=True,
+                initialize=True,
+            ),
+        )
+
+        data_initiator.lock.assert_awaited_once()
+        data_initiator.set_user.assert_called_once_with(guest_user)
+
+    @pytest.mark.asyncio
     async def test_initialize_defaults_to_false(self):
         piece_id = uuid4()
         remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
@@ -559,6 +640,8 @@ class TestImportInitialize:
         backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
         backupable.import_data = AsyncMock()
         backupable.export = AsyncMock(return_value=b"data")
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
 
         use_case, *_ = _build_use_case(
             remote_info=remote_info,
@@ -609,6 +692,8 @@ def _legacy_scenario(
     backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
     backupable.import_data = AsyncMock()
     backupable.export = AsyncMock(return_value=b"data")
+    backupable.get_schema_revision = MagicMock(return_value=95)
+    backupable.get_schema_hash = MagicMock(return_value="hash_95")
     return (
         local_info,
         BackupsInfo(pieces=remote_pieces),
@@ -870,3 +955,195 @@ class TestImportLegacyConfig:
 
         assert set(result.pieces) == {BackupFileType.DATA}
         importer.import_data.assert_not_called()
+
+
+class TestImportVersionChecks:
+    @pytest.mark.parametrize(
+        "initialize,force",
+        [
+            (False, False),
+            (False, True),
+            (True, True),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_rejects_ahead_remote_version_before_download(
+        self, initialize, force
+    ):
+        remote_backup = _make_backup_info(date=LATER, schema_revision=96)
+        remote_info = BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, _, local_registry, backup_repo, processor, *_ = _build_use_case(
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        with pytest.raises(UnsupportedBackupVersion) as exc_info:
+            await use_case.execute(
+                ImportBackupRequest(
+                    types=[BackupFileType.DATA],
+                    password="pass",
+                    force=force,
+                    initialize=initialize,
+                )
+            )
+
+        assert exc_info.value.remote_schema_revision == 96
+        backup_repo.download.assert_not_called()
+        processor.decompile.assert_not_called()
+        backupable.import_data.assert_not_called()
+        local_registry.insert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_rejects_ahead_downloaded_piece_version_before_decompile(self):
+        piece_id = uuid4()
+        remote_backup = _make_backup_info(
+            date=LATER, backup_id=piece_id, schema_revision=None
+        )
+        transfer_piece = _make_transfer_piece(
+            date=LATER, piece_id=piece_id, schema_revision=96
+        )
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, _, local_registry, _, processor, *_ = _build_use_case(
+            local_info=BackupsInfo(
+                pieces={BackupFileType.DATA: _make_backup_info(date=EARLIER)}
+            ),
+            remote_info=BackupsInfo(pieces={BackupFileType.DATA: remote_backup}),
+            download_result=BackupPieces(pieces=[transfer_piece]),
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        with pytest.raises(UnsupportedBackupVersion) as exc_info:
+            await use_case.execute(
+                ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+            )
+
+        assert exc_info.value.remote_schema_revision == 96
+        processor.decompile.assert_not_called()
+        backupable.import_data.assert_not_called()
+        local_registry.insert.assert_not_called()
+
+    @pytest.mark.parametrize("remote_schema_revision", [None, 90, 95])
+    @pytest.mark.asyncio
+    async def test_imports_compatible_version_and_persists_version_in_registry(
+        self, remote_schema_revision
+    ):
+        piece_id = uuid4()
+        local_backup = _make_backup_info(date=EARLIER, schema_revision=85)
+        remote_backup = _make_backup_info(
+            date=NOW, backup_id=piece_id, schema_revision=remote_schema_revision
+        )
+        transfer_piece = _make_transfer_piece(
+            date=NOW, piece_id=piece_id, schema_revision=remote_schema_revision
+        )
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, _, local_registry, *_ = _build_use_case(
+            local_info=BackupsInfo(pieces={BackupFileType.DATA: local_backup}),
+            remote_info=BackupsInfo(pieces={BackupFileType.DATA: remote_backup}),
+            download_result=BackupPieces(pieces=[transfer_piece]),
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert (
+            result.pieces[BackupFileType.DATA].local.schema_revision
+            == remote_schema_revision
+        )
+        assert (
+            result.pieces[BackupFileType.DATA].remote.schema_revision
+            == remote_schema_revision
+        )
+        local_registry.insert.assert_awaited_once()
+        inserted = local_registry.insert.await_args[0][0]
+        assert len(inserted) == 1
+        assert inserted[0].schema_revision == remote_schema_revision
+
+    @pytest.mark.parametrize("initialize", [False, True])
+    @pytest.mark.parametrize("force", [False, True])
+    @pytest.mark.asyncio
+    async def test_rejects_equal_revision_different_hash_before_download(
+        self, initialize, force
+    ):
+        remote_backup = _make_backup_info(
+            date=LATER, schema_revision=95, schema_hash="hash_hotfix"
+        )
+        remote_info = BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, _, local_registry, backup_repo, processor, *_ = _build_use_case(
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        with pytest.raises(UnsupportedBackupVersion) as exc_info:
+            await use_case.execute(
+                ImportBackupRequest(
+                    types=[BackupFileType.DATA],
+                    password="pass",
+                    force=force,
+                    initialize=initialize,
+                )
+            )
+
+        assert exc_info.value.remote_schema_revision == 95
+        assert exc_info.value.remote_schema_hash == "hash_hotfix"
+        backup_repo.download.assert_not_called()
+        processor.decompile.assert_not_called()
+        backupable.import_data.assert_not_called()
+        local_registry.insert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_allows_lower_revision_with_different_hash_for_staging_check(self):
+        piece_id = uuid4()
+        local_backup = _make_backup_info(
+            date=EARLIER, schema_revision=95, schema_hash="hash_95"
+        )
+        remote_backup = _make_backup_info(
+            date=NOW, backup_id=piece_id, schema_revision=90, schema_hash="hash_90"
+        )
+        transfer_piece = _make_transfer_piece(
+            date=NOW, piece_id=piece_id, schema_revision=90, schema_hash="hash_90"
+        )
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.get_schema_revision = MagicMock(return_value=95)
+        backupable.get_schema_hash = MagicMock(return_value="hash_95")
+
+        use_case, _, local_registry, backup_repo, *_ = _build_use_case(
+            local_info=BackupsInfo(pieces={BackupFileType.DATA: local_backup}),
+            remote_info=BackupsInfo(pieces={BackupFileType.DATA: remote_backup}),
+            download_result=BackupPieces(pieces=[transfer_piece]),
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        backup_repo.download.assert_awaited_once()
+        backupable.import_data.assert_awaited_once()
+        assert result.pieces[BackupFileType.DATA].local.schema_hash == "hash_90"
+        assert local_registry.insert.await_args[0][0][0].schema_hash == "hash_90"

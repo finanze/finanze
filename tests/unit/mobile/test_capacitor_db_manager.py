@@ -1,4 +1,5 @@
 import sys
+from contextlib import asynccontextmanager
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -7,8 +8,12 @@ from uuid import uuid4
 
 import pytest
 
-from domain.data_init import DatasourceInitParams, DecryptionError
+from domain.data_init import DatasourceInitParams, DecryptionError, MigrationAheadOfTime
 from domain.user import User
+from infrastructure.repository.db.version_registry import (
+    get_schema_hash,
+    get_schema_revision,
+)
 
 
 _MOBILE_ROOT = (
@@ -19,7 +24,13 @@ _MOBILE_ROOT = (
 
 @pytest.fixture
 def mobile_db(monkeypatch, tmp_path):
-    sqlite = SimpleNamespace(openDatabase=AsyncMock(), executeSql=AsyncMock())
+    sqlite = SimpleNamespace(
+        openDatabase=AsyncMock(),
+        executeSql=AsyncMock(),
+        exportDatabaseToStaging=AsyncMock(),
+        importDatabaseFromStaging=AsyncMock(),
+        deleteDatabase=AsyncMock(),
+    )
     js_stub = ModuleType("js")
     js_stub.jsBridge = SimpleNamespace(sqlite=sqlite)
     monkeypatch.setitem(sys.modules, "js", js_stub)
@@ -91,3 +102,178 @@ async def test_other_database_error_is_preserved_and_cleans_up(mobile_db, operat
     client.silent_close.assert_awaited_once()
     client.set_connection.assert_called_once_with(None)
     sqlite.executeSql.assert_not_awaited()
+
+
+def test_get_version_matches_schema_version(mobile_db):
+    manager, _, _, _ = mobile_db
+    assert manager.get_schema_revision() == get_schema_revision()
+    assert manager.get_schema_hash() == get_schema_hash()
+
+
+@pytest.mark.asyncio
+async def test_import_data_ahead_of_time_initial_cleans_staging_and_raises(
+    mobile_db, monkeypatch
+):
+    manager, _, sqlite, params = mobile_db
+    delete_staging_file = AsyncMock()
+    processor_mod = ModuleType("infrastructure.cloud.backup.capacitor_backup_processor")
+    processor_mod.delete_staging_file = delete_staging_file
+    monkeypatch.setitem(
+        sys.modules,
+        "infrastructure.cloud.backup.capacitor_backup_processor",
+        processor_mod,
+    )
+    sqlite.importDatabaseFromStaging.side_effect = RuntimeError(
+        "Error: MIGRATION_AHEAD_OF_TIME:v99.0.0:0_future"
+    )
+    manager._initialize = AsyncMock()
+
+    with pytest.raises(MigrationAheadOfTime, match="v99.0.0:0_future"):
+        await manager.import_data(
+            b"", initialize=True, user=params.user, password=params.password
+        )
+
+    assert sqlite.importDatabaseFromStaging.await_args.args[4] is True
+    delete_staging_file.assert_awaited_once_with("DECOMPILED_DATA")
+    manager._initialize.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_import_data_initial_mid_upgrade_failure_deletes_database(
+    mobile_db, monkeypatch
+):
+    manager, _, sqlite, params = mobile_db
+    delete_staging_file = AsyncMock()
+    processor_mod = ModuleType("infrastructure.cloud.backup.capacitor_backup_processor")
+    processor_mod.delete_staging_file = delete_staging_file
+    monkeypatch.setitem(
+        sys.modules,
+        "infrastructure.cloud.backup.capacitor_backup_processor",
+        processor_mod,
+    )
+    manager._initialize = AsyncMock(side_effect=RuntimeError("mid_upgrade_failure"))
+
+    with pytest.raises(RuntimeError, match="mid_upgrade_failure"):
+        await manager.import_data(
+            b"", initialize=True, user=params.user, password=params.password
+        )
+
+    delete_staging_file.assert_awaited_once_with("DECOMPILED_DATA")
+    sqlite.deleteDatabase.assert_awaited_once_with(
+        f"{params.user.hashed_id()}_data.db", params.password, True
+    )
+
+
+@pytest.mark.asyncio
+async def test_import_data_ahead_of_time_logged_in_reunlocks_and_raises(
+    mobile_db, monkeypatch
+):
+    manager, _, sqlite, params = mobile_db
+    delete_staging_file = AsyncMock()
+    processor_mod = ModuleType("infrastructure.cloud.backup.capacitor_backup_processor")
+    processor_mod.delete_staging_file = delete_staging_file
+    monkeypatch.setitem(
+        sys.modules,
+        "infrastructure.cloud.backup.capacitor_backup_processor",
+        processor_mod,
+    )
+    monkeypatch.setattr(
+        sys.modules["infrastructure.repository.db.capacitor_db_manager"],
+        "read_settings_rows",
+        AsyncMock(return_value=[]),
+    )
+
+    manager._user = params.user
+    manager._pass = params.password
+    manager._unlocked = True
+    manager.lock = AsyncMock()
+    manager._initialize = AsyncMock()
+    sqlite.importDatabaseFromStaging.side_effect = RuntimeError(
+        "Error: MIGRATION_AHEAD_OF_TIME:v99.0.0:0_future"
+    )
+
+    with pytest.raises(MigrationAheadOfTime, match="v99.0.0:0_future"):
+        await manager.import_data(b"", initialize=False)
+
+    sqlite.exportDatabaseToStaging.assert_awaited_once_with("ROLLBACK_DATA")
+    assert sqlite.importDatabaseFromStaging.await_count == 1
+    assert [c.args[0] for c in delete_staging_file.await_args_list] == [
+        "DECOMPILED_DATA",
+        "ROLLBACK_DATA",
+    ]
+    manager._initialize.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_import_data_mid_upgrade_failure_logged_in_restores_rollback_backup(
+    mobile_db, monkeypatch
+):
+    manager, _, sqlite, params = mobile_db
+    delete_staging_file = AsyncMock()
+    processor_mod = ModuleType("infrastructure.cloud.backup.capacitor_backup_processor")
+    processor_mod.delete_staging_file = delete_staging_file
+    monkeypatch.setitem(
+        sys.modules,
+        "infrastructure.cloud.backup.capacitor_backup_processor",
+        processor_mod,
+    )
+    monkeypatch.setattr(
+        sys.modules["infrastructure.repository.db.capacitor_db_manager"],
+        "read_settings_rows",
+        AsyncMock(return_value=[]),
+    )
+
+    manager._user = params.user
+    manager._pass = params.password
+    manager._unlocked = True
+    manager.lock = AsyncMock()
+    manager._initialize = AsyncMock(
+        side_effect=[RuntimeError("mid_upgrade_failure"), None]
+    )
+
+    with pytest.raises(RuntimeError, match="mid_upgrade_failure"):
+        await manager.import_data(b"", initialize=False)
+
+    db_name = f"{params.user.hashed_id()}_data.db"
+    sqlite.exportDatabaseToStaging.assert_awaited_once_with("ROLLBACK_DATA")
+    assert sqlite.importDatabaseFromStaging.await_count == 2
+    assert sqlite.importDatabaseFromStaging.await_args_list[1].args == (
+        db_name,
+        params.password,
+        "ROLLBACK_DATA",
+    )
+    assert manager._initialize.await_count == 2
+    assert [c.args[0] for c in delete_staging_file.await_args_list] == [
+        "DECOMPILED_DATA",
+        "ROLLBACK_DATA",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_export_updates_last_update_before_staging_export(mobile_db):
+    manager, client, sqlite, _ = mobile_db
+    events = []
+
+    @asynccontextmanager
+    async def fake_tx(skip_last_update=False):
+        events.append(("tx", skip_last_update))
+        yield None
+
+    async def fake_wal_checkpoint():
+        events.append(("wal_checkpoint",))
+
+    async def fake_export_to_staging(name):
+        events.append(("export", name))
+
+    client.tx = fake_tx
+    client.wal_checkpoint = fake_wal_checkpoint
+    sqlite.exportDatabaseToStaging.side_effect = fake_export_to_staging
+
+    result = await manager.export()
+
+    assert result == b""
+    assert events == [
+        ("tx", False),
+        ("wal_checkpoint",),
+        ("export", "EXPORTED_DATA"),
+    ]

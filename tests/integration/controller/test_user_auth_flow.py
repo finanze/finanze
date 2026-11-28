@@ -395,6 +395,7 @@ class TestGuestSignup:
         await _logout(client)
         body = await _status(client)
         assert body["pendingRegister"] is False
+        assert body["apiSession"] is False
 
     @pytest.mark.asyncio
     async def test_guest_re_register_with_password_completes(self, client):

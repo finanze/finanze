@@ -1,5 +1,7 @@
+from datetime import datetime
 from urllib.parse import urlsplit
 
+from dateutil.tz import tzlocal
 from domain.external_integration import (
     ConnectedExternalIntegrationRequest,
     ExternalIntegrationId,
@@ -46,6 +48,24 @@ async def connect_external_integration(
         external_integration_id, payload, completion_url
     )
     result = await connect_external_integrations_uc.execute(req)
+
+    if result.device:
+        device = result.device
+        expires_in = (device.expires_at - datetime.now(tzlocal())).total_seconds()
+        return (
+            jsonify(
+                {
+                    "device": {
+                        "flow_id": device.flow_id,
+                        "user_code": device.user_code,
+                        "verification_uri": device.verification_uri,
+                        "expires_in": max(0, int(expires_in)),
+                        "interval": device.interval,
+                    }
+                }
+            ),
+            200,
+        )
 
     if result.link:
         return jsonify(result), 200

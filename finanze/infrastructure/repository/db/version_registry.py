@@ -1,3 +1,8 @@
+import base64
+import hashlib
+import json
+from functools import lru_cache
+
 from infrastructure.repository.db.versions.v0.v00.v0_genesis import V0Genesis
 from infrastructure.repository.db.versions.v0.v01.v011_0 import V0110
 from infrastructure.repository.db.versions.v0.v02.v020_0_crypto import V0200Crypto
@@ -236,6 +241,21 @@ from infrastructure.repository.db.versions.v0.v11.v0110_9_split_cache_coverage i
 from infrastructure.repository.db.versions.v0.v11.v0110_10_clear_unlinked_external_txs import (
     V011010ClearUnlinkedExternalTxs,
 )
+from infrastructure.repository.db.versions.v0.v12.v0120_0_github_copilot_integration import (
+    V01200GitHubCopilotIntegration,
+)
+from infrastructure.repository.db.versions.v0.v12.v0120_1_claude_agent_integration import (
+    V01201ClaudeAgentIntegration,
+)
+from infrastructure.repository.db.versions.v0.v12.v0120_2_chatgpt_integration import (
+    V01202ChatGPTIntegration,
+)
+from infrastructure.repository.db.versions.v0.v12.v0120_3_labeling_rule_multi_conditions import (
+    V01203LabelingRuleMultiConditions,
+)
+from infrastructure.repository.db.versions.v0.v12.v0120_4_ai_settings import (
+    V01204AISettings,
+)
 
 versions = [
     V0Genesis(),
@@ -328,4 +348,33 @@ versions = [
     V01108CustomAIIntegrationName(),
     V01109SplitCacheCoverage(),
     V011010ClearUnlinkedExternalTxs(),
+    V01200GitHubCopilotIntegration(),
+    V01201ClaudeAgentIntegration(),
+    V01202ChatGPTIntegration(),
+    V01203LabelingRuleMultiConditions(),
+    V01204AISettings(),
 ]
+
+
+def get_schema_revision() -> int:
+    return len(versions)
+
+
+def compute_schema_hash(names: list[str]) -> str:
+    canonical = json.dumps(
+        sorted(names), ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    return (
+        base64.urlsafe_b64encode(hashlib.sha256(canonical).digest())
+        .decode("ascii")
+        .rstrip("=")
+    )
+
+
+@lru_cache(maxsize=1)
+def _cached_registry_hash(names: tuple[str, ...]) -> str:
+    return compute_schema_hash(list(names))
+
+
+def get_schema_hash() -> str:
+    return _cached_registry_hash(tuple(m.name for m in versions))

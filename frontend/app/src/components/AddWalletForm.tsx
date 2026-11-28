@@ -19,6 +19,7 @@ import { useAppContext } from "@/context/AppContext"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { deriveCryptoAddresses, setupIntegration } from "@/services/api"
+import { getIntegrationName } from "@/lib/integrations"
 
 export interface AddWalletSubmitData {
   name: string
@@ -227,7 +228,9 @@ export function AddWalletForm({
       setIntegrationSetupError(
         translateIntegrationError(
           error,
-          currentIntegration?.name ?? entity.name,
+          currentIntegration
+            ? getIntegrationName(t, currentIntegration.id, currentIntegration)
+            : entity.name,
         ),
       )
       return false
@@ -562,7 +565,7 @@ export function AddWalletForm({
                       <p className="text-sm font-medium">
                         {t.walletForm.integrationSetup.heading.replace(
                           "{integration}",
-                          integration.name,
+                          getIntegrationName(t, integration.id, integration),
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground">

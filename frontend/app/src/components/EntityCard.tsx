@@ -36,6 +36,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useNavigate } from "react-router-dom"
 import { getImageUrl } from "@/services/api"
 import { isAccountScopedEntity } from "@/utils/entityUtils"
+import { getIntegrationName } from "@/lib/integrations"
 
 interface EntityCardProps {
   entity: Entity
@@ -109,7 +110,7 @@ export function EntityCard({
           !integration ||
           integration.status !== ExternalIntegrationStatus.ON
         ) {
-          return integration?.name || requiredId
+          return getIntegrationName(t, requiredId, integration)
         }
         return null
       })
@@ -297,11 +298,13 @@ export function EntityCard({
   const isExternallyProvided =
     entity.origin === EntityOrigin.EXTERNALLY_PROVIDED
   const isLinkingExternal = linkingExternalEntityId === entity.id
-  const providerName =
-    (entity.provider &&
-      externalIntegrations.find(i => i.id === entity.provider)?.name) ||
-    entity.provider ||
-    ""
+  const providerName = getIntegrationName(
+    t,
+    entity.provider ?? "",
+    externalIntegrations.find(
+      integration => integration.id === entity.provider,
+    ),
+  )
 
   // Image source handling (external vs internal)
   const [imageSrc, setImageSrc] = useState<string>(`entities/${entity.id}.png`)

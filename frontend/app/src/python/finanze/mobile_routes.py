@@ -350,6 +350,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "POST",
+            "/api/v1/integrations/<integration_id>/oauth/complete",
+            "complete_external_integration_connection",
+            "complete_external_integration_connection",
+            lz.complete_integration,
+        ),
+        (
+            "POST",
             "/api/v1/flows/periodic",
             "save_periodic_flow",
             "save_periodic_flow",
@@ -557,6 +564,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "POST",
+            "/api/v1/templates/suggest",
+            "suggest_template_fields",
+            "suggest_template_fields",
+            lz.suggest_tmpl_fields,
+        ),
+        (
+            "POST",
             "/api/v1/cloud/backup/settings",
             "save_backup_settings",
             "save_backup_settings",
@@ -614,17 +628,17 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "GET",
-            "/api/v1/labeling/external/providers",
-            "get_external_labeling_providers",
-            "get_external_labeling_providers",
-            lz.get_external_labeling_providers,
+            "/api/v1/ai/providers",
+            "get_ai_providers",
+            "get_ai_providers",
+            lz.get_ai_providers,
         ),
         (
             "GET",
-            "/api/v1/labeling/external/providers/<provider_id>/models",
-            "get_external_labeling_models",
-            "get_external_labeling_models",
-            lz.get_external_labeling_models,
+            "/api/v1/ai/providers/<provider_id>/models",
+            "get_ai_models",
+            "get_ai_models",
+            lz.get_ai_models,
         ),
         (
             "POST",

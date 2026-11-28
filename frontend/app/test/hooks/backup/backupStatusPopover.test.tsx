@@ -248,3 +248,55 @@ describe("popover manual sync", () => {
     },
   )
 })
+
+describe("popover outdated app handling — OUTDATED_APP", () => {
+  it("renders red dot, status label, generic warning, disabled Use Remote, and Use Local force-upload", async () => {
+    mockGetBackupsInfo.mockResolvedValue(
+      buildBackupsInfo(SyncStatus.OUTDATED_APP, { remoteSchemaRevision: 96 }),
+    )
+    mockUploadBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
+
+    renderPopoverUI()
+    await openPopover()
+
+    await waitFor(() => {
+      expect(screen.getByText("Update required")).toBeInTheDocument()
+    })
+
+    const trigger = screen.getByRole("button", { name: "Backup" })
+    expect(
+      trigger.querySelector(".rounded-full.bg-red-500"),
+    ).toBeInTheDocument()
+
+    expect(
+      screen.getByText(
+        "The cloud backup was created with a newer version of Finanze. Update the app to sync it, or overwrite it with your local data.",
+      ),
+    ).toBeInTheDocument()
+
+    const useRemoteButton = screen.getByRole("button", { name: "Use remote" })
+    const useLocalButton = screen.getByRole("button", { name: "Use local" })
+    expect(useRemoteButton).toBeDisabled()
+    expect(useLocalButton).not.toBeDisabled()
+
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
+
+    await act(async () => {
+      useLocalButton.click()
+    })
+
+    await waitFor(() => {
+      expect(mockUploadBackup).toHaveBeenCalledWith({
+        types: [BackupFileType.DATA],
+        force: true,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Synced")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("Update required")).not.toBeInTheDocument()
+  })
+})

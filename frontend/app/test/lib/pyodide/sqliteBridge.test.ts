@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest"
 // Keep the REAL ../sqlite/webDev (it only needs @capacitor/core, which we mock
 // to report a native platform so its web-store / encryption branches no-op).
 // Everything touching the native plugin is faked so these tests exercise ONLY
-// the cross-worker transaction-span mutex + connection-ownership logic.
+// the cross-worker transaction-span mutex + shared-connection logic.
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: { getPlatform: () => "android" },
@@ -26,6 +26,7 @@ const sqliteMocks = vi.hoisted(() => ({
   setEncryptionSecret: vi.fn(),
   createConnection: vi.fn(),
   retrieveConnection: vi.fn(),
+  closeConnection: vi.fn(),
 }))
 
 vi.mock("@/lib/capacitor/plugins", () => ({
@@ -63,7 +64,7 @@ vi.mock("@capacitor-community/sqlite", () => {
     retrieveConnection = sqliteMocks.retrieveConnection.mockImplementation(
       async () => makeFakeDb(),
     )
-    closeConnection = vi.fn().mockResolvedValue(undefined)
+    closeConnection = sqliteMocks.closeConnection
     saveToStore = vi.fn().mockResolvedValue(undefined)
     initWebStore = vi.fn().mockResolvedValue(undefined)
   }
@@ -75,7 +76,7 @@ type Bridge = typeof import("@/lib/pyodide/bridges/sqliteBridge")
 let bridge: Bridge
 
 beforeEach(async () => {
-  // Fresh module state per test: txOwner / connectionOwner / spanWaiters /
+  // Fresh module state per test: txOwner / readyDbName / waiters /
   // opLock / currentDb all reset.
   for (const mock of Object.values(sqliteMocks)) mock.mockReset()
   sqliteMocks.isConnection.mockResolvedValue({ result: false })
@@ -83,6 +84,7 @@ beforeEach(async () => {
   sqliteMocks.checkEncryptionSecret.mockResolvedValue({ result: false })
   sqliteMocks.clearEncryptionSecret.mockResolvedValue(undefined)
   sqliteMocks.setEncryptionSecret.mockResolvedValue(undefined)
+  sqliteMocks.closeConnection.mockResolvedValue(undefined)
   backupProcessorMocks.deleteFile.mockReset()
   backupProcessorMocks.deleteFile.mockResolvedValue({ success: true })
   backupProcessorMocks.getFilePath.mockReset()
@@ -248,6 +250,273 @@ describe("sqliteBridge staging export", () => {
   })
 })
 
+describe("sqliteBridge staging import migration check", () => {
+  function makeImportDb(
+    queryImpl: (sql: string) => Promise<{ values: unknown[] }>,
+  ) {
+    return {
+      getConnectionDBName: () => "testdb",
+      open: vi.fn().mockResolvedValue(undefined),
+      isDBOpen: vi.fn().mockResolvedValue({ result: true }),
+      beginTransaction: vi.fn().mockResolvedValue({ changes: { changes: 0 } }),
+      commitTransaction: vi.fn().mockResolvedValue({ changes: { changes: 0 } }),
+      rollbackTransaction: vi
+        .fn()
+        .mockResolvedValue({ changes: { changes: 0 } }),
+      run: vi.fn().mockResolvedValue({ changes: { changes: 1, lastId: 1 } }),
+      query: vi.fn().mockImplementation(queryImpl),
+      execute: vi.fn().mockResolvedValue({ changes: { changes: 0 } }),
+      close: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+    }
+  }
+
+  it("aborts before dropping main objects or exporting when staging has an unknown migration, while still detaching and closing", async () => {
+    const { main } = await openShared()
+    const importDb = makeImportDb(async (sql: string) => {
+      if (sql.includes("plaintext.sqlite_master")) {
+        return { values: [{ name: "migrations" }] }
+      }
+      if (sql.includes("SELECT name FROM plaintext.migrations")) {
+        return {
+          values: [{ name: "v0 Genesis" }, { name: "v99.0.0:0_future" }],
+        }
+      }
+      return { values: [] }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => importDb)
+
+    await expect(
+      main.importDatabaseFromStaging("testdb.db", "secret", "DECOMPILED_DATA", [
+        "v0 Genesis",
+        "v0.1.1:0",
+      ]),
+    ).rejects.toThrow("MIGRATION_AHEAD_OF_TIME:v99.0.0:0_future")
+
+    const executedStatements = importDb.execute.mock.calls.map(
+      ([statement]) => statement as string,
+    )
+    const queriedStatements = importDb.query.mock.calls.map(
+      ([statement]) => statement as string,
+    )
+
+    expect(executedStatements).toEqual([
+      "ATTACH DATABASE '/tmp/staging.db' AS plaintext KEY '';",
+      "DETACH DATABASE plaintext;",
+    ])
+    expect(
+      executedStatements.some(
+        s => s.includes("DROP TABLE") || s.includes("DROP VIEW"),
+      ),
+    ).toBe(false)
+    expect(queriedStatements.some(s => s.includes("sqlcipher_export"))).toBe(
+      false,
+    )
+    expect(importDb.close).toHaveBeenCalledOnce()
+  })
+
+  it("proceeds with dropping main objects and sqlcipher_export when all staging migrations are known", async () => {
+    const { main } = await openShared()
+    const importDb = makeImportDb(async (sql: string) => {
+      if (sql.includes("plaintext.sqlite_master")) {
+        return { values: [{ name: "migrations" }] }
+      }
+      if (sql.includes("SELECT name FROM plaintext.migrations")) {
+        return {
+          values: [{ name: "v0 Genesis" }, { name: "v0.1.1:0" }],
+        }
+      }
+      if (sql.includes("type = 'view'")) {
+        return { values: [{ name: "v_summary" }] }
+      }
+      if (sql.includes("type = 'table'")) {
+        return { values: [{ name: "accounts" }] }
+      }
+      return { values: [] }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => importDb)
+
+    await expect(
+      main.importDatabaseFromStaging("testdb.db", "secret", "DECOMPILED_DATA", [
+        "v0 Genesis",
+        "v0.1.1:0",
+        "v0.12.0:4_ai_settings",
+      ]),
+    ).resolves.toEqual({ ok: true })
+
+    const executedStatements = importDb.execute.mock.calls.map(
+      ([statement]) => statement as string,
+    )
+    const queriedStatements = importDb.query.mock.calls.map(
+      ([statement]) => statement as string,
+    )
+
+    expect(executedStatements).toEqual([
+      "ATTACH DATABASE '/tmp/staging.db' AS plaintext KEY '';",
+      "PRAGMA foreign_keys = OFF;",
+      'DROP VIEW IF EXISTS "v_summary";',
+      'DROP TABLE IF EXISTS "accounts";',
+      "DETACH DATABASE plaintext;",
+    ])
+    expect(queriedStatements).toContain(
+      "SELECT sqlcipher_export('main', 'plaintext');",
+    )
+    expect(importDb.delete).not.toHaveBeenCalled()
+    expect(importDb.close).toHaveBeenCalledOnce()
+  })
+
+  it("aborts with CORRUPT_STAGING_DATABASE before dropping main objects when integrity_check fails", async () => {
+    const { main } = await openShared()
+    const importDb = makeImportDb(async (sql: string) => {
+      if (sql.includes("PRAGMA plaintext.integrity_check")) {
+        return {
+          values: [{ integrity_check: "*** in database plaintext ***" }],
+        }
+      }
+      return { values: [] }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => importDb)
+
+    await expect(
+      main.importDatabaseFromStaging("testdb.db", "secret", "DECOMPILED_DATA", [
+        "v0 Genesis",
+      ]),
+    ).rejects.toThrow("CORRUPT_STAGING_DATABASE")
+
+    const executedStatements = importDb.execute.mock.calls.map(
+      ([statement]) => statement as string,
+    )
+    expect(executedStatements).toEqual([
+      "ATTACH DATABASE '/tmp/staging.db' AS plaintext KEY '';",
+      "DETACH DATABASE plaintext;",
+    ])
+    expect(importDb.delete).not.toHaveBeenCalled()
+    expect(importDb.close).toHaveBeenCalledOnce()
+  })
+
+  it("deletes the destination database and clears secret on failure when deleteOnError is true", async () => {
+    const { main } = await openShared()
+    const importDb = makeImportDb(async (sql: string) => {
+      if (sql.includes("plaintext.sqlite_master")) {
+        return { values: [{ name: "migrations" }] }
+      }
+      if (sql.includes("SELECT name FROM plaintext.migrations")) {
+        return { values: [{ name: "v99.0.0:0_future" }] }
+      }
+      return { values: [] }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => importDb)
+    sqliteMocks.clearEncryptionSecret.mockClear()
+
+    await expect(
+      main.importDatabaseFromStaging(
+        "testdb.db",
+        "secret",
+        "DECOMPILED_DATA",
+        ["v0 Genesis"],
+        true,
+      ),
+    ).rejects.toThrow("MIGRATION_AHEAD_OF_TIME:v99.0.0:0_future")
+
+    expect(importDb.delete).toHaveBeenCalledOnce()
+    expect(importDb.close).toHaveBeenCalledOnce()
+    expect(sqliteMocks.clearEncryptionSecret).toHaveBeenCalled()
+  })
+
+  it("deletes database and clears secret via deleteDatabase", async () => {
+    const { main } = await openShared()
+    const targetDb = makeImportDb(async () => ({ values: [] }))
+    sqliteMocks.createConnection.mockImplementationOnce(async () => targetDb)
+    sqliteMocks.clearEncryptionSecret.mockClear()
+
+    await main.deleteDatabase("testdb.db", "secret", true)
+
+    expect(targetDb.delete).toHaveBeenCalledOnce()
+    expect(targetDb.close).toHaveBeenCalledOnce()
+    expect(sqliteMocks.clearEncryptionSecret).toHaveBeenCalled()
+  })
+
+  it("preserves primary error and cleans up connection when Android db.close throws after db.delete in importDatabaseFromStaging", async () => {
+    const { main } = await openShared()
+    let deleted = false
+    const importDb = makeImportDb(async (sql: string) => {
+      if (sql.includes("plaintext.sqlite_master")) {
+        return { values: [{ name: "migrations" }] }
+      }
+      if (sql.includes("SELECT name FROM plaintext.migrations")) {
+        return { values: [{ name: "v99.0.0:0_future" }] }
+      }
+      return { values: [] }
+    })
+    importDb.delete.mockImplementation(async () => {
+      deleted = true
+    })
+    importDb.close.mockImplementation(async () => {
+      if (deleted) {
+        throw new Error("Close: database testdb not opened")
+      }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => importDb)
+    sqliteMocks.closeConnection.mockClear()
+    sqliteMocks.clearEncryptionSecret.mockClear()
+
+    await expect(
+      main.importDatabaseFromStaging(
+        "testdb.db",
+        "secret",
+        "DECOMPILED_DATA",
+        ["v0 Genesis"],
+        true,
+      ),
+    ).rejects.toThrow("MIGRATION_AHEAD_OF_TIME:v99.0.0:0_future")
+
+    expect(importDb.delete).toHaveBeenCalledOnce()
+    expect(importDb.close).toHaveBeenCalledOnce()
+    expect(sqliteMocks.closeConnection).toHaveBeenLastCalledWith(
+      "testdb",
+      false,
+    )
+    expect(
+      sqliteMocks.clearEncryptionSecret.mock.invocationCallOrder.at(-1),
+    ).toBeGreaterThan(
+      sqliteMocks.closeConnection.mock.invocationCallOrder.at(-1)!,
+    )
+  })
+
+  it("completes cleanup when Android db.close throws after db.delete in deleteDatabase", async () => {
+    const { main } = await openShared()
+    let deleted = false
+    const targetDb = makeImportDb(async () => ({ values: [] }))
+    targetDb.delete.mockImplementation(async () => {
+      deleted = true
+    })
+    targetDb.close.mockImplementation(async () => {
+      if (deleted) {
+        throw new Error("Close: database testdb not opened")
+      }
+    })
+    sqliteMocks.createConnection.mockImplementationOnce(async () => targetDb)
+    sqliteMocks.closeConnection.mockClear()
+    sqliteMocks.clearEncryptionSecret.mockClear()
+
+    await expect(
+      main.deleteDatabase("testdb.db", "secret", true),
+    ).resolves.toBeUndefined()
+
+    expect(targetDb.delete).toHaveBeenCalledOnce()
+    expect(targetDb.close).toHaveBeenCalledOnce()
+    expect(sqliteMocks.closeConnection).toHaveBeenLastCalledWith(
+      "testdb",
+      false,
+    )
+    expect(
+      sqliteMocks.clearEncryptionSecret.mock.invocationCallOrder.at(-1),
+    ).toBeGreaterThan(
+      sqliteMocks.closeConnection.mock.invocationCallOrder.at(-1)!,
+    )
+  })
+})
+
 describe("sqliteBridge cross-worker transaction-span mutex", () => {
   it("blocks a non-owner read while the owner holds an open span, resumes after COMMIT", async () => {
     const { main } = await openShared()
@@ -380,8 +649,8 @@ describe("sqliteBridge cross-worker transaction-span mutex", () => {
   })
 })
 
-describe("sqliteBridge connection ownership", () => {
-  it("reuses the shared connection for a non-owner openDatabase (same object)", async () => {
+describe("sqliteBridge shared connection", () => {
+  it("reuses the shared connection for a secondary worker openDatabase (same object)", async () => {
     const { db: mainDb } = await openShared()
     const bg = bridge.getSqliteBridge("bg")
     const bgDb = await bg.openDatabase(
@@ -392,9 +661,10 @@ describe("sqliteBridge connection ownership", () => {
       false,
     )
     expect(bgDb).toBe(mainDb)
+    expect(sqliteMocks.createConnection).toHaveBeenCalledTimes(1)
   })
 
-  it("makes a non-owner closeDatabase a no-op while only the owner tears down", async () => {
+  it("makes a secondary worker closeDatabase a no-op while only main tears down", async () => {
     const { main, db } = await openShared()
     const bg = bridge.getSqliteBridge("bg")
     await bg.openDatabase("testdb.db", false, "no-encryption", 1, false)
@@ -408,18 +678,138 @@ describe("sqliteBridge connection ownership", () => {
     expect(closeMock.mock.calls).toHaveLength(1)
   })
 
-  it("allows a fresh owner to open after the previous owner closed", async () => {
+  it("never opens natively from a secondary worker after main closed; waits for main to reopen", async () => {
+    const { main } = await openShared()
+    await main.closeDatabase()
+    sqliteMocks.createConnection.mockClear()
+
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await flush()
+    expect(attach.settled).toBe(false)
+    expect(sqliteMocks.createConnection).not.toHaveBeenCalled()
+
+    const { db: reopened } = await openShared()
+    await flush()
+    expect(attach.value).toBe(reopened)
+    expect(sqliteMocks.createConnection).toHaveBeenCalledTimes(1)
+  })
+
+  it("waits when a secondary worker attaches before main has opened", async () => {
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await flush()
+    expect(attach.settled).toBe(false)
+    expect(sqliteMocks.createConnection).not.toHaveBeenCalled()
+
+    const { db } = await openShared()
+    await flush()
+    expect(attach.value).toBe(db)
+  })
+
+  it("keeps a pending attach waiting through an import until main reopens", async () => {
     const { main } = await openShared()
     await main.closeDatabase()
 
-    const bg = bridge.getSqliteBridge("bg")
-    const reopened = await bg.openDatabase(
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await main.importDatabaseFromStaging(
       "testdb.db",
-      false,
-      "no-encryption",
-      1,
-      false,
+      "test-secret",
+      "DECOMPILED_DATA",
     )
-    expect(reopened).toBeDefined()
+    await flush()
+    expect(attach.settled).toBe(false)
+
+    const { db: reopened } = await openShared()
+    await flush()
+    expect(attach.value).toBe(reopened)
+    for (const call of sqliteMocks.createConnection.mock.calls) {
+      expect(call[0]).toBe("testdb")
+    }
+    expect(sqliteMocks.createConnection).toHaveBeenCalledTimes(3)
+  })
+
+  it("lets main reopen after a cloud restore when the secondary worker attached first", async () => {
+    const main = bridge.getSqliteBridge("main")
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await flush()
+
+    await main.importDatabaseFromStaging(
+      "testdb.db",
+      "test-secret",
+      "DECOMPILED_DATA",
+    )
+    const { db } = await openShared()
+    await flush()
+
+    expect(attach.value).toBe(db)
+    expect(sqliteMocks.createConnection).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not attach to a connection whose main open failed", async () => {
+    const { main } = await openShared()
+    await main.closeDatabase()
+    sqliteMocks.createConnection.mockImplementationOnce(async () => ({
+      getConnectionDBName: () => "testdb",
+      open: vi.fn().mockRejectedValue(new Error("Cannot open the DB")),
+      close: vi.fn().mockResolvedValue(undefined),
+    }))
+    await expect(
+      main.openDatabase("testdb.db", false, "no-encryption", 1, false),
+    ).rejects.toThrow("Cannot open the DB")
+
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await flush()
+    expect(attach.settled).toBe(false)
+
+    bridge.blockSharedConnectionAttach("bg")
+    await flush()
+    expect(attach.error).toBeInstanceOf(Error)
+  })
+
+  it("rejects a pending attach when blocked and fails fast while blocked", async () => {
+    const bg = bridge.getSqliteBridge("bg")
+    const pending = track(bg.openDatabase("testdb.db"))
+    await flush()
+
+    bridge.blockSharedConnectionAttach("bg")
+    await flush()
+    expect(pending.error).toBeInstanceOf(Error)
+
+    await openShared()
+    await expect(bg.openDatabase("testdb.db")).rejects.toThrow("cancelled")
+
+    bridge.unblockSharedConnectionAttach("bg")
+    await expect(bg.openDatabase("testdb.db")).resolves.toBeDefined()
+  })
+
+  it("does not hold the op lock while waiting, so main can still open", async () => {
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await flush()
+
+    const reopen = track(openShared())
+    await flush()
+    expect(reopen.settled).toBe(true)
+    expect(attach.settled).toBe(true)
+  })
+
+  it("rejects a pending attach when the secondary worker is terminated", async () => {
+    const attach = track(bridge.getSqliteBridge("bg").openDatabase("testdb.db"))
+    await flush()
+
+    bridge.releaseWorkerSpan("bg")
+    await flush()
+    expect(attach.error).toBeInstanceOf(Error)
+
+    const { db } = await openShared()
+    await expect(
+      bridge.getSqliteBridge("bg").openDatabase("testdb.db"),
+    ).resolves.toBe(db)
+  })
+
+  it("rejects attaching to a different database than the shared one", async () => {
+    await openShared()
+
+    await expect(
+      bridge.getSqliteBridge("bg").openDatabase("other.db"),
+    ).rejects.toThrow("not other")
   })
 })

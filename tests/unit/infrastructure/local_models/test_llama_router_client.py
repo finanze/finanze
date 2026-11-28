@@ -75,6 +75,7 @@ class TestParseRouterModel:
             ("loaded", LocalModelState.LOADED),
             ("sleeping", LocalModelState.SLEEPING),
             ("downloading", LocalModelState.DOWNLOADING),
+            ("incomplete", LocalModelState.INCOMPLETE),
             ("unknown", LocalModelState.UNLOADED),
         ],
     )
@@ -113,6 +114,33 @@ class TestParseRouterModel:
         assert model.size is None
         assert model.decisions is False
         assert model.removable is None
+        assert model.vision is False
+        assert model.has_mmproj is False
+
+    def test_vision(self):
+        model = parse_router_model(
+            _entry(
+                "org/a-GGUF:Q4_K_M",
+                architecture={
+                    "input_modalities": ["text", "image"],
+                    "output_modalities": ["text"],
+                },
+                sidecars=["mmproj"],
+            )
+        )
+        assert model.vision is True
+        assert model.has_mmproj is True
+
+    def test_text_only(self):
+        model = parse_router_model(
+            _entry(
+                "org/a-GGUF:Q4_K_M",
+                architecture={"input_modalities": ["text"]},
+                sidecars=["mtp"],
+            )
+        )
+        assert model.vision is False
+        assert model.has_mmproj is False
 
     def test_without_id(self):
         assert parse_router_model({"status": {"value": "loaded"}}) is None
@@ -265,6 +293,15 @@ class TestModelOperations:
         assert kwargs["timeout"] == LlamaRouterClient.DOWNLOAD_TIMEOUT_SECONDS
 
     @pytest.mark.asyncio
+    async def test_download_with_vision(self):
+        client = _client((200, {"success": True}))
+        await client.download(CONNECTION, "org/a-GGUF:Q4_K_M", vision=True)
+        assert _sent(client)[2]["json"] == {
+            "model": "org/a-GGUF:Q4_K_M",
+            "sidecars": ["mmproj"],
+        }
+
+    @pytest.mark.asyncio
     async def test_download_rejected(self):
         client = _client((400, {"error": {"message": "file not found"}}))
         with pytest.raises(LocalModelError) as error:
@@ -295,10 +332,54 @@ class TestModelOperations:
         assert error.value.code == LocalModelErrorCode.MODEL_NOT_FOUND
 
     @pytest.mark.asyncio
+    async def test_delete_vision(self):
+        client = _client((200, {"success": True}))
+        await client.delete_vision(CONNECTION, "org/a-GGUF:Q4_K_M")
+        method, url, kwargs = _sent(client)
+        assert (method, url) == ("DELETE", "http://127.0.0.1:8080/models")
+        assert kwargs["params"] == {"model": "org/a-GGUF:Q4_K_M", "sidecar": "mmproj"}
+
+    @pytest.mark.asyncio
+    async def test_delete_vision_of_running_model(self):
+        client = _client((400, {"error": {"message": "unload it first"}}))
+        with pytest.raises(LocalModelError) as error:
+            await client.delete_vision(CONNECTION, "a:Q4")
+        assert error.value.code == LocalModelErrorCode.NOT_DELETABLE
+
+    @pytest.mark.asyncio
     async def test_load_and_unload(self):
-        client = _client((200, {"success": True}), (200, {"success": True}))
+        client = _client(
+            (200, {"success": True}),
+            (200, {"success": True}),
+            (200, {"data": [_entry("a:Q4", "unloaded")]}),
+        )
         await client.load(CONNECTION, "a:Q4")
         await client.unload(CONNECTION, "a:Q4")
         assert _sent(client)[1] == "http://127.0.0.1:8080/models/load"
         assert _sent(client)[2]["json"] == {"model": "a:Q4"}
         assert _sent(client, 1)[1] == "http://127.0.0.1:8080/models/unload"
+
+    @pytest.mark.asyncio
+    async def test_unload_waits_until_stopped(self):
+        progress = FakeProgress()
+        client = _client(
+            (200, {"success": True}),
+            (200, {"data": [_entry("a:Q4", "loaded")]}),
+            (200, {"data": [_entry("a:Q4", "downloaded"), _entry("b:Q4", "loaded")]}),
+            progress=progress,
+        )
+        client.UNLOAD_POLL_SECONDS = 0
+        await client.unload(CONNECTION, "a:Q4")
+        assert client._session.request.call_count == 3
+        assert progress.watched == []
+
+    @pytest.mark.asyncio
+    async def test_unload_timeout(self):
+        client = _client(
+            (200, {"success": True}),
+            (200, {"data": [_entry("a:Q4", "loaded")]}),
+        )
+        client.UNLOAD_TIMEOUT_SECONDS = 0
+        with pytest.raises(LocalModelError) as error:
+            await client.unload(CONNECTION, "a:Q4")
+        assert error.value.code == LocalModelErrorCode.SERVER_ERROR

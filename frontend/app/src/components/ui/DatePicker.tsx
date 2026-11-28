@@ -16,11 +16,11 @@ import {
   useReducedMotion,
   type Transition,
 } from "framer-motion"
-import { enUS, es, it } from "date-fns/locale"
+import { de, enUS, es, fr, it, pt } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { Button } from "./Button"
 import { Popover, PopoverContent, PopoverTrigger } from "./Popover"
-import { useI18n } from "@/i18n"
+import { useI18n, type Locale } from "@/i18n"
 
 interface DatePickerProps {
   value?: string
@@ -36,7 +36,10 @@ const localeMap = {
   "en-US": enUS,
   "es-ES": es,
   "it-IT": it,
-}
+  "de-DE": de,
+  "pt-PT": pt,
+  "fr-FR": fr,
+} satisfies Record<Locale, typeof enUS>
 
 type SwipeState = {
   x: number
@@ -54,7 +57,7 @@ const SWIPE_TRANSITION: Transition = { duration: 0.2, ease: [0, 0, 0.58, 0.8] }
 function DatePicker({
   value = "",
   onChange,
-  placeholder = "Pick a date",
+  placeholder,
   disabled = false,
   className,
   contentClassName,
@@ -103,7 +106,7 @@ function DatePicker({
     /* eslint-enable react/prop-types */
     return SwipeGrid
   }, [dragX])
-  const dateLocale = localeMap[locale as keyof typeof localeMap] || enUS
+  const dateLocale = localeMap[locale]
   const selectedDate = value
     ? parse(value, "yyyy-MM-dd", new Date())
     : undefined
@@ -214,7 +217,7 @@ function DatePicker({
           >
             <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
             <span className={cn("flex-1 truncate", value && "pr-6")}>
-              {displayValue || placeholder}
+              {displayValue || (placeholder ?? t.transactions.form.pickDate)}
             </span>
           </Button>
         </PopoverTrigger>

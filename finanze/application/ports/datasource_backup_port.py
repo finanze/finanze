@@ -23,3 +23,11 @@ class Backupable(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def get_last_updated(self) -> datetime:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_schema_revision(self) -> int:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_schema_hash(self) -> Optional[str]:
+        raise NotImplementedError

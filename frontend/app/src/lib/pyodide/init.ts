@@ -12,6 +12,10 @@ import {
   callBackgroundPythonFunction,
 } from "@/lib/pyodide"
 import { appConsole } from "@/lib/capacitor/appConsole"
+import {
+  blockSharedConnectionAttach,
+  unblockSharedConnectionAttach,
+} from "./bridges/sqliteBridge"
 
 const API_PREFIX = "/api/v1"
 
@@ -107,6 +111,7 @@ async function ensureCoreInitialized() {
       `Core initialization complete in ${(performance.now() - t0).toFixed(0)}ms (/status ready)`,
     )
   })().catch(e => {
+    coreInitPromise = null
     appConsole.error("[PyodideInit] Core initialization failed:", e)
     throw e
   })
@@ -132,6 +137,7 @@ async function ensureDeferredInitialized() {
     isDeferredInitialized = true
     logInfo("Deferred initialization complete (all routes ready)")
   })().catch(e => {
+    deferredInitPromise = null
     appConsole.error("[PyodideInit] Deferred initialization failed:", e)
     throw e
   })
@@ -158,6 +164,7 @@ async function ensureLazyInitialized() {
     lazyReadyResolve?.()
     logInfo("Lazy initialization complete (all lazy routes ready)")
   })().catch(e => {
+    lazyInitPromise = null
     appConsole.error("[PyodideInit] Lazy initialization failed:", e)
     throw e
   })
@@ -177,12 +184,20 @@ async function ensureInitialized(method: string, path: string) {
 
 function triggerDeferredInit(): void {
   if (!isCoreInitialized || isDeferredInitialized || deferredInitPromise) return
-  ensureDeferredInitialized()
+  ensureDeferredInitialized().catch(e => {
+    import("@/lib/telemetry").then(({ reportError }) => {
+      reportError(e, { phase: "deferred_init" })
+    })
+  })
 }
 
 function triggerLazyInit(): void {
   if (!isDeferredInitialized || isLazyInitialized || lazyInitPromise) return
-  ensureLazyInitialized()
+  ensureLazyInitialized().catch(e => {
+    import("@/lib/telemetry").then(({ reportError }) => {
+      reportError(e, { phase: "lazy_init" })
+    })
+  })
 }
 
 function waitForLazyInit(): Promise<void> {
@@ -194,8 +209,10 @@ function waitForLazyInit(): Promise<void> {
 // Background worker (worker 2) orchestration: tracked quote/loan updates run in
 // a second Pyodide worker sharing the main worker's SQLite connection.
 // ---------------------------------------------------------------------------
+const BACKGROUND_WORKER_ID = "bg"
 let backgroundWarmStarted = false
 let backgroundConnectedPromise: Promise<void> | null = null
+let backgroundConnectGeneration = 0
 let isBackgroundConnected = false
 
 function warmStartBackgroundWorker(): void {
@@ -216,6 +233,7 @@ function connectBackgroundWorker(username: string): Promise<void> {
 
   warmStartBackgroundWorker()
 
+  const generation = backgroundConnectGeneration
   backgroundConnectedPromise = (async () => {
     await initBackgroundWorker()
     const platformType = (window as any)?.platform?.type
@@ -235,6 +253,10 @@ function connectBackgroundWorker(username: string): Promise<void> {
     isBackgroundConnected = true
     logInfo("[bg] Background worker connected.")
   })().catch(e => {
+    if (generation !== backgroundConnectGeneration) {
+      logInfo("[bg] Background connect cancelled by disconnect.")
+      return
+    }
     // Reset so a later attempt (e.g. next login) can retry.
     backgroundConnectedPromise = null
     isBackgroundConnected = false
@@ -251,10 +273,16 @@ async function disconnectBackgroundWorker(): Promise<void> {
   isBackgroundConnected = false
   if (!wasConnecting) return
 
+  backgroundConnectGeneration++
+  blockSharedConnectionAttach(BACKGROUND_WORKER_ID)
   try {
     // Make sure connect finished before we drop the reference, to avoid racing
     // an in-flight attach.
-    await wasConnecting.catch(() => undefined)
+    try {
+      await wasConnecting.catch(() => undefined)
+    } finally {
+      unblockSharedConnectionAttach(BACKGROUND_WORKER_ID)
+    }
     await callBackgroundPythonFunction("init_background", "disconnect")
     logInfo("[bg] Background worker disconnected.")
   } catch (e) {

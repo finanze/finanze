@@ -39,6 +39,8 @@ import type {
   ExternalLabelingSettings,
   LabelingSettings,
 } from "@/types/labeling"
+import type { AccountAssetConfig } from "@/types/accountExclusions"
+import type { AIImportSettings, AISettings } from "@/types/ai"
 import {
   getFeatureFlags,
   subscribeFeatureFlags,
@@ -54,6 +56,7 @@ export interface AppSettings {
     sheets?: {
       [key: string]: any
     }
+    ai?: AIImportSettings
   }
   general: {
     defaultCurrency: string
@@ -61,6 +64,7 @@ export interface AppSettings {
     editMode: EditMode
   }
   assets: {
+    accounts?: AccountAssetConfig
     crypto: {
       stablecoins: string[]
       hideUnknownTokens: boolean
@@ -68,6 +72,7 @@ export interface AppSettings {
   }
   data?: DataConfig
   labeling?: LabelingSettings
+  ai?: AISettings
 }
 
 export type SettingsKey = keyof AppSettings
@@ -141,6 +146,7 @@ const defaultSettings: AppSettings = {
     editMode: EditMode.QUICK,
   },
   assets: {
+    accounts: { exclusions: [] },
     crypto: {
       stablecoins: [],
       hideUnknownTokens: false,
@@ -163,9 +169,7 @@ const defaultAutoRefresh: AutoRefresh = {
 
 const defaultExternalLabeling: ExternalLabelingSettings = {
   enabled: false,
-  provider: null,
-  model: null,
-  upstreamProvider: null,
+  providers: [],
   autoRun: true,
   minConfidence: 70,
   maxPerRun: 400,
@@ -201,6 +205,9 @@ const mergeSettingsWithDefaults = (
   const mergedAssets = {
     ...defaultSettings.assets,
     ...incoming?.assets,
+    accounts: {
+      exclusions: incoming?.assets?.accounts?.exclusions ?? [],
+    },
     crypto: {
       ...defaultSettings.assets.crypto,
       ...incoming?.assets?.crypto,
@@ -232,6 +239,10 @@ const mergeSettingsWithDefaults = (
           ...defaultSettings.importing,
           ...(incoming?.importing ?? {}),
           sheets: mergedImportingSheets,
+          ai: {
+            providers: incoming?.importing?.ai?.providers ?? [],
+            instructions: incoming?.importing?.ai?.instructions ?? null,
+          },
         }
       : incoming?.importing,
     assets: mergedAssets,
@@ -252,6 +263,7 @@ const mergeSettingsWithDefaults = (
         },
       },
     },
+    ai: { providers: incoming?.ai?.providers ?? [] },
   }
 }
 

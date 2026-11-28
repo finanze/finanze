@@ -48,18 +48,22 @@ class BackupClient(BackupRepository):
 
         try:
             # Step 1: Request upload URLs from the API
-            upload_request_body = {
-                "pieces": [
-                    {
-                        "id": str(piece.id),
-                        "type": piece.type.value,
-                        "size": piece.size,
-                        "date": piece.date.isoformat(),
-                        "protocol": piece.protocol,
-                    }
-                    for piece in request.pieces.pieces
-                ]
-            }
+            piece_payloads = []
+            for piece in request.pieces.pieces:
+                piece_payload = {
+                    "id": str(piece.id),
+                    "type": piece.type.value,
+                    "size": piece.size,
+                    "date": piece.date.isoformat(),
+                    "protocol": piece.protocol,
+                }
+                if piece.schema_revision is not None:
+                    piece_payload["schema_revision"] = piece.schema_revision
+                if piece.schema_hash is not None:
+                    piece_payload["schema_hash"] = piece.schema_hash
+                piece_payloads.append(piece_payload)
+
+            upload_request_body = {"pieces": piece_payloads}
 
             headers = self._get_auth_headers(request.auth)
             response = await self._session.post(
@@ -159,6 +163,9 @@ class BackupClient(BackupRepository):
                         BackupFileType(piece_info["type"]),
                     )
 
+                    schema_revision = piece_info.get("schema_revision")
+                    schema_hash = piece_info.get("schema_hash")
+
                     piece = BackupTransferPiece(
                         id=UUID(piece_info["id"]),
                         protocol=piece_info["protocol"],
@@ -166,6 +173,8 @@ class BackupClient(BackupRepository):
                         type=BackupFileType(piece_info["type"]),
                         payload=payload,
                         size=len(payload),
+                        schema_revision=schema_revision,
+                        schema_hash=schema_hash,
                     )
                     pieces.append(piece)
                     self._log.info(
@@ -208,12 +217,16 @@ class BackupClient(BackupRepository):
             for backup_type_str, piece_info in info_response.get("pieces", {}).items():
                 try:
                     backup_type = BackupFileType(backup_type_str)
+                    schema_revision = piece_info.get("schema_revision")
+                    schema_hash = piece_info.get("schema_hash")
                     backup_info = BackupInfo(
                         id=UUID(piece_info["id"]),
                         protocol=piece_info["protocol"],
                         date=datetime.fromisoformat(piece_info["date"]),
                         type=backup_type,
                         size=piece_info["size"],
+                        schema_revision=schema_revision,
+                        schema_hash=schema_hash,
                     )
                     backup_infos[backup_type] = backup_info
                 except (KeyError, ValueError) as e:

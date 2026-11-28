@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { screen, act, cleanup, fireEvent } from "@testing-library/react"
-import { BackupMode, AutoRefreshMode } from "@/types"
+import { BackupMode, AutoRefreshMode, EntityStatus } from "@/types"
 import { buildEntity, buildCandidate, resetBuilderCounters } from "./builders"
 import {
   mockGetAutoRefreshCandidates,
@@ -207,6 +207,56 @@ describe("countdown in non-AUTO backup mode", () => {
     const ctx = getContext()
     expect(ctx.pendingAutoRefreshCandidates).toHaveLength(0)
     expect(ctx.autoRefreshCountdown).toBeNull()
+  })
+
+  it("does not auto-refresh an account with a manual fetch in flight", async () => {
+    const accountId = "manual-account"
+    const manual = buildCandidate({
+      id: "manual",
+      accounts: [{ id: accountId, name: null, status: EntityStatus.CONNECTED }],
+    })
+    const other = buildCandidate({ id: "other" })
+    setEntities([manual.entity, other.entity])
+    mockGetAutoRefreshCandidates.mockReturnValue([manual, other])
+
+    const result = Promise.withResolvers<{ code: string }>()
+    mockFetchFinancialEntity.mockReturnValueOnce(result.promise)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    let manualFetch: Promise<void> | undefined
+    await act(async () => {
+      manualFetch = getContext().scrape(
+        manual.entity,
+        manual.features,
+        undefined,
+        accountId,
+      )
+    })
+    expect(mockFetchFinancialEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ entity: "manual", entityAccountId: accountId }),
+    )
+
+    for (let second = 0; second < 3; second++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
+    }
+
+    await act(async () => {
+      result.resolve({ code: "COMPLETED" })
+      await manualFetch
+    })
+    expect(
+      mockFetchFinancialEntity.mock.calls.map(([request]) => request.entity),
+    ).toEqual(["manual", "other"])
+
+    await act(async () => {
+      await getContext().scrape(manual.entity, manual.features)
+    })
+    expect(mockFetchFinancialEntity).toHaveBeenCalledTimes(3)
   })
 
   it("skips entities that became fresh by the time countdown reaches 0", async () => {

@@ -17,6 +17,7 @@ from domain.backup import (
     BackupsInfoRequest,
     BackupsInfo,
     BackupInfoParams,
+    is_remote_schema_incompatible,
 )
 from domain.cloud_auth import (
     CloudAuthData,
@@ -89,16 +90,29 @@ class GetBackupsImpl(GetBackups):
             if backupable is None:
                 continue
 
+            local_schema_revision = backupable.get_schema_revision()
+            local_schema_hash = backupable.get_schema_hash()
+
             if cloud_token:
                 remote_backup = remote_bkg_info.pieces.get(backup_type)
                 if remote_backup is None:
                     continue
+                status = (
+                    SyncStatus.OUTDATED_APP
+                    if is_remote_schema_incompatible(
+                        remote_backup.schema_revision,
+                        remote_backup.schema_hash,
+                        local_schema_revision,
+                        local_schema_hash,
+                    )
+                    else None
+                )
                 full_backup_pieces[backup_type] = FullBackupInfo(
                     local=None,
                     remote=remote_backup,
                     last_update=remote_backup.date,
                     has_local_changes=False,
-                    status=None,
+                    status=status,
                 )
                 continue
 
@@ -108,7 +122,11 @@ class GetBackupsImpl(GetBackups):
             remote_backup = remote_bkg_info.pieces.get(backup_type)
 
             status, has_local_changes = self._calculate_sync_status(
-                local_backup, remote_backup, last_update
+                local_backup,
+                remote_backup,
+                last_update,
+                local_schema_revision,
+                local_schema_hash,
             )
 
             full_backup_pieces[backup_type] = FullBackupInfo(
@@ -161,7 +179,11 @@ class GetBackupsImpl(GetBackups):
 
     @staticmethod
     def _calculate_sync_status(
-        local: BackupInfo | None, remote: BackupInfo | None, last_update: datetime
+        local: BackupInfo | None,
+        remote: BackupInfo | None,
+        last_update: datetime,
+        local_schema_revision: Optional[int] = None,
+        local_schema_hash: Optional[str] = None,
     ) -> tuple[SyncStatus, bool]:
         # Sync Status Decision Table:
         # +---------------+---------------+------------------+----------+-------------------------------------------------------------+
@@ -183,6 +205,14 @@ class GetBackupsImpl(GetBackups):
         # +---------------+---------------+------------------+----------+-------------------------------------------------------------+
 
         has_local_changes = local is None or last_update > local.date
+
+        if remote is not None and is_remote_schema_incompatible(
+            remote.schema_revision,
+            remote.schema_hash,
+            local_schema_revision,
+            local_schema_hash,
+        ):
+            return SyncStatus.OUTDATED_APP, has_local_changes
 
         # No backups exist at all
         if local is None and remote is None:

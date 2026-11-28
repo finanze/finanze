@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react"
 import { LocalModelsIntegration } from "@/components/settings/LocalModelsIntegration"
 import { ramWarningRatio } from "@/components/settings/LocalModelsManager"
+import { formatFileSize } from "@/utils/releaseUtils"
 import {
   HuggingFaceModelKind,
   LocalModelSource,
@@ -465,11 +466,53 @@ describe("LocalModelsManager", () => {
     await waitFor(() =>
       expect(downloadLocalModel).toHaveBeenCalledWith({
         catalog_id: CATALOG[0].id,
+        vision: false,
       }),
     )
     expect(showToast).toHaveBeenCalledWith(
       copy.downloadStarted.replace("{model}", "Laya"),
       "success",
+    )
+  })
+
+  it("downloads recommended models with image support", async () => {
+    const entry = {
+      ...CATALOG[0],
+      vision_size: 200_000_000,
+      vision_ram: 4_000_000_000,
+    }
+    getLocalModels.mockResolvedValue(connected({ catalog: [entry] }))
+    downloadLocalModel.mockResolvedValue(undefined)
+    renderIntegration(true)
+    await openDialog()
+
+    const card = await screen.findByTestId(`local-catalog-${entry.id}`)
+    expect(
+      within(card).getByText(
+        copy.downloadSize.replace("{size}", formatFileSize(entry.size)),
+      ),
+    ).toBeInTheDocument()
+    expect(within(card).queryByText(copy.ramWarning)).not.toBeInTheDocument()
+
+    fireEvent.click(within(card).getByRole("switch"))
+    expect(
+      within(card).getByText(
+        copy.downloadSize.replace(
+          "{size}",
+          formatFileSize(entry.size + entry.vision_size),
+        ),
+      ),
+    ).toBeInTheDocument()
+    expect(within(card).getAllByText(copy.ramWarning).length).toBeGreaterThan(0)
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: en.common.download }),
+    )
+    await waitFor(() =>
+      expect(downloadLocalModel).toHaveBeenCalledWith({
+        catalog_id: entry.id,
+        vision: true,
+      }),
     )
   })
 
@@ -527,6 +570,56 @@ describe("LocalModelsManager", () => {
       expect(downloadLocalModel).toHaveBeenCalledWith({
         repo: "org/tiny-GGUF",
         quant: "Q4_K_M",
+        vision: false,
+      }),
+    )
+  })
+
+  it("offers image support for Hugging Face variants with a projector", async () => {
+    getLocalModels.mockResolvedValue(connected())
+    getHuggingFaceQuants.mockResolvedValue({
+      repo: "org/vision-GGUF",
+      quants: [
+        { quant: "Q2_K", file: "vision-Q2_K.gguf", size: 100 },
+        {
+          quant: "Q4_K_M",
+          file: "vision-Q4_K_M.gguf",
+          size: 200,
+          vision_file: "mmproj-F16.gguf",
+          vision_size: 5_000_000_000,
+        },
+      ],
+      kind: HuggingFaceModelKind.CHAT,
+    })
+    downloadLocalModel.mockResolvedValue(undefined)
+    renderIntegration(true)
+    await openDialog()
+
+    const input = await screen.findByLabelText(copy.huggingFace)
+    fireEvent.change(input, { target: { value: "org/vision-GGUF" } })
+    fireEvent.click(screen.getByRole("button", { name: copy.find }))
+    const variant = await screen.findByLabelText(copy.variant)
+    expect(
+      screen.queryByTestId("local-quant-ram-warning"),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("switch"))
+    expect(screen.getByTestId("local-quant-ram-warning")).toBeInTheDocument()
+
+    fireEvent.change(variant, { target: { value: "Q2_K" } })
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument()
+    fireEvent.change(variant, { target: { value: "Q4_K_M" } })
+
+    fireEvent.click(
+      within(variant.parentElement as HTMLElement).getByRole("button", {
+        name: en.common.download,
+      }),
+    )
+    await waitFor(() =>
+      expect(downloadLocalModel).toHaveBeenCalledWith({
+        repo: "org/vision-GGUF",
+        quant: "Q4_K_M",
+        vision: true,
       }),
     )
   })
@@ -691,7 +784,90 @@ describe("LocalModelsManager", () => {
     })
     fireEvent.click(dialogButtons[dialogButtons.length - 1])
     await waitFor(() =>
-      expect(deleteLocalModel).toHaveBeenCalledWith("local/phi"),
+      expect(deleteLocalModel).toHaveBeenCalledWith("local/phi", false),
+    )
+  })
+
+  it("adds and removes image support on installed models", async () => {
+    getLocalModels.mockResolvedValue(
+      connected({
+        catalog: [],
+        models: [
+          model({
+            id: "org/text-GGUF:Q4_K_M",
+            name: "Text",
+            source: LocalModelSource.CATALOG,
+            vision_size: 850_000_000,
+            vision_addable: true,
+          }),
+          model({
+            id: "org/vision-GGUF:Q4_K_M",
+            name: "Vision",
+            source: LocalModelSource.CATALOG,
+            vision: true,
+            vision_removable: true,
+          }),
+          model({
+            id: "org/partial-GGUF:Q4_K_M",
+            name: "Partial",
+            state: LocalModelState.INCOMPLETE,
+          }),
+        ],
+      }),
+    )
+    downloadLocalModel.mockResolvedValue(undefined)
+    deleteLocalModel.mockResolvedValue(undefined)
+    renderIntegration(true)
+    await openDialog()
+
+    const text = await screen.findByTestId("local-model-org/text-GGUF:Q4_K_M")
+    const vision = screen.getByTestId("local-model-org/vision-GGUF:Q4_K_M")
+    const partial = screen.getByTestId("local-model-org/partial-GGUF:Q4_K_M")
+    expect(
+      within(text).queryByText(en.settings.aiModalities.IMAGE),
+    ).not.toBeInTheDocument()
+    expect(
+      within(vision).getByText(en.settings.aiModalities.IMAGE),
+    ).toBeInTheDocument()
+    expect(
+      within(vision).queryByRole("button", { name: /\+/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(partial).getByText(copy.states.INCOMPLETE),
+    ).toBeInTheDocument()
+    expect(
+      within(partial).getByRole("button", { name: en.common.delete }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(
+      within(text).getByRole("button", {
+        name: copy.addVision.replace("{size}", formatFileSize(850_000_000)),
+      }),
+    )
+    await waitFor(() =>
+      expect(downloadLocalModel).toHaveBeenCalledWith({
+        catalog_id: "org/text-GGUF:Q4_K_M",
+        vision: true,
+      }),
+    )
+
+    fireEvent.click(
+      within(vision).getByRole("button", { name: copy.removeVision }),
+    )
+    expect(
+      screen.getByText(copy.removeVisionMessage.replace("{model}", "Vision")),
+    ).toBeInTheDocument()
+    expect(deleteLocalModel).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: copy.remove }))
+    await waitFor(() =>
+      expect(deleteLocalModel).toHaveBeenCalledWith(
+        "org/vision-GGUF:Q4_K_M",
+        true,
+      ),
+    )
+    expect(showToast).toHaveBeenCalledWith(
+      copy.visionRemoved.replace("{model}", "Vision"),
+      "success",
     )
   })
 

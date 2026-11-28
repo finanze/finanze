@@ -8,6 +8,45 @@ let isCustomServer = false
 let customServerUrl: string | null = null
 let apiUrlInitialized = false
 
+const SESSION_TOKEN_KEY = "finanze_api_session"
+
+const readSessionToken = (): string | null => {
+  if (typeof window === "undefined") return null
+  try {
+    return (
+      window.sessionStorage.getItem(SESSION_TOKEN_KEY) ??
+      window.localStorage.getItem(SESSION_TOKEN_KEY)
+    )
+  } catch {
+    return null
+  }
+}
+
+const writeSessionToken = (token: string | null, remember: boolean): void => {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.removeItem(SESSION_TOKEN_KEY)
+    window.localStorage.removeItem(SESSION_TOKEN_KEY)
+    if (token) {
+      const storage = remember ? window.localStorage : window.sessionStorage
+      storage.setItem(SESSION_TOKEN_KEY, token)
+    }
+  } catch {
+    return
+  }
+}
+
+let sessionToken: string | null = readSessionToken()
+
+const withSessionHeader = (
+  headers: Record<string, string>,
+): Record<string, string> => {
+  if (sessionToken && !headers.Authorization) {
+    headers.Authorization = `Bearer ${sessionToken}`
+  }
+  return headers
+}
+
 const withApiVersionSegment = (url: string): string => {
   let normalized = url.trim()
   if (!normalized) {
@@ -77,7 +116,13 @@ export class HttpApiClient implements ApiClient {
     apiUrlInitPromise = null
     isCustomServer = false
     customServerUrl = null
+    this.setSessionToken(null)
     await ensureApiUrlInitialized()
+  }
+
+  setSessionToken(token: string | null, remember = false): void {
+    sessionToken = token
+    writeSessionToken(token, remember)
   }
 
   async get<T>(path: string, options?: HelperOptions): Promise<T> {
@@ -132,7 +177,9 @@ export class HttpApiClient implements ApiClient {
     const url = `${baseUrl}${path}`
     const options: RequestInit = {
       method: body ? "POST" : "GET",
-      headers: body ? { "Content-Type": "application/json" } : {},
+      headers: withSessionHeader(
+        body ? { "Content-Type": "application/json" } : {},
+      ),
       body: body ? JSON.stringify(body) : undefined,
     }
 
@@ -201,9 +248,9 @@ export class HttpApiClient implements ApiClient {
     const baseUrl = await ensureApiUrlInitialized()
     const url = `${baseUrl}${path}`
 
-    const headers: Record<string, string> = {
+    const headers: Record<string, string> = withSessionHeader({
       ...options?.headers,
-    }
+    })
 
     let requestBody: any = undefined
     if (body) {

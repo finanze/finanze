@@ -1,6 +1,6 @@
 import { loadPyodide, type PyodideInterface } from "pyodide"
 
-const CACHE_NAME = "pyodide-cache-v314.0.7"
+const CACHE_NAME = "pyodide-cache-v314.0.8"
 
 function shouldInterceptUrl(url: string): boolean {
   const lowerUrl = url.toLowerCase()
@@ -513,6 +513,8 @@ function registerWorkerBridge(): void {
       requestMain("jsBridge.sqlite.exportDatabaseToStaging", args),
     importDatabaseFromStaging: (...args: any[]) =>
       requestMain("jsBridge.sqlite.importDatabaseFromStaging", args),
+    deleteDatabase: (...args: any[]) =>
+      requestMain("jsBridge.sqlite.deleteDatabase", args),
   }
 
   const preferences = {
@@ -563,6 +565,7 @@ function registerWorkerBridge(): void {
   }
   ;(self as any).FileTransfer = createMainProxy("FileTransfer")
   ;(self as any).BackupProcessor = createMainProxy("BackupProcessor")
+  ;(self as any).PdfRenderer = createMainProxy("PdfRenderer")
   ;(self as any).NativeCookies = createMainProxy("NativeCookies")
   ;(self as any).TlsHttp = createMainProxy("TlsHttp")
   ;(self as any).Capacitor = {

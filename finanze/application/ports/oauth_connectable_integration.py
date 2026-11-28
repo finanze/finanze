@@ -23,3 +23,6 @@ class OAuthConnectableIntegration(ConnectableIntegration, metaclass=abc.ABCMeta)
         self, request: CompleteExternalIntegrationConnectionRequest
     ) -> ExternalIntegrationPayload:
         raise NotImplementedError
+
+    async def callback_destination(self, state: str) -> Optional[str]:
+        return None

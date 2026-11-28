@@ -10,19 +10,36 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import EntityIntegrationsPage from "@/pages/EntityIntegrationsPage"
 import SettingsPage from "@/pages/SettingsPage"
 import en from "@/i18n/locales/en.json"
+import es from "@/i18n/locales/es.json"
+import itTranslations from "@/i18n/locales/it.json"
+import de from "@/i18n/locales/de.json"
 import { FFStatus, PlatformType } from "@/types"
 
 const { state, setupIntegration, disableIntegration } = vi.hoisted(() => ({
   state: {
     app: {} as Record<string, unknown>,
     native: false,
+    locale: "en-US" as "en-US" | "es-ES" | "it-IT" | "de-DE",
   },
   setupIntegration: vi.fn(),
   disableIntegration: vi.fn(),
 }))
 
-vi.mock("@/i18n", () => ({ useI18n: () => ({ t: en, locale: "en-US" }) }))
+vi.mock("@/i18n", () => ({
+  useI18n: () => ({
+    t:
+      state.locale === "es-ES"
+        ? es
+        : state.locale === "it-IT"
+          ? itTranslations
+          : state.locale === "de-DE"
+            ? de
+            : en,
+    locale: state.locale,
+  }),
+}))
 vi.mock("@/context/AppContext", () => ({ useAppContext: () => state.app }))
+vi.mock("@/components/ai/AIModelsCard", () => ({ AIModelsCard: () => null }))
 vi.mock("@/context/EntityWorkflowContext", () => ({
   useEntityWorkflow: () => ({ view: "entities", selectedEntity: null }),
 }))
@@ -66,21 +83,24 @@ function LocationProbe() {
 }
 
 function renderRoute(route = "/entities") {
-  return render(
+  const tree = () => (
     <MemoryRouter initialEntries={[route]}>
       <LocationProbe />
       <Routes>
         <Route path="/entities" element={<EntityIntegrationsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
+  const view = render(tree())
+  return { ...view, rerenderRoute: () => view.rerender(tree()) }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(window, "scrollTo").mockImplementation(() => {})
   state.native = false
+  state.locale = "en-US"
   state.app = {
     entities: [],
     isLoadingEntities: false,
@@ -108,6 +128,85 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("Integration tabs", () => {
+  it.each([
+    ["es-ES", es],
+    ["it-IT", itTranslations],
+    ["de-DE", de],
+  ] as const)(
+    "localizes descriptive integration names in %s",
+    (locale, translations) => {
+      state.locale = locale
+      state.app.externalIntegrations = [
+        "OPENAI_COMPATIBLE",
+        "LOCAL_MODELS",
+        "CLAUDE_AGENT",
+      ].map(id => ({
+        id,
+        name: "Database name",
+        type: "AI_PROVIDER",
+        status: "OFF",
+        available: true,
+        payload_schema: {},
+      }))
+      renderRoute("/entities?tab=providers")
+      expect(
+        screen.getByTestId("integration-card-OPENAI_COMPATIBLE"),
+      ).toHaveTextContent(
+        translations.settings.integration.OPENAI_COMPATIBLE.name,
+      )
+      expect(
+        screen.getByTestId("integration-card-LOCAL_MODELS"),
+      ).toHaveTextContent(translations.settings.integration.LOCAL_MODELS.name)
+      expect(
+        screen.getByTestId("integration-card-CLAUDE_AGENT"),
+      ).toHaveTextContent(translations.settings.integration.CLAUDE_AGENT.name)
+      expect(screen.queryByText("Database name")).not.toBeInTheDocument()
+    },
+  )
+
+  it("updates names and setup messages on language changes without losing drafts or refetching", async () => {
+    state.locale = "es-ES"
+    state.app.externalIntegrations = [
+      {
+        id: "OPENAI_COMPATIBLE",
+        name: "Database name",
+        type: "AI_PROVIDER",
+        status: "OFF",
+        available: true,
+        payload_schema: { api_key: "API Key" },
+      },
+    ]
+    const view = renderRoute("/entities?tab=providers&focus=OPENAI_COMPATIBLE")
+    fireEvent.change(await screen.findByLabelText("API Key"), {
+      target: { value: "locale-key" },
+    })
+    expect(
+      screen.getByTestId("integration-card-OPENAI_COMPATIBLE"),
+    ).toHaveTextContent("IA personalizada")
+    state.locale = "it-IT"
+    view.rerenderRoute()
+    expect(
+      screen.getByTestId("integration-card-OPENAI_COMPATIBLE"),
+    ).toHaveTextContent("IA personalizzata")
+    expect(screen.getByLabelText("API Key")).toHaveValue("locale-key")
+    expect(state.app.fetchExternalIntegrations).not.toHaveBeenCalled()
+    fireEvent.click(
+      screen.getByRole("button", { name: itTranslations.common.setup }),
+    )
+    await waitFor(() => expect(setupIntegration).toHaveBeenCalled())
+    expect(setupIntegration.mock.calls[0].slice(0, 2)).toEqual([
+      "OPENAI_COMPATIBLE",
+      { api_key: "locale-key" },
+    ])
+    expect(state.app.showToast).toHaveBeenCalledWith(
+      itTranslations.settings.integrationEnabledSuccess.replace(
+        "{integration}",
+        "IA personalizzata",
+      ),
+      "success",
+    )
+  })
+
   it.each(["/entities", "/entities?tab=entities", "/entities?tab=unknown"])(
     "defaults to entities at %s",
     async route => {
@@ -224,18 +323,29 @@ describe("Settings integration migration", () => {
   )
 
   it.each([
-    { native: true, cloud: false, count: 2 },
-    { native: true, cloud: true, count: 3 },
-    { native: false, cloud: false, count: 3 },
-    { native: false, cloud: true, count: 4 },
+    {
+      native: true,
+      cloud: false,
+      count: 3,
+      aiTab: en.settings.aiTab.titleNoMcp,
+    },
+    {
+      native: true,
+      cloud: true,
+      count: 4,
+      aiTab: en.settings.aiTab.titleNoMcp,
+    },
+    { native: false, cloud: false, count: 3, aiTab: en.settings.aiTab.title },
+    { native: false, cloud: true, count: 4, aiTab: en.settings.aiTab.title },
   ])(
     "keeps $count settings tabs with native=$native and cloud=$cloud",
-    ({ native, cloud, count }) => {
+    ({ native, cloud, count, aiTab }) => {
       state.native = native
       state.app.featureFlags = { CLOUD: cloud ? FFStatus.ON : FFStatus.OFF }
       renderRoute("/settings")
       expect(screen.getAllByRole("tab")).toHaveLength(count)
       expect(screen.getByRole("tablist")).toHaveClass(`sm:grid-cols-${count}`)
+      expect(screen.getByRole("tab", { name: aiTab })).toBeInTheDocument()
       expect(
         screen.queryByRole("tab", { name: en.settings.integrations }),
       ).not.toBeInTheDocument()
@@ -244,4 +354,13 @@ describe("Settings integration migration", () => {
       ).toHaveAttribute("aria-selected", "true")
     },
   )
+
+  it("opens the AI & MCP settings tab from the legacy MCP link", () => {
+    state.native = false
+    state.app.featureFlags = { CLOUD: FFStatus.OFF }
+    renderRoute("/settings?tab=mcp")
+    expect(
+      screen.getByRole("tab", { name: en.settings.aiTab.title }),
+    ).toHaveAttribute("aria-selected", "true")
+  })
 })

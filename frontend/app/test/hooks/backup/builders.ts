@@ -6,9 +6,15 @@ import {
   SyncStatus,
 } from "@/types"
 
+export interface BuildPieceOptions {
+  hasLocalChanges?: boolean
+  remoteSchemaRevision?: number | null
+}
+
 export function buildPiece(
   status: SyncStatus,
   hasLocalChanges?: boolean,
+  remoteSchemaRevision?: number | null,
 ): FullBackupInfo {
   const now = new Date().toISOString()
   const localId = "local-id-1"
@@ -27,6 +33,9 @@ export function buildPiece(
     date: now,
     type: BackupFileType.DATA,
     size: 100,
+    ...(remoteSchemaRevision !== undefined
+      ? { schema_revision: remoteSchemaRevision }
+      : {}),
   }
 
   const resolveHasLocalChanges = () => {
@@ -67,6 +76,18 @@ export function buildPiece(
         has_local_changes: false,
         last_update: now,
       }
+    case SyncStatus.OUTDATED_APP:
+      return {
+        local: localInfo,
+        remote: {
+          ...remoteInfo,
+          schema_revision:
+            remoteSchemaRevision !== undefined ? remoteSchemaRevision : 96,
+        },
+        status: SyncStatus.OUTDATED_APP,
+        has_local_changes: hasLocalChanges ?? false,
+        last_update: now,
+      }
     case SyncStatus.MISSING:
       return {
         local: null,
@@ -86,10 +107,17 @@ export function buildPiece(
   }
 }
 
-export function buildBackupsInfo(dataStatus: SyncStatus): FullBackupsInfo {
+export function buildBackupsInfo(
+  dataStatus: SyncStatus,
+  options?: BuildPieceOptions,
+): FullBackupsInfo {
   return {
     pieces: {
-      [BackupFileType.DATA]: buildPiece(dataStatus),
+      [BackupFileType.DATA]: buildPiece(
+        dataStatus,
+        options?.hasLocalChanges,
+        options?.remoteSchemaRevision,
+      ),
     },
   }
 }

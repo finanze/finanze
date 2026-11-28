@@ -9,10 +9,8 @@ from domain.ai import (
     AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
-    AIGenerationStatus,
     AIModel,
     AIModelCapability,
-    AIUsage,
 )
 from domain.exception.exceptions import (
     AIProviderError,
@@ -22,11 +20,14 @@ from domain.exception.exceptions import (
     TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationPayload
+from infrastructure.client.ai.attachments import responses_input
 from infrastructure.client.ai.http_ai_client import (
     REASONING_EFFORTS,
     HttpAIClient,
     to_dezimal,
 )
+from infrastructure.client.ai.input_modalities import openai_input_modalities
+from infrastructure.client.ai.responses_api import parse_response_output
 from infrastructure.client.http.http_response import HttpResponse
 
 INSUFFICIENT_QUOTA = "insufficient_quota"
@@ -70,6 +71,7 @@ class OpenAIClient(HttpAIClient):
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
             AIClientFeature.CUSTOM_MODELS,
+            AIClientFeature.ATTACHMENTS,
         }
 
     async def setup(self, payload: ExternalIntegrationPayload):
@@ -93,12 +95,17 @@ class OpenAIClient(HttpAIClient):
         await self._check(response)
         data = await response.json()
         capabilities = set()
+        input_modalities = None
         if _is_text_model(model_id):
             capabilities.add(AIModelCapability.STRUCTURED_OUTPUT)
+            input_modalities = openai_input_modalities(model_id)
             if await self._supports_decisions(model_id, credentials):
                 capabilities.add(AIModelCapability.DECISIONS)
         return AIModel(
-            id=data.get("id") or model_id, name=model_id, capabilities=capabilities
+            id=data.get("id") or model_id,
+            name=model_id,
+            capabilities=capabilities,
+            input_modalities=input_modalities,
         )
 
     async def decide(
@@ -172,10 +179,7 @@ class OpenAIClient(HttpAIClient):
             )
         body = {
             "model": request.model,
-            "input": [
-                {"role": message.role.value.lower(), "content": message.content}
-                for message in request.messages
-            ],
+            "input": responses_input(request.messages),
             "store": False,
         }
         if request.instructions:
@@ -197,35 +201,7 @@ class OpenAIClient(HttpAIClient):
             body["max_output_tokens"] = request.max_output_tokens
 
         response = await self._send("POST", "/responses", credentials, json=body)
-
-        texts, refusals = [], []
-        for item in response.get("output") or []:
-            if item.get("type") != "message":
-                continue
-            for part in item.get("content") or []:
-                if part.get("type") == "output_text":
-                    texts.append(part.get("text") or "")
-                elif part.get("type") == "refusal":
-                    refusals.append(part.get("refusal") or "")
-
-        if refusals:
-            generation_status = AIGenerationStatus.REFUSED
-        elif response.get("status") == "incomplete":
-            generation_status = AIGenerationStatus.INCOMPLETE
-        else:
-            generation_status = AIGenerationStatus.COMPLETED
-        usage = response.get("usage") or {}
-        return AIGeneration(
-            status=generation_status,
-            text="".join(texts) or None,
-            refusal="".join(refusals) or None,
-            usage=AIUsage(
-                input_tokens=usage.get("input_tokens") or 0,
-                output_tokens=usage.get("output_tokens") or 0,
-            )
-            if usage
-            else None,
-        )
+        return parse_response_output(response)
 
     async def _should_retry(self, response: HttpResponse) -> bool:
         if response.status == 429 and await self._is_quota_error(response):

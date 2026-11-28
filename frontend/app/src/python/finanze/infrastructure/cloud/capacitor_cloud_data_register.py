@@ -104,12 +104,20 @@ class CapacitorCloudDataRegister(
         for type_key, entry in backup_data.items():
             try:
                 backup_type = BackupFileType(type_key)
+                raw_revision = entry.get("schema_revision")
+                schema_revision = (
+                    int(raw_revision) if raw_revision is not None else None
+                )
+                raw_hash = entry.get("schema_hash")
+                schema_hash = str(raw_hash) if raw_hash is not None else None
                 backup_info = BackupInfo(
                     id=UUID(entry["id"]),
                     protocol=int(entry["protocol"]),
                     date=datetime.fromisoformat(entry["date"]),
                     type=backup_type,
                     size=int(entry["size"]),
+                    schema_revision=schema_revision,
+                    schema_hash=schema_hash,
                 )
                 backup_infos[backup_type] = backup_info
             except Exception:
@@ -123,12 +131,17 @@ class CapacitorCloudDataRegister(
         backups_data = backup_section.get("backups") or {}
 
         for entry in entries:
-            backups_data[entry.type.value] = {
+            entry_data: dict[str, Any] = {
                 "id": str(entry.id),
                 "protocol": entry.protocol,
                 "date": entry.date.isoformat(),
                 "size": entry.size,
             }
+            if entry.schema_revision is not None:
+                entry_data["schema_revision"] = entry.schema_revision
+            if entry.schema_hash is not None:
+                entry_data["schema_hash"] = entry.schema_hash
+            backups_data[entry.type.value] = entry_data
 
         backup_section["backups"] = backups_data
         cloud_data["backup"] = backup_section

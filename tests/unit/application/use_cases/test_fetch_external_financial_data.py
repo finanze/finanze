@@ -12,6 +12,7 @@ from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.ports.transaction_label_port import TransactionLabelPort
 from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from application.use_cases.fetch_external_financial_data import (
@@ -30,7 +31,15 @@ from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_result import FetchResultCode
 from domain.global_position import ProductType
 from domain.labeling import LabelingTrigger
+from domain.settings import (
+    AccountAssetConfig,
+    AccountExclusion,
+    AssetConfig,
+    CryptoAssetConfig,
+    PartialSettings,
+)
 from domain.transactions import AccountTx, Transactions, TxType
+from infrastructure.config.base_config import BASE_CONFIG
 
 
 def _build_use_case(external_entity, entity, fetcher=None, last_fetches=None):
@@ -54,6 +63,9 @@ def _build_use_case(external_entity, entity, fetcher=None, last_fetches=None):
     transaction_port.get_latest_account_tx_date = AsyncMock(return_value=None)
     transaction_port.get_refs_by_entity = AsyncMock(return_value={"known"})
     transaction_labeler = AsyncMock(spec=TransactionLabeler)
+    config_port = AsyncMock()
+    config_port.load_sections.return_value = BASE_CONFIG
+    transaction_label_port = AsyncMock(spec=TransactionLabelPort)
 
     fetchers = {}
     if fetcher is not None:
@@ -69,11 +81,16 @@ def _build_use_case(external_entity, entity, fetcher=None, last_fetches=None):
         transaction_handler_port,
         transaction_port,
         transaction_labeler,
+        config_port,
+        transaction_label_port,
     )
     use_case.mocks = {
         "external_entity_port": external_entity_port,
         "transaction_port": transaction_port,
         "transaction_labeler": transaction_labeler,
+        "config_port": config_port,
+        "transaction_label_port": transaction_label_port,
+        "position_port": position_port,
     }
     return use_case, last_fetches_port
 
@@ -161,6 +178,113 @@ def _movement(entity, ref):
         fees=Dezimal(0),
         retentions=Dezimal(0),
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("deep", [False, True])
+async def test_external_exclusions_apply_before_save_and_deep_rebuild(deep):
+    entity_id = uuid4()
+    entity = _make_entity(entity_id)
+    external_entity = _make_external_entity(entity_id, ExternalEntityStatus.LINKED)
+    excluded, included = _movement(entity, "excluded"), _movement(entity, "included")
+    excluded.iban, included.iban = "es12 34", "ES999"
+    fetcher = _linked_fetcher(Transactions(account=[excluded, included, included]))
+    use_case, _ = _build_use_case(external_entity, entity, fetcher)
+    use_case.mocks["config_port"].load_sections.return_value = PartialSettings(
+        assets=AssetConfig(
+            crypto=CryptoAssetConfig(),
+            accounts=AccountAssetConfig(
+                [AccountExclusion(type="IBAN", value="ES1234")]
+            ),
+        )
+    )
+    port = use_case.mocks["transaction_port"]
+    port.get_by_entity_and_source.return_value = Transactions(account=[])
+    labels = use_case.mocks["transaction_label_port"]
+    labels.get_classifications_by_ids.return_value = {}
+    result = await use_case.execute(
+        ExternalFetchRequest(
+            external_entity_id=external_entity.id,
+            features=[Feature.TRANSACTIONS],
+            deep=deep,
+        )
+    )
+    assert result.code == FetchResultCode.COMPLETED
+    assert result.data.transactions.account == [included]
+    assert port.save.await_args.args[0].account == [included]
+    fetcher.global_position.assert_not_called()
+    assert fetcher.transactions.await_args.args[0].registered_txs == (
+        set() if deep else {"known"}
+    )
+    if deep:
+        port.delete_by_entity_and_source.assert_awaited_once_with(
+            entity_id, DataSource.REAL
+        )
+        port.get_latest_account_tx_date.assert_not_called()
+        assert fetcher.transactions.await_args.args[
+            0
+        ].from_date == date.today() - timedelta(days=730)
+    else:
+        port.delete_by_entity_and_source.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_external_deep_empty_result_clears_real_history():
+    entity_id = uuid4()
+    entity = _make_entity(entity_id)
+    external_entity = _make_external_entity(entity_id, ExternalEntityStatus.LINKED)
+    fetcher = _linked_fetcher(Transactions(account=[]))
+    use_case, _ = _build_use_case(external_entity, entity, fetcher)
+    port = use_case.mocks["transaction_port"]
+    port.get_by_entity_and_source.return_value = Transactions(account=[])
+    result = await use_case.execute(
+        ExternalFetchRequest(
+            external_entity_id=external_entity.id,
+            features=[Feature.TRANSACTIONS],
+            deep=True,
+        )
+    )
+    assert result.code == FetchResultCode.COMPLETED
+    port.delete_by_entity_and_source.assert_awaited_once_with(
+        entity_id, DataSource.REAL
+    )
+
+
+@pytest.mark.asyncio
+async def test_external_deep_failure_never_deletes_history():
+    entity_id = uuid4()
+    entity = _make_entity(entity_id)
+    external_entity = _make_external_entity(entity_id, ExternalEntityStatus.LINKED)
+    use_case, _ = _build_use_case(
+        external_entity, entity, _linked_fetcher(tx_error=ExternalEntityFailed())
+    )
+    result = await use_case.execute(
+        ExternalFetchRequest(
+            external_entity_id=external_entity.id,
+            features=[Feature.TRANSACTIONS],
+            deep=True,
+        )
+    )
+    assert result.code == FetchResultCode.REMOTE_FAILED
+    use_case.mocks["transaction_port"].delete_by_entity_and_source.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_external_position_only_does_not_delete_transactions_in_deep_mode():
+    entity_id = uuid4()
+    external_entity = _make_external_entity(entity_id, ExternalEntityStatus.LINKED)
+    fetcher = _linked_fetcher(Transactions(account=[]))
+    use_case, _ = _build_use_case(external_entity, _make_entity(entity_id), fetcher)
+    result = await use_case.execute(
+        ExternalFetchRequest(
+            external_entity_id=external_entity.id,
+            features=[Feature.POSITION],
+            deep=True,
+        )
+    )
+    assert result.details["completedFeatures"] == ["POSITION"]
+    fetcher.transactions.assert_not_called()
+    use_case.mocks["transaction_port"].delete_by_entity_and_source.assert_not_called()
 
 
 class TestFetchExternalTransactions:

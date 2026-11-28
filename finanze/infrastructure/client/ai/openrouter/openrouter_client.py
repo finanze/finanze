@@ -30,6 +30,7 @@ from infrastructure.client.ai.http_ai_client import (
     REASONING_EFFORTS,
     HttpAIClient,
 )
+from infrastructure.client.ai.input_modalities import parse_input_modalities
 from infrastructure.client.http.http_response import HttpResponse
 
 APP_TITLE = "Finanze"
@@ -63,6 +64,7 @@ class OpenRouterClient(HttpAIClient):
             AIClientFeature.DECISIONS,
             AIClientFeature.UPSTREAM_PROVIDERS,
             AIClientFeature.CUSTOM_MODELS,
+            AIClientFeature.ATTACHMENTS,
         }
 
     def _headers(self, credentials: Optional[ExternalIntegrationPayload]) -> dict:
@@ -90,16 +92,20 @@ class OpenRouterClient(HttpAIClient):
         data = await self._get_data(f"/model/{path}", credentials)
         if data is None:
             return None
-        output_modalities = (data.get("architecture") or {}).get(
-            "output_modalities"
-        ) or []
+        architecture = data.get("architecture") or {}
+        output_modalities = architecture.get("output_modalities") or []
         capabilities = _capabilities(
             data.get("supported_parameters"), TEXT_OUTPUT in output_modalities
         )
         if DECISIONS_OUTPUT in output_modalities:
             capabilities.add(AIModelCapability.DECISIONS)
         return AIModel(
-            id=model_id, name=data.get("name") or model_id, capabilities=capabilities
+            id=model_id,
+            name=data.get("name") or model_id,
+            capabilities=capabilities,
+            input_modalities=parse_input_modalities(
+                architecture.get("input_modalities")
+            ),
         )
 
     async def get_model_providers(

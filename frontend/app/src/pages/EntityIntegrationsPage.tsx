@@ -53,6 +53,7 @@ import {
   ENABLE_BANKING_PROVIDER,
 } from "@/components/ExternalEntityConnection"
 import { isAccountScopedEntity } from "@/utils/entityUtils"
+import { getIntegrationName } from "@/lib/integrations"
 
 const INTEGRATION_TABS = ["entities", "providers"] as const
 
@@ -163,7 +164,11 @@ export default function EntityIntegrationsPage() {
   const enableBankingIntegration = externalIntegrations?.find(
     integ => integ.id === ENABLE_BANKING_PROVIDER,
   )
-  const enableBankingName = enableBankingIntegration?.name ?? "Enable Banking"
+  const enableBankingName = getIntegrationName(
+    t,
+    ENABLE_BANKING_PROVIDER,
+    enableBankingIntegration,
+  )
   const goToEnableBankingSetup = () =>
     navigate(`/entities?tab=providers&focus=${ENABLE_BANKING_PROVIDER}`)
 

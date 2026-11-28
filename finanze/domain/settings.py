@@ -1,12 +1,14 @@
 from dataclasses import field
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from domain.commodity import WeightUnit
-from domain.transactions import LabelOrigin
+from domain.transactions import LabelOrigin, is_valid_iban_format, normalize_iban
+from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass
 
 CURRENT_VERSION = 8
+MAX_AI_PROVIDERS = 5
 
 FilterValues = str | list[str]
 
@@ -104,8 +106,62 @@ class SheetsImportConfig:
 
 
 @dataclass
+class AIProviderEntry:
+    provider: str = Field(min_length=1, max_length=200)
+    model: str = Field(min_length=1, max_length=200)
+    upstreamProvider: Optional[str] = None
+
+    @field_validator("provider", "model", "upstreamProvider", mode="before")
+    @classmethod
+    def trim_values(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+def _unique_entries(providers: list[AIProviderEntry]) -> list[AIProviderEntry]:
+    identities = [
+        (entry.provider, entry.model, entry.upstreamProvider or None)
+        for entry in providers
+    ]
+    if len(identities) != len(set(identities)):
+        raise ValueError("Duplicate AI providers")
+    return providers
+
+
+def effective_ai_providers(
+    default: list[AIProviderEntry], override: list[AIProviderEntry]
+) -> list[AIProviderEntry]:
+    return list(override or default)
+
+
+@dataclass
+class AIConfig:
+    providers: list[AIProviderEntry] = Field(
+        default_factory=list, max_length=MAX_AI_PROVIDERS
+    )
+
+    @field_validator("providers")
+    @classmethod
+    def unique_providers(cls, providers):
+        return _unique_entries(providers)
+
+
+@dataclass
+class AIImportConfig:
+    providers: list[AIProviderEntry] = Field(
+        default_factory=list, max_length=MAX_AI_PROVIDERS
+    )
+    instructions: Optional[str] = None
+
+    @field_validator("providers")
+    @classmethod
+    def unique_providers(cls, providers):
+        return _unique_entries(providers)
+
+
+@dataclass
 class ImportConfig:
     sheets: Optional[SheetsImportConfig] = None
+    ai: AIImportConfig = field(default_factory=AIImportConfig)
 
 
 @dataclass
@@ -115,8 +171,40 @@ class CryptoAssetConfig:
 
 
 @dataclass
+class AccountExclusion:
+    type: Literal["IBAN"]
+    value: str
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_iban(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Invalid IBAN")
+        normalized = normalize_iban(value)
+        if not normalized or not is_valid_iban_format(normalized):
+            raise ValueError("Invalid IBAN")
+        return normalized
+
+
+@dataclass
+class AccountAssetConfig:
+    exclusions: list[AccountExclusion] = field(default_factory=list)
+
+    @field_validator("exclusions")
+    @classmethod
+    def unique_exclusions(
+        cls, exclusions: list[AccountExclusion]
+    ) -> list[AccountExclusion]:
+        values = [rule.value for rule in exclusions]
+        if len(values) != len(set(values)):
+            raise ValueError("Duplicate account exclusions")
+        return exclusions
+
+
+@dataclass
 class AssetConfig:
     crypto: CryptoAssetConfig
+    accounts: AccountAssetConfig = field(default_factory=AccountAssetConfig)
 
 
 class EditMode(str, Enum):
@@ -174,9 +262,9 @@ class ExternalLabelingExamplesConfig:
 @dataclass
 class ExternalLabelingConfig:
     enabled: bool = False
-    provider: Optional[str] = None
-    model: Optional[str] = None
-    upstreamProvider: Optional[str] = None
+    providers: list[AIProviderEntry] = Field(
+        default_factory=list, max_length=MAX_AI_PROVIDERS
+    )
     autoRun: bool = True
     minConfidence: int = 70
     maxPerRun: int = 400
@@ -184,6 +272,11 @@ class ExternalLabelingConfig:
         default_factory=ExternalLabelingExamplesConfig
     )
     instructions: Optional[str] = None
+
+    @field_validator("providers")
+    @classmethod
+    def unique_providers(cls, providers):
+        return _unique_entries(providers)
 
 
 @dataclass
@@ -198,6 +291,7 @@ class SettingsSection(str, Enum):
     IMPORTING = "importing"
     ASSETS = "assets"
     LABELING = "labeling"
+    AI = "ai"
 
 
 @dataclass
@@ -210,6 +304,7 @@ class Settings:
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
     labeling: LabelingConfig = field(default_factory=LabelingConfig)
+    ai: AIConfig = field(default_factory=AIConfig)
 
 
 @dataclass
@@ -222,6 +317,7 @@ class PartialSettings:
     importing: Optional[ImportConfig] = None
     assets: Optional[AssetConfig] = None
     labeling: Optional[LabelingConfig] = None
+    ai: Optional[AIConfig] = None
 
     def included_sections(self) -> list[SettingsSection]:
         return [

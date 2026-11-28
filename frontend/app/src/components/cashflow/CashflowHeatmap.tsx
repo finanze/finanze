@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { cn } from "@/lib/utils"
+import { formatDate } from "@/lib/formatters"
 import type { CashflowPoint } from "@/types/cashflow"
 import {
   HEATMAP_LEVELS,
@@ -153,20 +154,20 @@ export function CashflowHeatmap({
   }
 
   const formatLongDate = (date: string) =>
-    new Intl.DateTimeFormat(locale, {
+    formatDate(parseISO(date), locale, {
       weekday: "short",
       day: "numeric",
       month: "short",
       year: "numeric",
-    }).format(parseISO(date))
+    })
 
   const formatMonth = (date: string) =>
-    new Intl.DateTimeFormat(locale, {
+    formatDate(parseISO(date), locale, {
       month: "short",
       ...(multiYear && (date === fromDate || date.slice(5, 7) === "01")
         ? { year: "2-digit" as const }
         : {}),
-    }).format(parseISO(date))
+    })
 
   const activeDay = daysByDate.get(hovered ?? selected ?? "")
 

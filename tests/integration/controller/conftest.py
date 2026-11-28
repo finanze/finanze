@@ -97,6 +97,7 @@ from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.user_files.user_data_manager import UserDataManager
 from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
+from infrastructure.config.base_config import BASE_CONFIG
 from infrastructure.repository.settings.settings_repository import SettingsRepository
 
 from application.ports.sheets_initiator import SheetsInitiator
@@ -159,6 +160,7 @@ from application.use_cases.get_crypto_wallet_addresses import (
     GetCryptoWalletAddressesImpl,
 )
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
+from application.use_cases.manual_account_balance import ManualAccountBalanceUpdater
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
 from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.update_position import UpdatePositionImpl
@@ -263,6 +265,7 @@ async def app(tmp_path):
     crypto_asset_info_provider = AsyncMock(spec=CryptoAssetInfoProvider)
     exchange_rate_provider = AsyncMock(spec=ExchangeRateProvider)
     config_port = AsyncMock(spec=ConfigPort)
+    config_port.load_sections.return_value = BASE_CONFIG
 
     backup_local_registry = AsyncMock(spec=BackupLocalRegistry)
     backup_repository = AsyncMock(spec=BackupRepository)
@@ -271,6 +274,8 @@ async def app(tmp_path):
     data_initiator.get_hashed_password = AsyncMock(return_value="hashed-password")
 
     backupable_data = AsyncMock(spec=Backupable)
+    backupable_data.get_schema_revision = MagicMock(return_value=95)
+    backupable_data.get_schema_hash = MagicMock(return_value="hash_95")
     backupable_ports = {
         BackupFileType.DATA: backupable_data,
     }
@@ -406,6 +411,11 @@ async def app(tmp_path):
         real_estate_port=real_estate_repo,
         loan_calculator=loan_calculator,
     )
+    manual_account_balance_updater = ManualAccountBalanceUpdater(
+        position_port=position_port,
+        snapshot_writer=manual_position_snapshot_writer,
+        exchange_rate_provider=exchange_rate_provider,
+    )
     manual_historic_writer = ManualHistoricWriter(historic_port)
     update_position_uc = UpdatePositionImpl(
         entity_port=entity_port,
@@ -426,6 +436,7 @@ async def app(tmp_path):
         label_port,
         transaction_label_port,
         transaction_labeler,
+        manual_account_balance_updater,
     )
     unsettle_manual_investment_uc = UnsettleManualInvestmentImpl(
         historic_port,
@@ -507,9 +518,7 @@ async def app(tmp_path):
     query_pending_flows_uc = QueryPendingFlowsImpl(pending_flow_repo)
     settle_pending_flow_uc = SettlePendingFlowImpl(
         pending_flow_port=pending_flow_repo,
-        position_port=position_port,
-        snapshot_writer=manual_position_snapshot_writer,
-        exchange_rate_provider=exchange_rate_provider,
+        balance_updater=manual_account_balance_updater,
         transaction_handler_port=transaction_handler,
     )
     get_money_events_uc = GetMoneyEventsImpl(
