@@ -1,3 +1,36 @@
+## [0.12.0] - 2026-11-28
+
+### 🚀 Features
+
+- Add Github Copilot, Claude & ChatGPT sign in support and labelling model prioritization (#230)
+- Add "Fit Y axis" option to net worth timeline chart (#234)
+- Add account exclusion per IBAN in settings
+- Allow multiple conditions in labeling rules
+- View evolution chart per individual fund/stock (#236)
+- *(import)* Add more supported formats, improve UI & AI import support (with AI vision) (#237)
+- *(i18n)* Add German (de-DE) language support (#239)
+- Optionally update manual account balance when adding TXs (#240)
+- Improve remote backup version tracking and sync rollback (#241)
+- Add Portuguese and French support (#243)
+
+### 🐛 Bug Fixes
+
+- Migrate Polymarket client to Data API v2 (#231)
+- Sqlite worker access conflict
+- Properly secure session & remember session (#238)
+- Update MyInvestor position fetch (#244)
+- Exchange rate load error in mobile (#245)
+- Http python bridge in nullish values (#247)
+- Proper version calculation (#248)
+
+### 📚 Documentation
+
+- Improve some setup instructions
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry some failed jobs in CI/CD
+- Update dependencies (#250)
 ## [0.11.0] - 2026-10-31
 
 ### 🚀 Features
